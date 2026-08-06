@@ -850,23 +850,98 @@ a {
  * inside the drawer, so on a phone the board gets the full width and on a
  * desktop it gets the full height.
  */
+/*
+ * Named areas rather than source order, because the same children have to form
+ * a column on a phone and two columns on anything held sideways — and the
+ * alternative, duplicating the markup per layout, is how the two versions drift
+ * apart.
+ */
 .stage {
   display: grid;
   gap: 12px;
+  grid-template-areas:
+    'update'
+    'bar'
+    'board'
+    'caption'
+    'end'
+    'hint';
   /*
    * The width limit lives on the stage, not on each child. Putting it on the
    * children left them free to sit wherever the flex container placed them,
    * which is how the board ended up off-centre on a wide window.
    *
-   * The board is taller than it is wide, so its size is governed by the
-   * viewport *height*; the floor stops it collapsing on a short, wide window.
+   * The board is taller than it is wide, so on anything but a phone its size is
+   * governed by the window's *height* — minus the bar and caption above and
+   * below it, which is the part an earlier version forgot and why the board
+   * overflowed the bottom of short windows. `dvh` rather than `vh` so a mobile
+   * browser's disappearing toolbar does not count twice.
    */
   width: 100%;
-  max-width: min(100%, max(320px, 74vh));
+  max-width: min(100%, max(300px, calc((100dvh - 150px) * 0.9)));
   margin-inline: auto;
 }
 
+.update {
+  grid-area: update;
+}
+
+/*
+ * Held sideways, a portrait board leaves two empty columns beside it. Put the
+ * status, the commentary and the result in one of them instead: the board can
+ * then take the full height rather than being squeezed by everything stacked
+ * above and below it.
+ *
+ * The breakpoint is low enough to catch a phone in landscape (812x375), where
+ * stacking is worst — there the board would otherwise be about 200px tall.
+ */
+@media (min-width: 700px) and (orientation: landscape) {
+  .stage {
+    max-width: min(100%, 1200px);
+    /*
+     * The board column is sized here rather than by its contents. Asking for
+     * `min-content` and then giving the board a percentage width is circular —
+     * the column waits on the board, the board waits on the column, and the
+     * board collapses to nothing. 9.2 wide by 10.2 tall means height times 0.9.
+     *
+     * Only the page's own padding is subtracted: unlike the stacked layout,
+     * nothing sits above or below the board here — the bar and the caption have
+     * moved into the column beside it.
+     */
+    grid-template-columns:
+      minmax(0, calc((100dvh - 44px) * 0.9))
+      minmax(240px, 340px);
+    grid-template-areas:
+      'board update'
+      'board bar'
+      'board caption'
+      'board end'
+      'board hint'
+      'board .';
+    /*
+     * The board spans every row, so without a row that takes the slack the
+     * others share the leftover height and the panel floats in the middle of
+     * the column. The last row absorbs it and everything sits at the top.
+     */
+    grid-template-rows: auto auto auto auto auto 1fr;
+    align-content: start;
+    justify-content: center;
+    gap: 12px 20px;
+  }
+
+  .stage__board {
+    width: 100%;
+  }
+
+  /* Room to read, now that it is not stealing height from the board. */
+  .commentary__text {
+    -webkit-line-clamp: 6;
+    line-clamp: 6;
+  }
+}
+
 .stage__bar {
+  grid-area: bar;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -883,15 +958,18 @@ a {
 }
 
 .stage__board {
+  grid-area: board;
   width: 100%;
 }
 
 .stage__end {
+  grid-area: end;
   width: 100%;
   text-align: center;
 }
 
 .stage__hint {
+  grid-area: hint;
   margin: 0;
 }
 
@@ -965,6 +1043,7 @@ a {
  * no voice, and this line is the whole of the commentary.
  */
 .commentary {
+  grid-area: caption;
   display: flex;
   align-items: flex-start;
   gap: 8px;
