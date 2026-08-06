@@ -1,0 +1,85 @@
+name: Release desktop
+
+# Tagging `v*` builds installers for all three desktop platforms and attaches
+# them to a GitHub Release.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # A universal binary so one download covers both Apple Silicon and
+          # Intel Macs.
+          - platform: macos-latest
+            args: '--target universal-apple-darwin'
+            rust-targets: 'aarch64-apple-darwin,x86_64-apple-darwin,wasm32-unknown-unknown'
+          - platform: ubuntu-22.04
+            args: ''
+            rust-targets: 'wasm32-unknown-unknown'
+          - platform: windows-latest
+            args: ''
+            rust-targets: 'wasm32-unknown-unknown'
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-targets }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: '. -> target'
+
+      # Tauri's Linux build needs GTK and WebKitGTK; the other runners ship
+      # their system webview already.
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libgtk-3-dev
+
+      - uses: jetli/wasm-pack-action@v0.4.0
+        with:
+          version: latest
+
+      - run: npm ci
+
+      # The frontend imports the WebAssembly engine, so it must exist before
+      # `tauri build` runs the site build.
+      - name: Build WebAssembly engine
+        run: npm run wasm
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Cờ Tướng ${{ github.ref_name }}'
+          releaseBody: |
+            Tải bản cài đặt cho hệ điều hành của bạn ở phần Assets bên dưới.
+
+            Ứng dụng chưa được ký số, nên lần mở đầu tiên hệ điều hành sẽ cảnh báo:
+            - **macOS**: chuột phải vào ứng dụng → Open → Open.
+            - **Windows**: More info → Run anyway.
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}

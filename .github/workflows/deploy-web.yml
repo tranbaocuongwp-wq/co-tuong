@@ -1,0 +1,58 @@
+name: Deploy web (Cloudflare Pages)
+
+# The site is built here rather than in Cloudflare's build image, which has no
+# reliable Rust or wasm-pack. GitHub Actions produces `dist/` and Wrangler
+# uploads the finished static files.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-web
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: jetli/wasm-pack-action@v0.4.0
+        with:
+          version: latest
+
+      - run: npm ci
+
+      - name: Build WebAssembly engine
+        run: npm run wasm
+
+      - name: Verify the WebAssembly build before shipping it
+        run: node scripts/smoke-wasm.mjs
+
+      - name: Build site
+        run: npx vite build
+
+      # Requires two repository secrets:
+      #   CLOUDFLARE_API_TOKEN  — scoped to "Cloudflare Pages: Edit"
+      #   CLOUDFLARE_ACCOUNT_ID
+      - name: Publish to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=co-tuong --branch=main

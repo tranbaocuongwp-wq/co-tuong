@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  engine:
+    name: Engine (Rust)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Format
+        run: cargo fmt --package xiangqi-engine --package xiangqi-engine-wasm --check
+
+      - name: Clippy
+        run: cargo clippy --package xiangqi-engine --all-targets -- -D warnings
+
+      - name: Unit tests
+        run: cargo test --package xiangqi-engine --release
+
+      # Perft is the correctness gate for the rules. Depth 5 is 133M nodes and
+      # takes a few seconds in release; it is worth running on every push
+      # because a movegen regression is otherwise almost invisible.
+      - name: Perft (depth 5)
+        run: cargo test --package xiangqi-engine --release --test perft -- --ignored --nocapture
+
+  web:
+    name: Web build + WebAssembly smoke test
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: jetli/wasm-pack-action@v0.4.0
+        with:
+          version: latest
+
+      - run: npm ci
+
+      - name: Build WebAssembly engine
+        run: npm run wasm
+
+      # Runs the .wasm the browser will actually download, not the native
+      # build, so a binding-layer regression cannot slip through.
+      - name: WebAssembly smoke test
+        run: node scripts/smoke-wasm.mjs
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build site
+        run: npx vite build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: dist/
+          retention-days: 7
