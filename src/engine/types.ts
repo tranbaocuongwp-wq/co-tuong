@@ -35,6 +35,7 @@ export type EndReason =
   | 'stalemate'
   | 'repetition'
   | 'perpetualCheck'
+  | 'perpetualChase'
   | 'sixtyMove'
   | 'insufficientMaterial'
   | 'resign'
@@ -140,6 +141,7 @@ export function describeResult(status: GameStatus, reason: EndReason): string {
     stalemate: 'hết nước đi',
     repetition: 'lặp nước',
     perpetualCheck: 'chiếu liên hoàn',
+    perpetualChase: 'đuổi bắt liên hoàn',
     sixtyMove: '60 nước không ăn quân',
     insufficientMaterial: 'không đủ quân chiếu hết',
     resign: 'xin thua',

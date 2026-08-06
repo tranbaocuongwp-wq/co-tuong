@@ -81,12 +81,28 @@ Một crate Rust duy nhất phục vụ cả ba nơi: `engine-wasm` (WebAssembly
 - Cản mã, chân tượng, ngòi pháo, tốt qua sông mới đi ngang.
 - **Luật tướng đối mặt** — hai tướng không được nhìn thẳng nhau qua cột trống.
 - **Hết nước đi là thua**, không phải hòa như cờ vua.
-- **Chiếu tướng liên hoàn → bên chiếu thua.**
 - Hòa khi 60 nước không ăn quân, hoặc khi không bên nào đủ quân chiếu hết.
+
+### Luật lặp nước
+
+Khi một thế cờ lặp lại, engine phân loại từng nước trong chu kỳ thành **将** (chiếu), **捉** (đuổi bắt) hay **闲** (nhàn), rồi áp bảng phán quyết:
+
+| Tình huống | Kết quả |
+|---|---|
+| Một bên toàn chiếu / toàn đuổi, bên kia có nước nhàn | Bên ép thua |
+| Cả hai cùng chiếu, hoặc cùng đuổi | Hòa |
+| Một bên chiếu, bên kia đuổi | Bên chiếu thua |
+| Không bên nào ép | Hòa |
+
+Một nước chỉ tính là **đuổi** khi quân đuổi không phải Tướng/Tốt, quân bị đuổi không phải Tốt chưa qua sông, đòn dọa là **mới xuất hiện**, và ăn được thì **thực sự lợi quân** — điều cuối được xác định bằng bộ đánh giá đổi quân chơi thử cả chuỗi ăn trên bàn cờ, nên đúng cả với ngòi pháo.
+
+**Nguyên tắc thiết kế:** khi không đủ chắc chắn thì xử **hòa**. Chu kỳ quá dài, hoặc chuỗi nước không phát lại được, đều rơi về hòa. Nghĩa là luật có thể *bỏ sót* một ván đáng xử thua, nhưng không bao giờ xử thua oan.
 
 ### Chưa cài đặt
 
-- **Luật đuổi bắt liên hoàn (捉)** — phần phức tạp nhất của luật cờ tướng. Cài sai còn tệ hơn không cài, nên hiện tại chỉ có luật chiếu liên hoàn. Ván lặp nước mà không phải chiếu sẽ được xử hòa.
+- **兑** (đổi quân) và **献** (thí quân) không cần luật riêng ở đây: phép thử lợi quân đã tự loại chúng, vì đổi ngang hay thí quân đều không cho kết quả dương.
+- Chưa phân biệt **拦** (chặn đường) và **跟** (bám theo) như luật thi đấu. Nếu một nước bám theo tình cờ tạo ra đòn dọa lợi quân mới, engine vẫn xếp nó là "đuổi" — nghiêm hơn luật một chút. Ràng buộc "đòn dọa phải mới xuất hiện" khiến trường hợp này hiếm, nhưng nó có tồn tại.
+- Chưa xét trường hợp quân bị đuổi **không thể chạy** (theo luật, đuổi một quân đã bị trói chặt được xét khác).
 
 ## Về quyền riêng tư
 

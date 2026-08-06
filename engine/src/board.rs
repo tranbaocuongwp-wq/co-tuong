@@ -2,6 +2,7 @@
 //! repetition rules.
 
 use crate::eval::piece_square_value;
+use crate::movegen::MoveList;
 use crate::types::*;
 use crate::zobrist::{piece_key, SIDE_KEY};
 
@@ -12,12 +13,49 @@ use crate::zobrist::{piece_key, SIDE_KEY};
 /// side.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RepKind {
-    /// Neither side (or both sides) checked throughout the cycle.
+    /// Neither side was at fault, or both were in the same way.
     Draw,
-    /// The side to move was the perpetual checker, so it loses.
-    WeLose,
-    /// The opponent was the perpetual checker, so it loses.
-    WeWin,
+    /// The side to move was the offender, so it loses.
+    WeLose(Forcing),
+    /// The opponent was the offender, so it loses.
+    WeWin(Forcing),
+}
+
+/// Which offence the losing side committed. Carried through so the interface
+/// can tell a player *why* the game ended rather than just that it did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Forcing {
+    /// 长将 — perpetual check.
+    Check,
+    /// 长捉 — perpetual chase.
+    Chase,
+}
+
+/// What a move was doing, for the repetition rules.
+///
+/// The Chinese terms are the ones the competition rules use: 将 (check),
+/// 捉 (chase) and 闲 (idle). Only the first two are "forcing"; a single idle
+/// move anywhere in a repeated cycle clears the side that played it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Intent {
+    /// 将 — the move gives check.
+    Check,
+    /// 捉 — the move creates a new threat to win material.
+    Chase,
+    /// 闲 — anything else.
+    Idle,
+}
+
+/// Longest repeated cycle still examined for a perpetual chase.
+///
+/// Six full moves is far more than a real chase needs; beyond that the cycle is
+/// shuffling, and classifying it costs more than it is worth.
+const MAX_CHASE_CYCLE: usize = 12;
+
+/// Bit position of a square in the 90-bit target set the chase rules use.
+#[inline]
+fn target_bit(s: usize) -> u32 {
+    (disp_row(s) * 9 + disp_col(s)) as u32
 }
 
 #[derive(Clone, Copy)]
@@ -443,33 +481,260 @@ impl Position {
     /// Detect a repetition of the current position and score it under Xiangqi
     /// rules, where the perpetual checker loses.
     pub fn repetition(&self) -> Option<RepKind> {
-        let n = self.stack.len();
-        let mut we_check = true;
-        let mut they_check = true;
+        let plies = self.repetition_distance()?;
+
+        // A null move inside the window means we are somewhere in null-move
+        // pruning, where the sequence is not a real game continuation and the
+        // pieces never actually moved. Classifying it would be meaningless, so
+        // fall back to the check-only verdict.
+        let window = &self.stack[self.stack.len() - plies..];
+        if window.iter().any(|u| u.mv == NULL_MOVE) {
+            return Some(self.judge_by_checks(plies));
+        }
+
+        // Perpetual check is decisive on its own, and full classification
+        // cannot overturn it: a side that checked every move is forcing under
+        // any reading. Taking the cheap answer here keeps the common case out
+        // of the replay below, which matters because this runs at every node.
+        let by_checks = self.judge_by_checks(plies);
+        if by_checks != RepKind::Draw {
+            return Some(by_checks);
+        }
+
+        // A genuine chase is short: the chaser re-establishes the threat every
+        // move or two. Long cycles are shuffles, and replaying them is the
+        // expensive case, so they are left as draws — an omission, never a
+        // wrong loss.
+        if plies > MAX_CHASE_CYCLE {
+            return Some(RepKind::Draw);
+        }
+
+        // Otherwise the cycle has to be replayed to look for a chase. That runs
+        // on a copy so the caller's position — mid-search — is never disturbed.
+        let mut probe = self.clone_cycle(plies);
+        Some(probe.judge_cycle(plies))
+    }
+
+    /// Plies back to the most recent identical position, or `None` if the
+    /// current position does not repeat.
+    ///
+    /// Deliberately cheap: this runs at every search node, whereas the verdict
+    /// below only runs on the rare occasions it returns `Some`.
+    fn repetition_distance(&self) -> Option<usize> {
         let mut steps = 0usize;
-        let mut i = n;
+        let mut i = self.stack.len();
         while i > 0 {
             i -= 1;
-            let u = self.stack[i];
-            if u.captured != EMPTY {
+            if self.stack[i].captured != EMPTY {
                 // A capture is irreversible: nothing before it can recur.
                 break;
             }
             steps += 1;
-            if steps % 2 == 1 {
+            if steps.is_multiple_of(2) && self.keys[i] == self.key {
+                return Some(steps);
+            }
+        }
+        None
+    }
+
+    /// Verdict using only the recorded check flags.
+    ///
+    /// This is the conservative fallback: it can find perpetual check but never
+    /// perpetual chase, so the worst it does is call a draw.
+    fn judge_by_checks(&self, plies: usize) -> RepKind {
+        let mut we_check = true;
+        let mut they_check = true;
+        for (offset, u) in self.stack[self.stack.len() - plies..]
+            .iter()
+            .rev()
+            .enumerate()
+        {
+            if offset % 2 == 0 {
                 they_check &= u.gave_check;
             } else {
                 we_check &= u.gave_check;
             }
-            if steps.is_multiple_of(2) && self.keys[i] == self.key {
-                return Some(match (we_check, they_check) {
-                    (true, false) => RepKind::WeLose,
-                    (false, true) => RepKind::WeWin,
-                    _ => RepKind::Draw,
-                });
+        }
+        match (we_check, they_check) {
+            (true, false) => RepKind::WeLose(Forcing::Check),
+            (false, true) => RepKind::WeWin(Forcing::Check),
+            _ => RepKind::Draw,
+        }
+    }
+
+    /// Full verdict: replay the cycle, classify every move, and apply the
+    /// competition rules.
+    ///
+    /// Consumes `self` as scratch space — call it on a copy.
+    fn judge_cycle(&mut self, plies: usize) -> RepKind {
+        let us = self.side;
+
+        let mut moves = Vec::with_capacity(plies);
+        for _ in 0..plies {
+            match self.stack.last() {
+                Some(u) => moves.push(u.mv),
+                None => return RepKind::Draw,
+            }
+            self.undo_move();
+        }
+        moves.reverse();
+
+        // "Forcing" means every move that side made in the cycle was a check or
+        // a chase — one idle move anywhere in the cycle clears the side.
+        let mut us_forcing = true;
+        let mut us_only_checks = true;
+        let mut them_forcing = true;
+        let mut them_only_checks = true;
+
+        for mv in moves {
+            let mover = self.side;
+            let Some(intent) = self.classify_and_make(mv) else {
+                // The cycle did not replay. This should be impossible for moves
+                // taken off our own stack, but guessing at a verdict from a
+                // half-replayed position is exactly the mistake worth avoiding.
+                return RepKind::Draw;
+            };
+            if mover == us {
+                us_forcing &= intent != Intent::Idle;
+                us_only_checks &= intent == Intent::Check;
+            } else {
+                them_forcing &= intent != Intent::Idle;
+                them_only_checks &= intent == Intent::Check;
             }
         }
-        None
+
+        // A side that checked on every move is a perpetual checker; otherwise
+        // its offence was the chasing.
+        let offence = |only_checks: bool| {
+            if only_checks {
+                Forcing::Check
+            } else {
+                Forcing::Chase
+            }
+        };
+
+        match (us_forcing, them_forcing) {
+            (true, false) => RepKind::WeLose(offence(us_only_checks)),
+            (false, true) => RepKind::WeWin(offence(them_only_checks)),
+            (false, false) => RepKind::Draw,
+            // Both sides are at fault. Perpetual checking is judged more
+            // harshly than perpetual chasing, so a side that only checked loses
+            // to a side that only chased; like against like is a draw.
+            (true, true) => match (us_only_checks, them_only_checks) {
+                (true, false) => RepKind::WeLose(Forcing::Check),
+                (false, true) => RepKind::WeWin(Forcing::Check),
+                _ => RepKind::Draw,
+            },
+        }
+    }
+
+    /// Play `mv` and report what it was doing: checking, chasing, or neither.
+    ///
+    /// Returns `None` (leaving the position untouched) if the move will not
+    /// replay.
+    fn classify_and_make(&mut self, mv: Move) -> Option<Intent> {
+        let mover = self.side;
+        let before: u128 = self.profitable_targets(mover);
+        if !self.make_move(mv) {
+            return None;
+        }
+        if self.in_check() {
+            // The side now to move is in check, so the move just played was one.
+            return Some(Intent::Check);
+        }
+        let after = self.profitable_targets(mover);
+        // Only a *newly created* threat counts as a chase. Without this, a side
+        // shuffling harmlessly while an unrelated piece of theirs happens to
+        // stand en prise would be condemned for chasing.
+        let created_threat = after & !before != 0;
+        Some(if created_threat {
+            Intent::Chase
+        } else {
+            Intent::Idle
+        })
+    }
+
+    /// Squares holding enemy pieces that `side` could profitably capture, as a
+    /// bitset over the 90 playable points.
+    ///
+    /// The exclusions are the rule's, not conveniences:
+    /// * a King or Pawn doing the threatening counts as idle;
+    /// * the King as target is check, handled separately;
+    /// * a Pawn that has not crossed the river is not protected by the rule;
+    /// * and the capture must actually win material, or it is merely an offer
+    ///   to trade.
+    ///
+    /// Takes `&mut self` and flips the side to move in place rather than
+    /// working on a copy: this is called twice per ply of every repeated cycle,
+    /// and the copying showed up plainly in the engine's node rate.
+    fn profitable_targets(&mut self, side: u8) -> u128 {
+        let saved_side = self.side;
+        let saved_key = self.key;
+        if self.side != side {
+            self.side = side;
+            self.key ^= SIDE_KEY;
+        }
+
+        let mut list = MoveList::new();
+        self.generate(&mut list, true);
+        let mut bits: u128 = 0;
+
+        for i in 0..list.len {
+            let m = list.moves[i];
+            let to = mv_to(m);
+            let bit = 1u128 << target_bit(to);
+            if bits & bit != 0 {
+                continue; // already established by a cheaper attacker
+            }
+            let attacker = self.board[mv_from(m)];
+            let victim = self.board[to];
+            if matches!(kind_of(attacker), KING | PAWN) {
+                continue;
+            }
+            if kind_of(victim) == KING {
+                continue;
+            }
+            if kind_of(victim) == PAWN && !crossed_river(to, 1 - side) {
+                continue;
+            }
+            // An undefended piece is winnable without playing the exchange out,
+            // which is the common case and skips the expensive part.
+            let profitable = if self.is_attacked(to, 1 - side) {
+                self.see(m) > 0
+            } else {
+                true
+            };
+            if profitable {
+                bits |= bit;
+            }
+        }
+
+        self.side = saved_side;
+        self.key = saved_key;
+        bits
+    }
+
+    /// A copy carrying only the last `plies` of history — enough to unwind and
+    /// replay the cycle, and nothing more.
+    ///
+    /// A plain `clone` would copy the entire game history on every repetition
+    /// hit. Search finds repetitions constantly, and that copying alone cost
+    /// about a fifth of the engine's speed.
+    fn clone_cycle(&self, plies: usize) -> Position {
+        let start = self.stack.len() - plies;
+        Position {
+            board: self.board,
+            side: self.side,
+            key: self.key,
+            king_sq: self.king_sq,
+            score: self.score,
+            counts: self.counts,
+            halfmove: self.halfmove,
+            move_num: self.move_num,
+            ply: 0,
+            stack: self.stack[start..].to_vec(),
+            keys: self.keys[start..].to_vec(),
+        }
     }
 
     /// True once 120 plies (60 full moves) have passed with no capture.
@@ -604,6 +869,129 @@ mod tests {
         assert_eq!(pos.to_fen(), before_fen);
         assert_eq!(pos.key, before_key);
         assert_eq!(pos.score, before_score);
+    }
+
+    fn play(pos: &mut Position, moves: &[&str]) {
+        for mv in moves {
+            assert!(
+                pos.make_move_checked(iccs_to_move(mv).unwrap()),
+                "'{mv}' is illegal in {}",
+                pos.to_fen()
+            );
+        }
+    }
+
+    /// Red's rook hounds an undefended black horse; the horse dodges between
+    /// two squares and the rook follows. Red is the one refusing to vary, so
+    /// Red loses — this is the whole point of the perpetual-chase rule.
+    #[test]
+    fn perpetual_chase_loses_for_the_chaser() {
+        let mut pos = Position::from_fen("3k5/9/8R/9/n8/9/9/9/9/4K4 w - - 0 1").unwrap();
+        play(&mut pos, &["i7i5", "a5b7", "i5i7", "b7a5"]);
+        // Red is to move again at the repeated position, so "we" is Red.
+        assert_eq!(pos.repetition(), Some(RepKind::WeLose(Forcing::Chase)));
+    }
+
+    /// The same shape, but nothing is under threat: two rooks shuffling on
+    /// opposite edges. Nobody is at fault, so it is a draw.
+    #[test]
+    fn harmless_shuffling_is_a_draw() {
+        let mut pos = Position::from_fen("3k5/9/8r/9/9/9/9/R8/9/4K4 w - - 0 1").unwrap();
+        play(&mut pos, &["a2a3", "i7i6", "a3a2", "i6i7"]);
+        assert_eq!(pos.repetition(), Some(RepKind::Draw));
+    }
+
+    /// Perpetual check must still be caught now that classification runs.
+    #[test]
+    fn perpetual_check_still_loses() {
+        let mut pos = Position::from_fen("3k5/4R4/9/9/9/9/9/9/9/K8 w - - 0 1").unwrap();
+        play(&mut pos, &["e8d8", "d9e9", "d8e8", "e9d9"]);
+        assert_eq!(pos.repetition(), Some(RepKind::WeLose(Forcing::Check)));
+    }
+
+    #[test]
+    fn a_position_that_does_not_repeat_returns_nothing() {
+        let mut pos = Position::new();
+        play(&mut pos, &["h2e2", "h9g7", "h0g2"]);
+        assert_eq!(pos.repetition(), None);
+    }
+
+    // -- what counts as a chase ---------------------------------------------
+
+    #[test]
+    fn a_defended_piece_is_not_being_chased() {
+        // Red rook eyes the black horse on a5, but a black rook on a9 guards
+        // the file: taking wins a horse and loses a rook, so it is an offer to
+        // trade, not a chase.
+        let mut guarded = Position::from_fen("r2k5/9/9/9/n7R/9/9/9/9/4K4 w - - 0 1").unwrap();
+        assert_eq!(
+            guarded.profitable_targets(RED),
+            0,
+            "a losing capture must not count as a chase"
+        );
+
+        // Remove the guard and the same attack becomes a real threat.
+        let mut loose = Position::from_fen("3k5/9/9/9/n7R/9/9/9/9/4K4 w - - 0 1").unwrap();
+        assert_eq!(loose.profitable_targets(RED), 1u128 << target_bit(sq(4, 0)));
+    }
+
+    #[test]
+    fn a_pawn_short_of_the_river_is_not_worth_chasing() {
+        // The rule does not protect a pawn that has not crossed.
+        let mut home = Position::from_fen("3k5/9/9/p7R/9/9/9/9/9/4K4 w - - 0 1").unwrap();
+        assert_eq!(home.profitable_targets(RED), 0);
+
+        // Once across, it is a normal target.
+        let mut across = Position::from_fen("3k5/9/9/9/9/p7R/9/9/9/4K4 w - - 0 1").unwrap();
+        assert_eq!(
+            across.profitable_targets(RED),
+            1u128 << target_bit(sq(5, 0))
+        );
+    }
+
+    #[test]
+    fn a_pawn_or_king_doing_the_threatening_counts_as_idle() {
+        // A pawn attacking a horse is not a chase, however profitable.
+        let mut pawn = Position::from_fen("3k5/9/9/4n4/4P4/9/9/9/9/4K4 w - - 0 1").unwrap();
+        assert_eq!(pawn.profitable_targets(RED), 0);
+
+        // Neither is the king attacking a piece beside it.
+        let mut king = Position::from_fen("3k5/9/9/9/9/9/9/9/4n4/4K4 w - - 0 1").unwrap();
+        assert_eq!(king.profitable_targets(RED), 0);
+    }
+
+    #[test]
+    fn only_a_newly_created_threat_is_a_chase() {
+        // Red's rook on i5 already attacks the horse on a5. Moving a *different*
+        // piece changes nothing about that threat, so it is an idle move — the
+        // engine must not condemn a side merely for having a standing attack.
+        let mut pos = Position::from_fen("3k5/9/9/9/n7R/9/9/9/9/4K4 w - - 0 1").unwrap();
+        assert_eq!(pos.profitable_targets(RED), 1u128 << target_bit(sq(4, 0)));
+        let idle = pos.classify_and_make(iccs_to_move("e0e1").unwrap());
+        assert_eq!(idle, Some(Intent::Idle));
+
+        // Whereas creating the attack in the first place is a chase.
+        let mut fresh = Position::from_fen("3k5/9/8R/9/n8/9/9/9/9/4K4 w - - 0 1").unwrap();
+        assert_eq!(
+            fresh.classify_and_make(iccs_to_move("i7i5").unwrap()),
+            Some(Intent::Chase)
+        );
+    }
+
+    #[test]
+    fn classification_leaves_a_replayable_position() {
+        // The verdict is computed on a copy, so the real position must come
+        // through a repetition check completely unchanged.
+        let mut pos = Position::from_fen("3k5/9/8R/9/n8/9/9/9/9/4K4 w - - 0 1").unwrap();
+        play(&mut pos, &["i7i5", "a5b7", "i5i7", "b7a5"]);
+        let fen = pos.to_fen();
+        let key = pos.key;
+        let len = pos.history_len();
+        pos.repetition();
+        assert_eq!(pos.to_fen(), fen);
+        assert_eq!(pos.key, key);
+        assert_eq!(pos.key, pos.recompute_key());
+        assert_eq!(pos.history_len(), len);
     }
 
     #[test]

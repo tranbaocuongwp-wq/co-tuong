@@ -16,7 +16,7 @@
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
-use xiangqi_engine::board::RepKind;
+use xiangqi_engine::board::{Forcing, RepKind};
 use xiangqi_engine::learn::Outcome;
 use xiangqi_engine::notation::move_to_vietnamese;
 use xiangqi_engine::types::{
@@ -96,7 +96,8 @@ pub struct StatusInfo {
     /// "playing", "redWin", "blackWin" or "draw".
     pub status: &'static str,
     /// Why the game ended: "", "checkmate", "stalemate", "repetition",
-    /// "perpetualCheck", "sixtyMove" or "insufficientMaterial".
+    /// "perpetualCheck", "perpetualChase", "sixtyMove" or
+    /// "insufficientMaterial".
     pub reason: &'static str,
     pub side_to_move: &'static str,
     pub in_check: bool,
@@ -163,6 +164,14 @@ fn glyph_for(pc: u8) -> &'static str {
         (5, false) => "砲",
         (_, true) => "兵",
         (_, false) => "卒",
+    }
+}
+
+/// Why a repeated position was scored against one side.
+fn forcing_reason(offence: Forcing) -> &'static str {
+    match offence {
+        Forcing::Check => "perpetualCheck",
+        Forcing::Chase => "perpetualChase",
     }
 }
 
@@ -342,13 +351,13 @@ impl Game {
             match kind {
                 RepKind::Draw => ("draw", "repetition"),
                 // The perpetual checker loses.
-                RepKind::WeLose => {
+                RepKind::WeLose(offence) => {
                     let w = if side == RED { "blackWin" } else { "redWin" };
-                    (w, "perpetualCheck")
+                    (w, forcing_reason(offence))
                 }
-                RepKind::WeWin => {
+                RepKind::WeWin(offence) => {
                     let w = if side == RED { "redWin" } else { "blackWin" };
-                    (w, "perpetualCheck")
+                    (w, forcing_reason(offence))
                 }
             }
         } else if self.pos.is_material_draw() {

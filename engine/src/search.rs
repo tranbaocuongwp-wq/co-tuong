@@ -348,8 +348,10 @@ impl Searcher {
             if let Some(kind) = pos.repetition() {
                 return match kind {
                     RepKind::Draw => 0,
-                    RepKind::WeLose => -MATE_VALUE + ply as i32,
-                    RepKind::WeWin => MATE_VALUE - ply as i32,
+                    // Perpetual check and perpetual chase are both losses; the
+                    // search does not care which offence it was.
+                    RepKind::WeLose(_) => -MATE_VALUE + ply as i32,
+                    RepKind::WeWin(_) => MATE_VALUE - ply as i32,
                 };
             }
             if pos.is_draw_by_halfmove() || pos.is_material_draw() {
