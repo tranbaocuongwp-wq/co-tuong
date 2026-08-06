@@ -277,7 +277,22 @@ pub struct Game {
     pos: Position,
     start_fen: String,
     moves: Vec<Move>,
+    /// How often a position must recur before the repetition rules decide it.
+    repeat_limit: usize,
+    /// Whether a repetition can lose the game, or only draw it.
+    repeat_decisive: bool,
 }
+
+/**
+ * How many repeats a game allows before the rules step in.
+ *
+ * The search still treats the very first repeat as decisive — it must, or it
+ * would happily walk into a perpetual. A *game* is different: the competition
+ * rules give a player room to repeat before a judge intervenes, and ending a
+ * game the instant a position comes round twice punishes people for shuffling
+ * while they think, with no warning and no way back.
+ */
+const DEFAULT_REPEAT_LIMIT: usize = 5;
 
 #[wasm_bindgen]
 impl Game {
@@ -289,6 +304,8 @@ impl Game {
             pos: Position::new(),
             start_fen: START_FEN.to_string(),
             moves: Vec::new(),
+            repeat_limit: DEFAULT_REPEAT_LIMIT,
+            repeat_decisive: true,
         }
     }
 
@@ -301,6 +318,8 @@ impl Game {
             pos,
             start_fen: fen.to_string(),
             moves: Vec::new(),
+            repeat_limit: DEFAULT_REPEAT_LIMIT,
+            repeat_decisive: true,
         })
     }
 
@@ -314,6 +333,30 @@ impl Game {
             game.play(token)?;
         }
         Ok(game)
+    }
+
+    /// How the repetition rules apply to this game.
+    ///
+    /// `limit` is how often a position must recur before they bite; `decisive`
+    /// says whether a repetition can lose the game or merely draw it. Turning
+    /// `decisive` off does not remove the rule — a game still has to end — it
+    /// stops the rule from picking a loser.
+    #[wasm_bindgen(js_name = setRepetitionRule)]
+    pub fn set_repetition_rule(&mut self, limit: usize, decisive: bool) {
+        self.repeat_limit = limit.max(2);
+        self.repeat_decisive = decisive;
+    }
+
+    /// The repetition verdict for this game, if the rules have anything to say.
+    fn repetition_verdict(&mut self) -> Option<RepKind> {
+        let kind = self.pos.repetition()?;
+        if self.pos.repetition_occurrences() < self.repeat_limit {
+            return None;
+        }
+        if !self.repeat_decisive {
+            return Some(RepKind::Draw);
+        }
+        Some(kind)
     }
 
     /// Current position in FEN.
@@ -446,7 +489,7 @@ impl Game {
         let (status, reason) = if legal == 0 {
             let winner = if side == RED { "blackWin" } else { "redWin" };
             (winner, if in_check { "checkmate" } else { "stalemate" })
-        } else if let Some(kind) = self.pos.repetition() {
+        } else if let Some(kind) = self.repetition_verdict() {
             match kind {
                 RepKind::Draw => ("draw", "repetition"),
                 // The perpetual checker loses.

@@ -75,6 +75,7 @@ export function PlayPage() {
     mode: settings.mode,
     playerSide: settings.playerSide,
     difficulty: settings.difficulty,
+    perpetualRule: settings.perpetualRule,
   })
 
   const update_ = useAppUpdate()
@@ -367,18 +368,20 @@ export function PlayPage() {
   }, [game, hintsLeft, projection.movesIccs.length])
 
   /**
-   * Picking an option highlights it rather than playing it.
+   * Picking an option plays it.
    *
-   * The player asked for advice, not for the computer to take their turn. They
-   * still have to make the move themselves, which is also the only way the
-   * board stays theirs.
+   * An earlier version only highlighted the move and left the player to enter
+   * it themselves. That is a puzzle, not help: they had already decided by
+   * choosing it, and making them do it twice adds nothing but a chance to
+   * misclick.
    */
   const onPickHint = useCallback(
     (iccs: string) => {
       setHint(hintChoices.find((c) => c.iccs === iccs) ?? null)
       setHintOpen(false)
+      game.playMove(iccs)
     },
-    [hintChoices]
+    [game, hintChoices]
   )
 
   const hintSquares = useMemo(() => {

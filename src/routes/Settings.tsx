@@ -87,7 +87,7 @@ export function SettingsPage() {
   }, [])
 
   const toggle = (
-    key: 'sound' | 'voice' | 'showHints' | 'flipped' | 'learnFromGames',
+    key: 'sound' | 'voice' | 'showHints' | 'flipped' | 'learnFromGames' | 'perpetualRule',
     label: string,
     help: string
   ) => (
@@ -143,6 +143,11 @@ export function SettingsPage() {
           'voice',
           'Bình luận viên',
           'Có người bình cờ suốt ván, lúc rảnh thì kể chuyện. Bật tắt được ngay trong ván. Cần mạng; mất mạng thì chỉ còn chữ.'
+        )}
+        {toggle(
+          'perpetualRule',
+          'Luật chiếu và đuổi liên hoàn',
+          'Đi lặp một thế cờ 5 lần thì bên ép liên tục bị xử thua. Tắt thì lặp chỉ tính hoà.'
         )}
         {toggle(
           'learnFromGames',

@@ -28,11 +28,23 @@ import { loadEngineWasm, WasmGame } from '../engine/wasm'
 
 export type GameMode = 'pve' | 'pvp'
 
+/**
+ * How often a position must recur before the repetition rules decide the game.
+ *
+ * Matches the engine's own default. Named here so the reason is visible from
+ * the game layer too: the search treats the first repeat as decisive because it
+ * must, but a game that ends the instant a position comes round twice takes a
+ * won position away from someone for shuffling while they thought.
+ */
+export const REPEAT_LIMIT = 5
+
 export interface GameConfig {
   mode: GameMode
   /** Which side the human plays in `pve`. */
   playerSide: Side
   difficulty: Difficulty
+  /** Whether a repeated position can lose the game rather than only draw it. */
+  perpetualRule: boolean
 }
 
 export interface GameProjection {
@@ -104,6 +116,14 @@ export function useGame(config: GameConfig) {
    */
   const [lastReport, setLastReport] = useState<MoveReport | null>(null)
   const [error, setError] = useState<string | null>(null)
+  /*
+   * The rule is read through a ref so changing it mid-game does not rebuild
+   * the board. Toggling it takes effect on the next game, which is the honest
+   * behaviour: changing the rules of a game already in progress is how a
+   * disputed result happens.
+   */
+  const ruleRef = useRef(config.perpetualRule)
+  ruleRef.current = config.perpetualRule
   /** Set when the human resigns; the engine has no notion of resignation. */
   const [manualEnd, setManualEnd] = useState<{
     status: GameStatus
@@ -132,6 +152,8 @@ export function useGame(config: GameConfig) {
       .then(() => {
         if (cancelled) return
         gameRef.current = new WasmGame()
+    gameRef.current.setRepetitionRule(REPEAT_LIMIT, ruleRef.current)
+        gameRef.current.setRepetitionRule(REPEAT_LIMIT, ruleRef.current)
         setReady(true)
         refresh()
       })
@@ -289,6 +311,7 @@ export function useGame(config: GameConfig) {
     seedRef.current = makeSeed()
     startedAtRef.current = Date.now()
     gameRef.current = new WasmGame()
+    gameRef.current.setRepetitionRule(REPEAT_LIMIT, ruleRef.current)
     setThinking(false)
     setManualEnd(null)
     setLastMove(null)
@@ -354,6 +377,7 @@ export function useGame(config: GameConfig) {
       try {
         searchTokenRef.current++
         gameRef.current = WasmGame.fromMoves(startFen, moves)
+        gameRef.current.setRepetitionRule(REPEAT_LIMIT, ruleRef.current)
         setThinking(false)
         setManualEnd(null)
         setLastMove(null)

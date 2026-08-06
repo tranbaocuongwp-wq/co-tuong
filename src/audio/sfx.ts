@@ -187,6 +187,78 @@ function context(): AudioContext | null {
 }
 
 let listening = false
+let silentLoop: HTMLAudioElement | null = null
+
+/**
+ * A one-sample silent WAV, as a blob URL.
+ *
+ * Built rather than embedded: forty-six bytes of header is clearer written out
+ * than pasted in as base64 nobody can read.
+ */
+function silentClip(): string {
+  const bytes = new Uint8Array(46)
+  const view = new DataView(bytes.buffer)
+  const ascii = (at: number, text: string) => {
+    for (let i = 0; i < text.length; i++) bytes[at + i] = text.charCodeAt(i)
+  }
+  ascii(0, 'RIFF')
+  view.setUint32(4, 38, true) // file size after this field
+  ascii(8, 'WAVEfmt ')
+  view.setUint32(16, 16, true) // fmt chunk size
+  view.setUint16(20, 1, true) // PCM
+  view.setUint16(22, 1, true) // mono
+  view.setUint32(24, 8000, true) // sample rate
+  view.setUint32(28, 16000, true) // byte rate
+  view.setUint16(32, 2, true) // block align
+  view.setUint16(34, 16, true) // bits per sample
+  ascii(36, 'data')
+  view.setUint32(40, 2, true) // one 16-bit sample of silence
+  return URL.createObjectURL(new Blob([bytes], { type: 'audio/wav' }))
+}
+
+/**
+ * Ask iOS to treat this as media playback rather than ambient sound.
+ *
+ * Web Audio lands in the "ambient" audio session, which the hardware mute
+ * switch on the side of an iPhone silences outright. That is fine for a page
+ * that beeps and wrong for a game with a commentator — and it is invisible from
+ * a desktop, where there is no such switch. Installed as a PWA it is worse
+ * still: there is no browser chrome left to hint that the phone, not the app,
+ * is the thing that muted it.
+ *
+ * `navigator.audioSession` says so directly on iOS 16.4 and later. Before that,
+ * the only lever is an HTMLMediaElement: while one is playing, WebKit picks the
+ * playback category, and a silent loop is the cheapest way to hold one open.
+ *
+ * Must run inside a gesture, like the resume it sits next to.
+ */
+function claimPlaybackSession(): void {
+  const nav = navigator as Navigator & { audioSession?: { type: string } }
+  if (nav.audioSession) {
+    try {
+      nav.audioSession.type = 'playback'
+      return
+    } catch {
+      // Read-only on this build; fall through to the media element.
+    }
+  }
+
+  if (silentLoop) return
+  try {
+    const el = new Audio(silentClip())
+    el.loop = true
+    el.volume = 0
+    // Never take over the lock screen or interrupt the player's music.
+    el.setAttribute('playsinline', '')
+    silentLoop = el
+    void el.play().catch(() => {
+      silentLoop = null
+    })
+  } catch {
+    // No media element available; the mute switch wins and the game is silent
+    // but otherwise unaffected.
+  }
+}
 
 /**
  * Resume the context on the player's first touch.
@@ -199,6 +271,7 @@ function listenForGesture(): void {
   if (listening || typeof window === 'undefined') return
   listening = true
   const wake = () => {
+    claimPlaybackSession()
     if (ctx && ctx.state !== 'running') void ctx.resume()
     if (ctx?.state === 'running') {
       for (const type of ['pointerdown', 'touchend', 'keydown']) {
@@ -209,6 +282,19 @@ function listenForGesture(): void {
   for (const type of ['pointerdown', 'touchend', 'keydown']) {
     window.addEventListener(type, wake)
   }
+
+  /*
+   * Coming back from the background leaves the context suspended.
+   *
+   * An installed PWA is switched away from and back to constantly, and without
+   * this the game returns to the board in silence with nothing on screen to
+   * explain it.
+   */
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && ctx?.state === 'suspended') {
+      void ctx.resume()
+    }
+  })
 }
 
 /**

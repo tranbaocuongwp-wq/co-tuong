@@ -534,6 +534,31 @@ impl Position {
         Some(probe.judge_cycle(plies))
     }
 
+    /// How many times this exact position has already occurred in the game.
+    ///
+    /// Separate from [`repetition`], which answers *whether* the position
+    /// repeats and who is at fault. This answers *how often*, which is what a
+    /// game — as opposed to a search — needs: the competition rules give a
+    /// player room to repeat before a judge steps in, and ending a game on the
+    /// very first repeat punishes people for shuffling while they think.
+    ///
+    /// Counts back only to the last capture, since nothing before an
+    /// irreversible move can recur.
+    pub fn repetition_occurrences(&self) -> usize {
+        let mut seen = 0usize;
+        let mut i = self.stack.len();
+        while i > 0 {
+            i -= 1;
+            if self.stack[i].captured != EMPTY {
+                break;
+            }
+            if self.keys[i] == self.key {
+                seen += 1;
+            }
+        }
+        seen
+    }
+
     /// Plies back to the most recent identical position, or `None` if the
     /// current position does not repeat.
     ///
@@ -891,6 +916,30 @@ impl Position {
 
 #[cfg(test)]
 mod tests {
+
+    /// A position coming round again is counted, not judged.
+    ///
+    /// The game layer needs the count so it can give a player room to repeat
+    /// before the rules decide anything.
+    #[test]
+    fn occurrences_count_each_time_a_position_comes_round() {
+        // The kings are on different files: facing each other is illegal, and a
+        // position where they do makes almost every move illegal too.
+        let mut pos = Position::from_fen("4k4/9/9/9/9/9/9/9/9/3K1R3 w - - 0 1").unwrap();
+        assert_eq!(pos.repetition_occurrences(), 0);
+
+        // Shuffle the rook out and back twice, with the kings shuffling too so
+        // the side to move lines up again.
+        for _ in 0..2 {
+            for iccs in ["f0f1", "e9e8", "f1f0", "e8e9"] {
+                assert!(
+                    pos.make_move_checked(iccs_to_move(iccs).unwrap()),
+                    "{iccs} must be legal"
+                );
+            }
+        }
+        assert_eq!(pos.repetition_occurrences(), 2);
+    }
 
     /// A rook swinging onto a file to eye an undefended cannon.
     ///

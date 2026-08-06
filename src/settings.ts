@@ -23,6 +23,15 @@ export interface Settings {
   showHints: boolean
   /** Feed finished games back into the engine's experience book. */
   learnFromGames: boolean
+  /**
+   * Let repeated positions decide the game.
+   *
+   * On, a player who keeps checking or chasing eventually loses, as the
+   * competition rules say. Off, a repetition is only ever a draw — which is
+   * what most people expect from a casual game, and stops a shuffle costing
+   * someone a won position.
+   */
+  perpetualRule: boolean
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -34,6 +43,7 @@ export const DEFAULT_SETTINGS: Settings = {
   voice: true,
   showHints: true,
   learnFromGames: true,
+  perpetualRule: true,
 }
 
 const KEY = 'co-tuong.settings.v1'
