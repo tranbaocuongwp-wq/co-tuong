@@ -15,7 +15,7 @@
  * played, so getting it into the cache is the whole point of the exercise.
  */
 
-const CACHE = 'co-tuong-v3'
+const CACHE = 'co-tuong-v4'
 
 /* Stable-named files worth having before the first offline load. */
 const APP_SHELL = [
@@ -38,6 +38,13 @@ const APP_SHELL = [
   './sfx/win.mp3',
   './sfx/loss.mp3',
   './sfx/draw.mp3',
+  // Capture sounds named after the piece that was taken.
+  './sfx/cap-r.mp3',
+  './sfx/cap-c.mp3',
+  './sfx/cap-h.mp3',
+  './sfx/cap-e.mp3',
+  './sfx/cap-a.mp3',
+  './sfx/cap-p.mp3',
 ]
 
 self.addEventListener('install', (event) => {

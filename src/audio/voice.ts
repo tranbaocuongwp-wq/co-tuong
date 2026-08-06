@@ -7,28 +7,38 @@
  * player has to deal with: the line is already on screen as text, and the game
  * itself does not care whether anything was said.
  *
- * **Nobody gets cut off.** An earlier version interrupted whatever was playing
- * as soon as something more important happened, which is how a machine reads
- * alerts, not how a person commentates. A real broadcast finishes the sentence,
- * takes a breath, and moves on. So lines queue and play one after another, and
- * an urgent line takes the *front of the queue* rather than the microphone.
+ * **Nobody gets cut off.** Two separate things used to cut the commentator off
+ * mid-sentence, and both are fixed here:
  *
- * The cost of that is lateness, which is handled by dropping rather than
- * rushing: idle chatter that has been waiting too long is thrown away, because
- * a remark about the opening arriving during the endgame is worse than silence.
+ * 1. An urgent line used to take the microphone from whatever was speaking.
+ *    Now lines queue and play one after another; an urgent line takes the
+ *    *front of the queue* instead.
+ * 2. The voice played through an `<audio>` element while the sound effects went
+ *    through Web Audio. On iOS those are two competing audio sessions, so a
+ *    piece landing would stop the commentator dead. Everything now goes through
+ *    the one shared audio graph, scheduled as buffers — a capture and a
+ *    sentence simply mix.
+ *
+ * The cost of queueing is lateness, handled by dropping rather than rushing:
+ * idle chatter that has been waiting too long is thrown away, because a remark
+ * about the opening arriving during the endgame is worse than silence.
  *
  * Audio is fetched once and then kept. R2 holds it for everyone, Cache Storage
- * holds it for this browser across reloads, and a blob URL holds it for this
- * page. A line is therefore generated exactly once in the lifetime of the
+ * holds it for this browser across reloads, and a decoded buffer holds it for
+ * this page. A line is therefore generated exactly once in the lifetime of the
  * project, no matter how many people hear it or how often.
  */
 
 import type { Line } from '../commentary/lines'
+import { audioContext } from './sfx'
 
 const API = 'https://co-tuong-api.tranbaocuongmkt.workers.dev'
 
 /** Named cache so the audio survives a reload without re-fetching. */
 const CACHE_NAME = 'co-tuong-voice-v1'
+
+/** Level for the voice, against the sound effects it now shares a graph with. */
+const VOICE_GAIN = 0.95
 
 /**
  * How much a line outranks the others *waiting to be said*.
@@ -47,7 +57,7 @@ const GAP_MS = 340
  * How many lines may be waiting.
  *
  * Deep queues are how commentary drifts out of sync with the board. Three is
- * about one exchange of moves — past that, the oldest idle remark is dropped.
+ * about one exchange of moves — past that, the least urgent is dropped.
  */
 const MAX_QUEUE = 3
 
@@ -70,11 +80,12 @@ let enabled = false
 let seq = 0
 let queue: Queued[] = []
 let running = false
-let current: HTMLAudioElement | null = null
+let current: AudioBufferSourceNode | null = null
 let listener: ((line: Line | null) => void) | null = null
 
-/** Object URLs held for the lifetime of the page so playback can reuse them. */
-const urls = new Map<string, string>()
+/** Decoded audio, and the in-flight loads that will become it. */
+const buffers = new Map<string, AudioBuffer>()
+const loading = new Map<string, Promise<void>>()
 
 export function setVoiceEnabled(on: boolean): void {
   if (enabled === on) return
@@ -118,8 +129,11 @@ function emit(line: Line | null): void {
 export function stopVoice(): void {
   queue = []
   if (current) {
-    current.pause()
-    current.src = ''
+    try {
+      current.stop()
+    } catch {
+      // Already finished; stopping twice is not an error worth surfacing.
+    }
     current = null
   }
   emit(null)
@@ -129,64 +143,74 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-async function audioUrl(id: string): Promise<string | null> {
-  const held = urls.get(id)
-  if (held) return held
+/** Fetch and decode one line, or resolve to nothing if it cannot be had. */
+async function load(ctx: AudioContext, id: string): Promise<void> {
+  if (buffers.has(id)) return
+  const existing = loading.get(id)
+  if (existing) return existing
 
-  try {
-    const request = `${API}/v1/line/${id}`
-    let response: Response | undefined
+  const job = (async () => {
+    try {
+      const request = `${API}/v1/line/${id}`
+      let response: Response | undefined
 
-    // Cache Storage rather than the HTTP cache: it survives reloads and lets a
-    // returning player hear the commentary with no network at all. Combined
-    // with R2 on the far side, a given line costs the API exactly one call ever.
-    if ('caches' in globalThis) {
-      const cache = await caches.open(CACHE_NAME)
-      response = await cache.match(request)
-      if (!response) {
-        const fresh = await fetch(request)
-        if (fresh.ok) {
-          await cache.put(request, fresh.clone())
-          response = fresh
+      // Cache Storage rather than the HTTP cache: it survives reloads and lets
+      // a returning player hear the commentary with no network at all.
+      // Combined with R2 on the far side, a line costs the API one call ever.
+      if ('caches' in globalThis) {
+        const cache = await caches.open(CACHE_NAME)
+        response = await cache.match(request)
+        if (!response) {
+          const fresh = await fetch(request)
+          if (fresh.ok) {
+            await cache.put(request, fresh.clone())
+            response = fresh
+          }
         }
+      } else {
+        const fresh = await fetch(request)
+        if (fresh.ok) response = fresh
       }
-    } else {
-      const fresh = await fetch(request)
-      if (fresh.ok) response = fresh
-    }
 
-    if (!response?.ok) return null
-    const url = URL.createObjectURL(await response.blob())
-    urls.set(id, url)
-    return url
-  } catch {
-    // Offline, blocked, or the Worker is down. The line stays on screen as text.
-    return null
-  }
+      if (!response?.ok) return
+      buffers.set(id, await ctx.decodeAudioData(await response.arrayBuffer()))
+    } catch {
+      // Offline, blocked, or the Worker is down. The line stays on screen as
+      // text and nothing else notices.
+    } finally {
+      loading.delete(id)
+    }
+  })()
+  loading.set(id, job)
+  return job
 }
 
-/** Plays one file through to its end. Resolves on failure too — never rejects. */
-function playToEnd(url: string): Promise<void> {
+/** Plays one buffer through to its end. Resolves on failure too — never rejects. */
+function playToEnd(ctx: AudioContext, buffer: AudioBuffer): Promise<void> {
   return new Promise((resolve) => {
     let done = false
     const finish = () => {
       if (done) return
       done = true
-      if (current === el) current = null
+      if (current === src) current = null
       resolve()
     }
 
-    const el = new Audio(url)
-    el.volume = 0.9
-    current = el
-    el.addEventListener('ended', finish)
-    el.addEventListener('error', finish)
-
-    el.play().catch(() => {
-      // Autoplay refused until the player interacts, or decoding failed.
-      // Silence is acceptable; the caption carries the line.
+    const src = ctx.createBufferSource()
+    src.buffer = buffer
+    const amp = ctx.createGain()
+    amp.gain.value = VOICE_GAIN
+    src.connect(amp).connect(ctx.destination)
+    src.addEventListener('ended', finish)
+    current = src
+    try {
+      src.start()
+    } catch {
       finish()
-    })
+    }
+    // A stuck source must not wedge the queue: fall through a little after the
+    // buffer would have finished anyway.
+    setTimeout(finish, (buffer.duration + 0.5) * 1000)
   })
 }
 
@@ -208,13 +232,15 @@ async function run(): Promise<void> {
       // Overtaken by the game while it waited. Say nothing rather than say it late.
       if (next.priority === 'idle' && Date.now() - next.queuedAt > STALE_MS) continue
 
-      const url = await audioUrl(next.line.id)
+      const ctx = audioContext()
+      if (ctx) await load(ctx, next.line.id)
       if (!enabled) break
 
       // The caption goes up when the line actually starts, audio or not.
       emit(next.line)
-      if (url) {
-        await playToEnd(url)
+      const buffer = ctx ? buffers.get(next.line.id) : undefined
+      if (ctx && buffer) {
+        await playToEnd(ctx, buffer)
       } else {
         // No audio to be had: hold the caption long enough to read instead.
         await sleep(Math.max(MIN_CAPTION_MS, (next.line.text.length / CHARS_PER_SECOND) * 1000))
@@ -257,9 +283,11 @@ export function speak(line: Line, priority: VoicePriority = 'event'): void {
  * Fetch lines ahead of time.
  *
  * Called when a game starts so the opening remark is not the one that waits on
- * the network. Anything already cached costs nothing here.
+ * the network. Anything already decoded costs nothing here.
  */
 export function primeVoice(lines: Line[]): void {
   if (!enabled) return
-  for (const line of lines.slice(0, 8)) void audioUrl(line.id)
+  const ctx = audioContext()
+  if (!ctx) return
+  for (const line of lines.slice(0, 8)) void load(ctx, line.id)
 }

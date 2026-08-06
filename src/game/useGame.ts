@@ -164,7 +164,8 @@ export function useGame(config: GameConfig) {
         const mover = (game.status() as StatusInfo).sideToMove
         game.play(iccs)
         setLastCapture(info?.capture ? { by: mover } : null)
-        setLastReport((game.lastMoveReport() as MoveReport | null) ?? null)
+        const report = (game.lastMoveReport() as MoveReport | null) ?? null
+        setLastReport(report)
         if (info) {
           setLastMove({
             fromRow: info.fromRow,
@@ -183,6 +184,7 @@ export function useGame(config: GameConfig) {
         const human = config.mode === 'pvp' ? null : config.playerSide
         playMoveOutcome({
           capture: info?.capture ?? false,
+          victim: report?.captured ?? undefined,
           check: after.inCheck,
           ended,
           result: !ended

@@ -19,6 +19,7 @@
 // Imported straight from the app's script rather than copied. A duplicated
 // list would drift the moment a line was added, and the Worker would start
 // refusing ids the client was asking for.
+import { SFX_PROMPTS } from '../../src/audio/sfx-prompts'
 import { allFactLines } from '../../src/commentary/facts'
 import { allLines } from '../../src/commentary/lines'
 
@@ -36,6 +37,9 @@ export interface Env {
 /** The Vietnamese voice, and the model that performs the bracketed directions. */
 const VOICE_ID = 'K7ewtjKRNtwwt3lKQ6M0'
 const MODEL_ID = 'eleven_v3'
+
+/** id -> the sound-effect prompt, for the same reason the line script is compiled in. */
+const SFX = Object.fromEntries(SFX_PROMPTS.map((s) => [s.id, s]))
 
 /** Audio for a given id never changes, so it can be cached hard. */
 const IMMUTABLE = 'public, max-age=31536000, immutable'
@@ -65,6 +69,27 @@ async function synthesise(env: Env, text: string): Promise<ArrayBuffer | null> {
   return res.arrayBuffer()
 }
 
+/**
+ * Sound effects, generated once and then served from R2.
+ *
+ * Same shape as the spoken lines and for the same reason: the prompt list is
+ * compiled in, so this cannot become a free sound generator for whoever finds
+ * the URL. The build script downloads these into the repository, where they are
+ * committed — the board has to make a sound with no network at all.
+ */
+async function synthesiseSfx(env: Env, prompt: string, seconds: number): Promise<ArrayBuffer | null> {
+  const res = await fetch('https://api.elevenlabs.io/v1/sound-generation', {
+    method: 'POST',
+    headers: {
+      'xi-api-key': env.ELEVENLABS_API_KEY,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ text: prompt, duration_seconds: seconds, prompt_influence: 0.6 }),
+  })
+  if (!res.ok) return null
+  return res.arrayBuffer()
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url)
@@ -79,6 +104,31 @@ export default {
         { ids: LINE_IDS },
         { headers: cors({ 'cache-control': 'public, max-age=3600' }) }
       )
+    }
+
+    const sfxMatch = url.pathname.match(/^\/v1\/sfx\/([a-z0-9-]{1,20})$/)
+    if (sfxMatch && request.method === 'GET') {
+      const sound = SFX[sfxMatch[1]]
+      if (!sound) {
+        return new Response('Unknown sound', { status: 404, headers: cors() })
+      }
+      const key = `sfx/${sound.id}.mp3`
+      const stored = await env.AUDIO.get(key)
+      if (stored) {
+        return new Response(stored.body, {
+          headers: cors({ 'content-type': 'audio/mpeg', 'cache-control': IMMUTABLE }),
+        })
+      }
+      const audio = await synthesiseSfx(env, sound.prompt, sound.seconds)
+      if (!audio) {
+        return new Response('Sound unavailable', { status: 503, headers: cors() })
+      }
+      await env.AUDIO.put(key, audio, {
+        httpMetadata: { contentType: 'audio/mpeg', cacheControl: IMMUTABLE },
+      })
+      return new Response(audio, {
+        headers: cors({ 'content-type': 'audio/mpeg', 'cache-control': IMMUTABLE }),
+      })
     }
 
     const match = url.pathname.match(/^\/v1\/line\/([a-z0-9-]{1,40})$/)

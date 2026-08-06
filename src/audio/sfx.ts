@@ -31,9 +31,36 @@ const SAMPLE_GAIN: Record<SampleId, number> = {
   win: 0.85,
   loss: 0.85,
   draw: 0.8,
+  // The animal calls carry further than wood, so they sit lower.
+  'cap-r': 0.95,
+  'cap-c': 0.9,
+  'cap-h': 0.75,
+  'cap-e': 0.7,
+  'cap-a': 0.9,
+  'cap-p': 0.9,
 }
 
-export type SampleId = 'move' | 'capture' | 'select' | 'check' | 'win' | 'loss' | 'draw'
+export type SampleId =
+  | 'move'
+  | 'capture'
+  | 'select'
+  | 'check'
+  | 'win'
+  | 'loss'
+  | 'draw'
+  | CaptureSampleId
+
+/**
+ * A capture sound named after the piece that was taken.
+ *
+ * A Horse falling whinnies and an Elephant trumpets, so the ear knows what came
+ * off the board without the player having to look. The King is absent: it is
+ * never actually captured, the game ends first.
+ */
+export type CaptureSampleId = 'cap-r' | 'cap-c' | 'cap-h' | 'cap-e' | 'cap-a' | 'cap-p'
+
+/** The engine's letters for piece kinds, as far as this module cares. */
+export type VictimKind = 'r' | 'c' | 'h' | 'e' | 'a' | 'p' | 'k'
 
 /** Decoded samples, and the in-flight loads that will become them. */
 const buffers = new Map<SampleId, AudioBuffer>()
@@ -105,6 +132,19 @@ export function primeSounds(): void {
 
 export function setSoundEnabled(on: boolean): void {
   enabled = on
+}
+
+/**
+ * The one audio context in the app.
+ *
+ * Shared with the commentary rather than kept private. An earlier version had
+ * the voice play through an `<audio>` element while the effects went through
+ * Web Audio, and on iOS those are two competing audio sessions: a piece landing
+ * would cut the commentator off mid-sentence. One graph, one session, nothing
+ * interrupts anything.
+ */
+export function audioContext(): AudioContext | null {
+  return audio()
 }
 
 function audio(): AudioContext | null {
@@ -207,8 +247,15 @@ export function playMove(): void {
   tone(c, t, { freq: 180, decay: 0.08, gain: 0.35, type: 'triangle' })
 }
 
-/** A capture: heavier, with the two pieces meeting. */
-export function playCapture(): void {
+/**
+ * A capture: heavier, with the two pieces meeting.
+ *
+ * `victim` chooses the sound of whatever came off the board. Without it, or
+ * before that sample has loaded, the generic capture stands in — a Horse with
+ * no whinny is still better than a Horse with no sound.
+ */
+export function playCapture(victim?: VictimKind): void {
+  if (victim && victim !== 'k' && playSample(`cap-${victim}` as CaptureSampleId)) return
   if (playSample('capture')) return
   const c = audio()
   if (!c) return
@@ -265,6 +312,8 @@ export function playMoveOutcome(outcome: {
   check: boolean
   ended: boolean
   result?: 'win' | 'loss' | 'draw'
+  /** Which kind was taken, so the capture can sound like that piece. */
+  victim?: VictimKind
 }): void {
   if (outcome.ended) {
     playGameEnd(outcome.result ?? 'draw')
@@ -275,7 +324,7 @@ export function playMoveOutcome(outcome: {
     return
   }
   if (outcome.capture) {
-    playCapture()
+    playCapture(outcome.victim)
     return
   }
   playMove()
