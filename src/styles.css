@@ -959,6 +959,7 @@ a {
 
 .stage__board {
   grid-area: board;
+  position: relative;
   width: 100%;
 }
 
@@ -1076,11 +1077,21 @@ a {
 
 /* --- thinking toast ------------------------------------------------------- */
 
+/*
+ * The thinking pill sits on the river, in the middle of the board.
+ *
+ * It used to be fixed to the bottom of the window, which put it under the board
+ * on a phone, beside it when held sideways, and halfway down an empty page on a
+ * desktop — three different places for the same thing. Anchored to the board it
+ * is always in the one spot the player is already looking at, and the river is
+ * the only band of the board with no pieces on it.
+ */
 .toast-layer {
-  position: fixed;
+  position: absolute;
   left: 0;
   right: 0;
-  bottom: calc(20px + env(safe-area-inset-bottom));
+  top: 50%;
+  transform: translateY(-50%);
   display: flex;
   justify-content: center;
   pointer-events: none;

@@ -17,7 +17,6 @@ import { Link } from 'react-router'
 
 import { primeSounds, setSoundEnabled } from '../audio/sfx'
 import { primeVoice, setVoiceEnabled, stopVoice } from '../audio/voice'
-import { allFragments } from '../commentary/fragments'
 import { LINES } from '../commentary/lines'
 import { Board } from '../components/Board'
 import { GameMenu } from '../components/GameMenu'
@@ -105,9 +104,7 @@ export function PlayPage() {
     setVoiceEnabled(settings.voice)
     if (settings.voice) {
       // The opening remark should not be the one that waits on the network.
-      // The words a move is read out of are twenty-odd short files and are
-      // needed on the very first move, so they come first.
-      primeVoice([...allFragments(), ...LINES.greeting, ...LINES.opening])
+      primeVoice([...LINES.greeting, ...LINES.opening])
     }
   }, [settings.voice])
 
@@ -467,6 +464,16 @@ export function PlayPage() {
               : MOVE_MS
           }
         />
+
+        {/*
+          Inside the board rather than pinned to the window, so it lands on the
+          river whatever the screen is doing — phone, tablet, held sideways.
+        */}
+        <ThinkingToast
+          visible={thinking || hintBusy}
+          progress={progress}
+          label={hintBusy ? 'Đang tìm gợi ý' : undefined}
+        />
       </div>
 
       {settings.voice && !isOver && (
@@ -496,13 +503,6 @@ export function PlayPage() {
           Gợi ý: <strong>{hint.text ?? hint.iccs}</strong> · còn {hintsLeft} lượt
         </p>
       )}
-
-      {/* Only ever on the engine's turn, or while a hint is being fetched. */}
-      <ThinkingToast
-        visible={thinking || hintBusy}
-        progress={progress}
-        label={hintBusy ? 'Đang tìm gợi ý' : undefined}
-      />
 
       <HintDialog
         open={hintOpen}

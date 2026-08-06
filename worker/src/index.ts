@@ -22,15 +22,11 @@
 import { SFX_PROMPTS } from '../../src/audio/sfx-prompts'
 import { allAdviceLines } from '../../src/commentary/advice'
 import { allFactLines } from '../../src/commentary/facts'
-import { allFragments } from '../../src/commentary/fragments'
 import { allLines } from '../../src/commentary/lines'
 
 /** id → the text actually spoken, including its performance directions. */
 const LINE_SPEECH: Record<string, string> = Object.fromEntries(
-  [...allLines(), ...allFactLines(), ...allFragments(), ...allAdviceLines()].map((l) => [
-    l.id,
-    l.speech ?? l.text,
-  ])
+  [...allLines(), ...allFactLines(), ...allAdviceLines()].map((l) => [l.id, l.speech ?? l.text])
 )
 const LINE_IDS = Object.keys(LINE_SPEECH)
 

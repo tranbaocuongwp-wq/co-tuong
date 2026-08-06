@@ -25,6 +25,7 @@ import type {
 } from '../engine/types'
 import { DIFFICULTY_PRESETS } from '../engine/types'
 import { loadEngineWasm, WasmGame } from '../engine/wasm'
+import { MOVE_MS } from './usePieceLayout'
 
 export type GameMode = 'pve' | 'pvp'
 
@@ -37,6 +38,17 @@ export type GameMode = 'pve' | 'pvp'
  * won position away from someone for shuffling while they thought.
  */
 export const REPEAT_LIMIT = 5
+
+/**
+ * The pause between one piece landing and the next being lifted.
+ *
+ * Purely for the feel of the thing, and measured from the *player's* move
+ * rather than from the end of the search. Getting that wrong is what made the
+ * computer answer before the player's own piece had finished sliding: the
+ * search often finishes in less time than the animation takes, so timing the
+ * pause from the search meant the reply could land first.
+ */
+const MOVE_BEAT_MS = 500
 
 export interface GameConfig {
   mode: GameMode
@@ -124,6 +136,8 @@ export function useGame(config: GameConfig) {
    */
   const ruleRef = useRef(config.perpetualRule)
   ruleRef.current = config.perpetualRule
+  /** When the last move started animating, so the next one can wait for it. */
+  const lastMoveAtRef = useRef(0)
   /** Set when the human resigns; the engine has no notion of resignation. */
   const [manualEnd, setManualEnd] = useState<{
     status: GameStatus
@@ -186,6 +200,7 @@ export function useGame(config: GameConfig) {
         // Whose move this is has to be read before playing it.
         const mover = (game.status() as StatusInfo).sideToMove
         game.play(iccs)
+        lastMoveAtRef.current = Date.now()
         setLastCapture(info?.capture ? { by: mover } : null)
         const report = (game.lastMoveReport() as MoveReport | null) ?? null
         setLastReport(report)
@@ -253,12 +268,33 @@ export function useGame(config: GameConfig) {
           if (token === searchTokenRef.current) setProgress(info)
         }
       )
-      .then((info) => {
+      .then(async (info) => {
         // Discard the answer if the game moved on while we were thinking —
         // after an undo or a new game, this move would apply to the wrong
         // position.
         if (token !== searchTokenRef.current) return
         setLastInfo(info)
+
+        /*
+         * A beat between deciding and moving.
+         *
+         * Without it the piece jumps the instant the search returns, and at the
+         * easier levels — where the search takes almost no time at all — the
+         * computer's reply lands before the player has finished letting go of
+         * their own. That reads as the machine having known all along, which is
+         * both unpleasant and untrue.
+         *
+         * The pause is the same whether the search took forty milliseconds or
+         * five seconds: it is the pause of a hand reaching for a piece, and a
+         * hand does not move faster because the thinking was easy.
+         */
+        // Wait for the player's piece to finish its slide, then a beat on top.
+        // On the easy levels the search can finish in a few milliseconds, and
+        // without this the computer's reply overlaps the move it is replying to.
+        const landsAt = lastMoveAtRef.current + MOVE_MS + MOVE_BEAT_MS
+        const wait = Math.max(0, landsAt - Date.now())
+        if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait))
+        if (token !== searchTokenRef.current) return
         playMove(info.iccs)
       })
       .catch((e: unknown) => {

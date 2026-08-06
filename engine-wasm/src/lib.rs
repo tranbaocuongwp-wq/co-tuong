@@ -107,6 +107,10 @@ pub struct MoveReportInfo {
     pub gives_check: bool,
     /// Enemy kinds the moved piece can now profitably take, best first.
     pub threats: Vec<&'static str>,
+    /// The moved piece is now on the far side of the river.
+    pub crossed_river: bool,
+    /// The move carried the piece into the enemy palace.
+    pub into_palace: bool,
 }
 
 /// One option offered by the hint, with everything needed to explain it.
@@ -465,6 +469,8 @@ impl Game {
             captured: r.captured.map(kind_name),
             gives_check: r.gives_check,
             threats: r.threats.into_iter().map(kind_name).collect(),
+            crossed_river: r.crossed_river,
+            into_palace: r.into_palace,
         })
     }
 

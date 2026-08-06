@@ -17,18 +17,19 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import {
-  isVoiceBusy,
-  onVoiceLine,
-  speak,
-  speakWords,
-  type Utterance,
-  type VoicePriority,
-} from '../audio/voice'
-import type { Kind, MoveReport, SideLetter } from '../commentary/facts'
-import { captureLine, checkLine, threatLine } from '../commentary/facts'
+import { isVoiceBusy, onVoiceLine, speak, type Utterance, type VoicePriority } from '../audio/voice'
 import { adviceLead, adviceReason } from '../commentary/advice'
-import { speakMove } from '../commentary/fragments'
+import type { Kind, MoveReport, SideLetter } from '../commentary/facts'
+import {
+  actionOf,
+  captureLine,
+  checkLine,
+  kindOfNotation,
+  moveLines,
+  palaceLine,
+  riverLine,
+  threatLine,
+} from '../commentary/facts'
 import type { Line, Situation } from '../commentary/lines'
 import { pickLine } from '../commentary/lines'
 import type { GameStatus, HintInfo, Piece, SearchInfo, Side, StatusInfo } from '../engine/types'
@@ -168,25 +169,15 @@ export function useCommentary(input: CommentaryInput) {
     lastMoveSeenRef.current = moveCount
 
     /*
-     * 1. The move itself, read out: "Đỏ: Pháo 2 bình 5".
-     *
-     * This is the line that makes it commentary. Everything else here is an
-     * opinion about the position; this is the one thing a listener cannot get
-     * any other way without looking at the board.
+     * 1. The move, described. Every move gets one — that is what a broadcast
+     *    does, and it is the only thing a listener cannot get without looking
+     *    at the board.
      */
-    if (notation && report) {
-      const words = speakMove(notation, report.side as SideLetter)
-      if (words) {
-        speakWords(`${report.side === 'r' ? 'Đỏ' : 'Đen'}: ${notation}`, words, 'event')
-      }
-    }
-
-    // 2. The fact. What that move did, in the pieces' own names.
-    const fact = factFor(report)
+    const fact = factFor(report, notation, recentRef.current)
     sayLine(fact, report?.givesCheck || report?.captured ? 'critical' : 'event')
 
-    // 3. The reaction, when there is something to react to. The two above are
-    //    already queued, so this lands after them rather than on top of them.
+    // 2. The reaction, when there is something to react to. The line above is
+    //    already queued, so this lands after it rather than on top of it.
     let swung = false
     if (info) {
       const prev = prevScoreRef.current
@@ -277,11 +268,21 @@ export function useCommentary(input: CommentaryInput) {
     if (advisedRef.current === advice.ply) return
     advisedRef.current = advice.ply
 
-    const words = speakMove(advice.hint.text, advice.side === 'r' ? 'r' : 'b')
-    if (!words) return
+    /*
+     * The exact move is on screen; the voice describes it.
+     *
+     * Naming an arbitrary move aloud would mean stitching recorded words back
+     * together, which is what made the old move-reading sound like a machine.
+     * A sentence about the piece and the direction points at it well enough,
+     * and the caption carries the precise notation for anyone who wants it.
+     */
+    const mover = kindOfNotation(advice.hint.text)
+    if (!mover) return
+    const said = moveLines(advice.side as SideLetter, mover, actionOf(advice.hint.text))
+    if (said.length === 0) return
 
     sayLine(adviceLead(recentRef.current), 'idle')
-    speakWords(`${advice.side === 'r' ? 'Đỏ' : 'Đen'}: ${advice.hint.text}`, words, 'idle')
+    sayLine(said[Math.floor(Math.random() * said.length)], 'idle')
     sayLine(adviceReason(advice.hint), 'idle')
   }, [enabled, isOver, advice, sayLine])
 
@@ -302,20 +303,37 @@ export function useCommentary(input: CommentaryInput) {
 }
 
 /**
- * The concrete remark for a move, or null when the move was quiet.
+ * What to say about the move that was just played.
  *
- * Order is by how much a watcher would care: taking a piece beats giving check
- * beats lining one up. Only one is said — reading a list at someone is not
- * commentary.
+ * Ordered by how much a watcher would care: taking a piece beats giving check,
+ * beats reaching the palace door, beats crossing the river, beats lining
+ * something up, beats simply describing the move. Only one is said — reading a
+ * list of consequences at someone is not commentary.
+ *
+ * A quiet move still gets a sentence. Silence on ordinary moves is what made an
+ * earlier version feel like it only woke up for captures.
  */
-function factFor(report: MoveReport | null): Line | null {
+function factFor(
+  report: MoveReport | null,
+  notation: string | null,
+  recent: readonly string[]
+): Line | null {
   if (!report) return null
   const side = report.side as SideLetter
   const mover = report.mover as Kind
+
   if (report.captured) return captureLine(side, mover, report.captured as Kind)
   if (report.givesCheck) return checkLine(side, mover)
+  if (report.intoPalace) return palaceLine(side, mover)
+  if (report.crossedRiver && mover === 'p') return riverLine(side, mover)
   if (report.threats.length > 0) return threatLine(side, mover, report.threats[0] as Kind)
-  return null
+
+  // Plain move: describe it, preferring a phrasing not just used.
+  const options = moveLines(side, mover, actionOf(notation ?? ''))
+  if (options.length === 0) return null
+  const fresh = options.filter((l) => !recent.includes(l.id))
+  const pool = fresh.length > 0 ? fresh : options
+  return pool[Math.floor(Math.random() * pool.length)]
 }
 
 /**

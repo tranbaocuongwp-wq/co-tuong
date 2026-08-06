@@ -83,6 +83,10 @@ pub struct MoveReport {
     pub gives_check: bool,
     /// Enemy kinds the moved piece could now profitably take, best first.
     pub threats: Vec<u8>,
+    /// The moved piece is now on the far side of the river.
+    pub crossed_river: bool,
+    /// The move carried the piece into the enemy palace.
+    pub into_palace: bool,
 }
 
 /// The starting array, in Xiangqi FEN.
@@ -889,6 +893,18 @@ impl Position {
             _ => 5,
         });
 
+        // Two facts a watcher reads off the board without being told, and which
+        // change what a move *means*: a piece over the river is committed, and
+        // one inside the enemy palace is at the door.
+        let crossed = crossed_river(to, mover_side);
+        let enemy_palace = disp_col(to) >= 3
+            && disp_col(to) <= 5
+            && if mover_side == RED {
+                disp_row(to) <= 2
+            } else {
+                disp_row(to) >= 7
+            };
+
         Some(MoveReport {
             mover: kind_of(moved),
             captured: if u.captured == EMPTY {
@@ -899,6 +915,8 @@ impl Position {
             mover_side,
             gives_check: self.in_check(),
             threats,
+            crossed_river: crossed,
+            into_palace: enemy_palace,
         })
     }
 
