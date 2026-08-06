@@ -35,6 +35,7 @@ export type IconName =
   | 'trash'
   | 'download'
   | 'upload'
+  | 'home'
   | 'speaker'
   | 'speakerOff'
 
@@ -181,6 +182,13 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M2.5 19a6 6 0 0 1 12 0" />
       <path d="M16 5.5a3 3 0 0 1 0 5.6" />
       <path d="M17 14.2a6 6 0 0 1 4.5 4.8" />
+    </>
+  ),
+  home: (
+    <>
+      <path d="M4 10.5 12 4l8 6.5" />
+      <path d="M6 9.8V19h12V9.8" />
+      <path d="M10 19v-5h4v5" />
     </>
   ),
   speaker: (

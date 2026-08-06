@@ -18,6 +18,43 @@ export const EXPORT_FORMAT = 'cotuong.export.v1'
 
 export type GameResult = GameStatus | 'unfinished'
 
+/**
+ * One line the commentator actually said, and when.
+ *
+ * Kept with the game rather than thrown away because it is part of what the
+ * game *was* — replaying a saved game without its commentary would replay a
+ * different, quieter event. It is also what a later cloud sync would carry, so
+ * it is recorded in the same shape it will be uploaded in.
+ *
+ * Only the line id is stored. The words live in the script and the audio lives
+ * in R2, both keyed by that id, so copying either into every game record would
+ * be storing the same sentence hundreds of times.
+ */
+export interface CommentaryEntry {
+  /** Move number the line was spoken on; 0 before the first move. */
+  ply: number
+  /** Content-addressed line id, as used by the voice cache and R2. */
+  id: string
+  at: number
+}
+
+/**
+ * A time the player leaned on the app rather than the board.
+ *
+ * Recorded because a win with five hints and five take-backs is a different
+ * result from a win without them, and a history that hides the difference
+ * flatters the player at the cost of being true. It is also what a leaderboard
+ * would need to compare two games honestly.
+ */
+export interface AssistEntry {
+  /** Move number this happened on. */
+  ply: number
+  kind: 'hint' | 'undo'
+  /** For a hint, the move that was suggested. */
+  iccs?: string
+  at: number
+}
+
 export interface GameRecord {
   format: typeof GAME_FORMAT
   id: string
@@ -42,6 +79,21 @@ export interface GameRecord {
    * player exports or shares it explicitly.
    */
   shared: boolean
+  /**
+   * What the commentator said during this game, in order.
+   *
+   * Optional because games recorded before commentary existed have none, and
+   * claiming otherwise in the type would push that lie into every reader.
+   */
+  commentary?: CommentaryEntry[]
+  /**
+   * Hints taken and moves taken back, in order.
+   *
+   * Optional for the same reason as `commentary`: games recorded before this
+   * existed have none, and saying otherwise in the type would push that lie
+   * into every reader.
+   */
+  assists?: AssistEntry[]
 }
 
 export interface ExportBundle {
@@ -138,6 +190,35 @@ export function parseGameRecord(value: unknown, index = 0): GameRecord {
     durationMs: num('durationMs'),
     appVersion: str('appVersion', 'unknown'),
     shared: raw.shared === true,
+    commentary: Array.isArray(raw.commentary)
+      ? (raw.commentary as unknown[]).flatMap((e) => {
+          if (typeof e !== 'object' || e === null) return []
+          const entry = e as Record<string, unknown>
+          if (typeof entry.id !== 'string') return []
+          return [
+            {
+              ply: typeof entry.ply === 'number' ? entry.ply : 0,
+              id: entry.id,
+              at: typeof entry.at === 'number' ? entry.at : 0,
+            },
+          ]
+        })
+      : [],
+    assists: Array.isArray(raw.assists)
+      ? (raw.assists as unknown[]).flatMap((e) => {
+          if (typeof e !== 'object' || e === null) return []
+          const entry = e as Record<string, unknown>
+          if (entry.kind !== 'hint' && entry.kind !== 'undo') return []
+          return [
+            {
+              ply: typeof entry.ply === 'number' ? entry.ply : 0,
+              kind: entry.kind,
+              ...(typeof entry.iccs === 'string' ? { iccs: entry.iccs } : {}),
+              at: typeof entry.at === 'number' ? entry.at : 0,
+            },
+          ]
+        })
+      : [],
   }
 }
 

@@ -33,19 +33,16 @@ const ROTATE_MS = 3600
 const MEMORY = 6
 
 /**
- * Mood from the search.
+ * What the toast murmurs while the search runs.
  *
- * Scores are from the side to move — the computer — so positive means it is
- * ahead. The thresholds are wide on purpose: a quarter of a pawn is not worth
- * gloating over.
+ * Only two moods, deliberately. The commentator himself now names which colour
+ * stands better, out loud and from the board; having the toast say it too would
+ * be two voices telling the player the same thing in different words.
  */
 function moodOf(progress: SearchInfo | null): Situation {
-  if (!progress) return 'thinking'
-  if (progress.mateIn !== null && progress.mateIn !== undefined && progress.mateIn > 0) {
-    return 'thinkingMate'
+  if (progress?.mateIn !== null && progress?.mateIn !== undefined && progress.mateIn > 0) {
+    return 'foreseeMate'
   }
-  if (progress.score > 250) return 'thinkingAhead'
-  if (progress.score < -250) return 'thinkingBehind'
   return 'thinking'
 }
 

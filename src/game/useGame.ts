@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { playMoveOutcome } from '../audio/sfx'
+import type { MoveReport } from '../commentary/facts'
 import { getEngineClient } from '../engine/client'
 import type {
   Difficulty,
@@ -93,6 +94,14 @@ export function useGame(config: GameConfig) {
   const [progress, setProgress] = useState<SearchInfo | null>(null)
   const [lastMove, setLastMove] = useState<LastMove | null>(null)
   const [lastCapture, setLastCapture] = useState<LastCapture | null>(null)
+  /**
+   * The engine's own account of the move just played.
+   *
+   * Read straight from the engine rather than worked out here: which piece
+   * moved, what it took, and what it now threatens are questions about the
+   * rules, and the rules live in one place.
+   */
+  const [lastReport, setLastReport] = useState<MoveReport | null>(null)
   const [error, setError] = useState<string | null>(null)
   /** Set when the human resigns; the engine has no notion of resignation. */
   const [manualEnd, setManualEnd] = useState<{
@@ -155,6 +164,7 @@ export function useGame(config: GameConfig) {
         const mover = (game.status() as StatusInfo).sideToMove
         game.play(iccs)
         setLastCapture(info?.capture ? { by: mover } : null)
+        setLastReport((game.lastMoveReport() as MoveReport | null) ?? null)
         if (info) {
           setLastMove({
             fromRow: info.fromRow,
@@ -245,11 +255,28 @@ export function useGame(config: GameConfig) {
     searchTokenRef.current++
     setThinking(false)
     setManualEnd(null)
-    // Against the engine, take back the pair so the human is on move again.
-    const steps = config.mode === 'pve' ? 2 : 1
-    for (let i = 0; i < steps; i++) game.undo()
+    /*
+     * Go back to just before the human's own last move.
+     *
+     * Always taking back two plies was wrong: when the engine had not replied
+     * yet — the human moves, then immediately changes their mind — it took back
+     * their move *and* the engine's previous one, throwing away a whole move
+     * pair and putting the board a full move further back than asked.
+     *
+     * So take one ply, and take a second only if that left the engine on move,
+     * which means the ply just removed was the engine's reply rather than the
+     * human's move.
+     */
+    game.undo()
+    if (
+      config.mode === 'pve' &&
+      (game.status() as StatusInfo).sideToMove !== config.playerSide
+    ) {
+      game.undo()
+    }
     setLastMove(null)
     setLastCapture(null)
+    setLastReport(null)
     setLastInfo(null)
     refresh()
   }, [config.mode, refresh])
@@ -263,6 +290,7 @@ export function useGame(config: GameConfig) {
     setManualEnd(null)
     setLastMove(null)
     setLastCapture(null)
+    setLastReport(null)
     setLastInfo(null)
     setError(null)
     refresh()
@@ -312,6 +340,8 @@ export function useGame(config: GameConfig) {
         setManualEnd(null)
         setLastMove(null)
         setLastCapture(null)
+        setLastReport(null)
+    setLastReport(null)
         setLastInfo(null)
         refresh()
         return true
@@ -329,6 +359,7 @@ export function useGame(config: GameConfig) {
     progress,
     lastInfo,
     lastCapture,
+    lastReport,
     lastMove,
     projection,
     status: effectiveStatus,

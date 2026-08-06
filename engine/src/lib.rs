@@ -16,7 +16,7 @@ pub mod see;
 pub mod types;
 pub mod zobrist;
 
-pub use board::{Forcing, Intent, Position, RepKind, START_FEN};
+pub use board::{Forcing, Intent, MoveReport, Position, RepKind, START_FEN};
 pub use book::Book;
 pub use eval::{evaluate, INFINITY, MATE_BOUND, MATE_VALUE};
 pub use learn::{Experience, Outcome};

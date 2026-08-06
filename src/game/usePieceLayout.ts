@@ -30,19 +30,33 @@ export interface PieceLayout {
 /**
  * How long a move takes on screen, in milliseconds.
  *
- * Exported because the stylesheet animates the slide over the same span and a
- * captured piece must not dissolve before the piece taking it has arrived. Two
- * numbers would drift apart; one cannot. Keep in step with `--move-ms` in
- * `styles.css`.
+ * The stylesheet animates the slide over the same span, and a captured piece
+ * must not dissolve before the piece taking it has arrived — so the duration is
+ * handed to both from here rather than written down twice.
+ *
+ * Purely presentational. The engine has already finished thinking and the board
+ * state has already changed by the time any of this runs; nothing waits on the
+ * animation, and slowing it down does not slow the computer down.
  */
-export const MOVE_MS = 420
+export const MOVE_MS = 520
 
-/** How long a captured piece stays mounted so its animation can finish. */
-const GHOST_MS = MOVE_MS
+/**
+ * How long the computer's moves take on screen.
+ *
+ * Deliberately slower than the player's own. A player who just tapped a piece
+ * knows exactly what moved and where; watching the machine's reply, they do not
+ * — and a move that arrives in a blink reads as the board teleporting rather
+ * than as a piece being played.
+ */
+export const ENGINE_MOVE_MS = 900
 
 const at = (row: number, col: number) => `${row},${col}`
 
-export function usePieceLayout(pieces: Piece[], lastMove: LastMove | null): PieceLayout {
+export function usePieceLayout(
+  pieces: Piece[],
+  lastMove: LastMove | null,
+  moveMs: number = MOVE_MS
+): PieceLayout {
   const [live, setLive] = useState<RenderedPiece[]>([])
   const [ghosts, setGhosts] = useState<RenderedPiece[]>([])
   const previousRef = useRef<RenderedPiece[]>([])
@@ -99,9 +113,11 @@ export function usePieceLayout(pieces: Piece[], lastMove: LastMove | null): Piec
   // Retire ghosts once their animation has run.
   useEffect(() => {
     if (ghosts.length === 0) return
-    const timer = setTimeout(() => setGhosts([]), GHOST_MS)
+    // The captured piece is held exactly as long as the slide takes, so it
+    // dissolves under the piece arriving rather than before or after it.
+    const timer = setTimeout(() => setGhosts([]), moveMs)
     return () => clearTimeout(timer)
-  }, [ghosts])
+  }, [ghosts, moveMs])
 
   return { live, ghosts }
 }

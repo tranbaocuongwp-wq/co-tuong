@@ -28,11 +28,13 @@ import type { SearchInfo } from '../engine/types'
 import { DIFFICULTY_PRESETS, describeResult } from '../engine/types'
 import { engineVersion } from '../engine/wasm'
 import { useCommentary } from '../game/useCommentary'
+import { ENGINE_MOVE_MS, MOVE_MS } from '../game/usePieceLayout'
 import { useGame } from '../game/useGame'
 import { useSettings } from '../settings'
 import { getHistoryStore } from '../storage'
 import { useAppUpdate } from '../update'
-import type { GameRecord } from '../storage/types'
+import type { Line } from '../commentary/lines'
+import type { AssistEntry, CommentaryEntry, GameRecord } from '../storage/types'
 import { GAME_FORMAT, newGameId } from '../storage/types'
 
 /** Key under which the experience book is persisted. */
@@ -45,6 +47,14 @@ const EXPERIENCE_KEY = 'engine.experience'
  * hint button a lifeline rather than a way to have the computer play for you.
  */
 const HINTS_PER_GAME = 5
+
+/**
+ * Take-backs allowed per game.
+ *
+ * Same reasoning as the hint budget: unlimited take-backs turn a loss into a
+ * search for the one line that wins, and the game stops being a game.
+ */
+const UNDOS_PER_GAME = 5
 
 export function PlayPage() {
   const { settings, update } = useSettings()
@@ -60,6 +70,9 @@ export function PlayPage() {
   const [hint, setHint] = useState<SearchInfo | null>(null)
   const [hintBusy, setHintBusy] = useState(false)
   const [hintsLeft, setHintsLeft] = useState(HINTS_PER_GAME)
+  const [undosLeft, setUndosLeft] = useState(UNDOS_PER_GAME)
+  /** Hints taken and moves taken back, kept with the game. */
+  const assistsRef = useRef<AssistEntry[]>([])
   const [savedNote, setSavedNote] = useState<string | null>(null)
   /** Ensures a finished game is filed once, not once per re-render. */
   const filedRef = useRef<string | null>(null)
@@ -81,15 +94,36 @@ export function PlayPage() {
   // Leaving the board should not leave a voice talking over the next screen.
   useEffect(() => stopVoice, [])
 
+  /**
+   * What the commentator said, in order, for this game.
+   *
+   * A ref rather than state: it is written on every spoken line and read only
+   * when the game is filed, so re-rendering the board for it would be work for
+   * nothing.
+   */
+  const commentaryRef = useRef<CommentaryEntry[]>([])
+  const onSpoke = useCallback((line: Line) => {
+    commentaryRef.current.push({
+      ply: projectionRef.current,
+      id: line.id,
+      at: Date.now(),
+    })
+  }, [])
+  const projectionRef = useRef(0)
+  projectionRef.current = projection.movesIccs.length
+
   const { spoken: spokenLine, reset: resetCommentary } = useCommentary({
     enabled: settings.voice,
     status,
     pieces: projection.pieces,
     moveCount: projection.movesIccs.length,
-    lastCapture: game.lastCapture,
+    report: game.lastReport,
     info: lastInfo,
-    playerSide: settings.mode === 'pvp' ? null : settings.playerSide,
+    // Which colour the computer has. In a two-player game there is no engine
+    // and so no assessment to speak about.
+    engineSide: settings.mode === 'pvp' ? null : settings.playerSide === 'r' ? 'b' : 'r',
     isOver,
+    onSpoke,
   })
 
   // The synthesiser is a module singleton, so the preference is pushed to it
@@ -129,6 +163,8 @@ export function PlayPage() {
       durationMs: Date.now() - game.startedAt,
       appVersion: engineVersion(),
       shared: false,
+      commentary: commentaryRef.current.slice(),
+      assists: assistsRef.current.slice(),
     }
   }, [
     gameId,
@@ -238,9 +274,12 @@ export function PlayPage() {
     setSavedNote(null)
     setMenuOpen(false)
     setHintsLeft(HINTS_PER_GAME)
+    setUndosLeft(UNDOS_PER_GAME)
+    assistsRef.current = []
     filedRef.current = null
     stopVoice()
     resetCommentary()
+    commentaryRef.current = []
     // A new game replaces the autosave; otherwise reloading would resurrect the
     // abandoned one.
     void getHistoryStore().then((store) => store.saveInProgress(null))
@@ -255,11 +294,19 @@ export function PlayPage() {
       const suggestion = await game.hint()
       setHint(suggestion)
       // Only spend a hint when one actually came back.
-      if (suggestion) setHintsLeft((n) => n - 1)
+      if (suggestion) {
+        setHintsLeft((n) => n - 1)
+        assistsRef.current.push({
+          ply: projection.movesIccs.length,
+          kind: 'hint',
+          iccs: suggestion.iccs,
+          at: Date.now(),
+        })
+      }
     } finally {
       setHintBusy(false)
     }
-  }, [game, hintsLeft])
+  }, [game, hintsLeft, projection.movesIccs.length])
 
   const hintSquares = useMemo(() => {
     if (!hint) return null
@@ -292,6 +339,14 @@ export function PlayPage() {
         onApply={update_.apply}
       />
       <div className="stage__bar">
+        {/*
+          Leaving a game in progress must be one tap, not a tap into a drawer.
+          The autosave means nothing is lost by going, so the button does not
+          need to warn or confirm — it just goes.
+        */}
+        <Link className="icon-btn icon-btn--menu" to="/" aria-label="Về trang chủ">
+          <Icon name="home" size={19} />
+        </Link>
         <span className="turn">
           <span className={`dot dot--${status.sideToMove}`} />
           {isOver ? (
@@ -328,8 +383,22 @@ export function PlayPage() {
           inCheck={status.inCheck}
           disabled={boardDisabled}
           hint={settings.showHints ? hintSquares : null}
+          moveMs={
+            // The computer's replies play out slowly enough to follow. The
+            // player's own moves do not need it: they already know what moved.
+            game.lastReport && game.lastReport.side !== settings.playerSide
+              ? ENGINE_MOVE_MS
+              : MOVE_MS
+          }
         />
       </div>
+
+      {settings.voice && !isOver && (
+        <div className="commentary" role="status">
+          <Icon name="speaker" size={15} />
+          <span className="commentary__text">{spokenLine?.text ?? ''}</span>
+        </div>
+      )}
 
       {isOver && (
         <div className="stage__end card">
@@ -352,13 +421,6 @@ export function PlayPage() {
         </p>
       )}
 
-      {spokenLine && !isOver && (
-        <div className="commentary" role="status">
-          <Icon name="speaker" size={16} />
-          <span className="commentary__text">{spokenLine.text}</span>
-        </div>
-      )}
-
       {/* Only ever on the engine's turn, or while a hint is being fetched. */}
       <ThinkingToast
         visible={thinking || hintBusy}
@@ -373,7 +435,7 @@ export function PlayPage() {
         pieces={projection.pieces}
         info={lastInfo}
         difficultyLabel={settings.mode === 'pve' ? preset.label : null}
-        canUndo={projection.movesIccs.length > 0}
+        canUndo={projection.movesIccs.length > 0 && undosLeft > 0}
         isOver={isOver}
         busy={thinking || hintBusy}
         hintsLeft={hintsLeft}
@@ -384,7 +446,15 @@ export function PlayPage() {
           if (!next) stopVoice()
         }}
         onNewGame={onNewGame}
+        undosLeft={undosLeft}
         onUndo={() => {
+          if (undosLeft <= 0) return
+          assistsRef.current.push({
+            ply: projection.movesIccs.length,
+            kind: 'undo',
+            at: Date.now(),
+          })
+          setUndosLeft((n) => n - 1)
           game.undo()
           setMenuOpen(false)
         }}

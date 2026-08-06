@@ -19,11 +19,12 @@
 // Imported straight from the app's script rather than copied. A duplicated
 // list would drift the moment a line was added, and the Worker would start
 // refusing ids the client was asking for.
+import { allFactLines } from '../../src/commentary/facts'
 import { allLines } from '../../src/commentary/lines'
 
 /** id → the text actually spoken, including its performance directions. */
 const LINE_SPEECH: Record<string, string> = Object.fromEntries(
-  allLines().map((l) => [l.id, l.speech ?? l.text])
+  [...allLines(), ...allFactLines()].map((l) => [l.id, l.speech ?? l.text])
 )
 const LINE_IDS = Object.keys(LINE_SPEECH)
 

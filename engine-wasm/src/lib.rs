@@ -90,6 +90,25 @@ pub struct PieceInfo {
     pub glyph: &'static str,
 }
 
+/// What the last move did, in the terms a commentator speaks in.
+///
+/// Kinds are the same single letters `PieceInfo` uses, so the interface has one
+/// vocabulary for pieces rather than two.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MoveReportInfo {
+    /// Kind of the piece that moved.
+    pub mover: &'static str,
+    /// "r" or "b" - which side played it.
+    pub side: &'static str,
+    /// Kind taken, or null when the move took nothing.
+    pub captured: Option<&'static str>,
+    /// Whether the move left the opponent in check.
+    pub gives_check: bool,
+    /// Enemy kinds the moved piece can now profitably take, best first.
+    pub threats: Vec<&'static str>,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StatusInfo {
@@ -197,6 +216,19 @@ fn forcing_reason(offence: Forcing) -> &'static str {
     match offence {
         Forcing::Check => "perpetualCheck",
         Forcing::Chase => "perpetualChase",
+    }
+}
+
+/// Same letters as `kind_letter`, but for a bare kind rather than a piece.
+fn kind_name(kind: u8) -> &'static str {
+    match kind {
+        0 => "k",
+        1 => "a",
+        2 => "e",
+        3 => "h",
+        4 => "r",
+        5 => "c",
+        _ => "p",
     }
 }
 
@@ -349,6 +381,25 @@ impl Game {
         }
         self.moves.push(mv);
         self.status()
+    }
+
+    /// What the last move did and what it now threatens.
+    ///
+    /// Returns null before the first move. This is what the commentator speaks
+    /// from: it lets a line name the actual pieces on the board instead of
+    /// saying something vague that would fit any position.
+    #[wasm_bindgen(js_name = lastMoveReport)]
+    pub fn last_move_report(&mut self) -> Result<JsValue, JsValue> {
+        let Some(r) = self.pos.last_move_report() else {
+            return Ok(JsValue::NULL);
+        };
+        to_js(&MoveReportInfo {
+            mover: kind_name(r.mover),
+            side: if r.mover_side == RED { "r" } else { "b" },
+            captured: r.captured.map(kind_name),
+            gives_check: r.gives_check,
+            threats: r.threats.into_iter().map(kind_name).collect(),
+        })
     }
 
     /// Take back the last move. Returns false when there is nothing to undo.

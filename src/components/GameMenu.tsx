@@ -30,6 +30,8 @@ export interface GameMenuProps {
   busy: boolean
   /** Suggestions left in this game. */
   hintsLeft: number
+  /** Take-backs left in this game. */
+  undosLeft: number
   voiceOn: boolean
   onToggleVoice: () => void
   onNewGame: () => void
@@ -72,6 +74,7 @@ export function GameMenu({
   isOver,
   busy,
   hintsLeft,
+  undosLeft,
   voiceOn,
   onToggleVoice,
   onNewGame,
@@ -126,7 +129,7 @@ export function GameMenu({
               <Icon name="new" /> Ván mới
             </button>
             <button type="button" className="btn" onClick={onUndo} disabled={!canUndo}>
-              <Icon name="undo" /> Đi lại
+              <Icon name="undo" /> Đi lại ({undosLeft})
             </button>
             <button
               type="button"

@@ -66,6 +66,25 @@ struct Undo {
     gave_check: bool,
 }
 
+/// A plain description of the move just played, for the commentary.
+///
+/// Deliberately says nothing about evaluation. Someone watching a board can see
+/// which piece moved, what it took and what it is now aiming at without knowing
+/// a single centipawn, and those are the facts a commentator speaks from.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MoveReport {
+    /// Kind of the piece that moved.
+    pub mover: u8,
+    /// Which side played it.
+    pub mover_side: u8,
+    /// Kind taken, if the move was a capture.
+    pub captured: Option<u8>,
+    /// Whether the move left the opponent in check.
+    pub gives_check: bool,
+    /// Enemy kinds the moved piece could now profitably take, best first.
+    pub threats: Vec<u8>,
+}
+
 /// The starting array, in Xiangqi FEN.
 pub const START_FEN: &str = "rnbakabnr/9/1c5c1/p1p1p1p1p/9/9/P1P1P1P1P/1C5C1/9/RNBAKABNR w - - 0 1";
 
@@ -779,6 +798,85 @@ impl Position {
         k
     }
 
+    /// What the move just played did, and what the piece that played it is now
+    /// eyeing.
+    ///
+    /// This exists for the commentary, not for the search — it answers the
+    /// questions someone watching the board asks out loud: which piece moved,
+    /// what did it take, and what is it threatening now. Returns `None` before
+    /// the first move.
+    ///
+    /// "Threatening" here is the same standard the chase rule uses, and for the
+    /// same reason: a capture that merely offers a trade is not a threat, and
+    /// saying it is would make the commentator cry wolf every time two pieces
+    /// looked at each other. Only captures that actually win material count.
+    pub fn last_move_report(&mut self) -> Option<MoveReport> {
+        let u = *self.stack.last()?;
+        let to = mv_to(u.mv);
+        let moved = self.board[to];
+        // A move is always followed by the side flipping, so the piece that
+        // just moved belongs to whoever is *not* to move now.
+        let mover_side = side_of(moved);
+
+        let saved_side = self.side;
+        let saved_key = self.key;
+        if self.side != mover_side {
+            self.side = mover_side;
+            self.key ^= SIDE_KEY;
+        }
+
+        let mut list = MoveList::new();
+        self.generate(&mut list, true);
+        let mut threats = Vec::new();
+
+        for i in 0..list.len {
+            let m = list.moves[i];
+            // Only what *this* piece threatens. What the rest of the army is
+            // doing was already true before the move and is not news.
+            if mv_from(m) != to {
+                continue;
+            }
+            let target = mv_to(m);
+            let victim = self.board[target];
+            if kind_of(victim) == KING {
+                continue; // that is check, and it is reported on its own
+            }
+            let profitable = if self.is_attacked(target, 1 - mover_side) {
+                self.see(m) > 0
+            } else {
+                true
+            };
+            if profitable && !threats.contains(&kind_of(victim)) {
+                threats.push(kind_of(victim));
+            }
+        }
+
+        self.side = saved_side;
+        self.key = saved_key;
+
+        // Most valuable first: that is the one worth naming.
+        threats.sort_by_key(|k| match *k {
+            ROOK => 0,
+            CANNON => 1,
+            HORSE => 2,
+            ELEPHANT => 3,
+            ADVISOR => 4,
+            _ => 5,
+        });
+
+        Some(MoveReport {
+            mover: kind_of(moved),
+            captured: if u.captured == EMPTY {
+                None
+            } else {
+                Some(kind_of(u.captured))
+            },
+            mover_side,
+            gives_check: self.in_check(),
+            threats,
+        })
+    }
+
     pub fn recompute_score(&self) -> [i32; 2] {
         let mut sc = [0i32; 2];
         for s in all_squares() {
@@ -793,6 +891,43 @@ impl Position {
 
 #[cfg(test)]
 mod tests {
+
+    /// A rook swinging onto a file to eye an undefended cannon.
+    ///
+    /// The position is deliberately bare: the point is that the report names
+    /// the piece that moved and the piece it now threatens, not that the engine
+    /// evaluates the position well.
+    #[test]
+    fn a_move_report_names_the_mover_and_what_it_threatens() {
+        let mut pos = Position::from_fen("5k3/9/4c4/9/R8/9/9/9/9/3K5 w - - 0 1").unwrap();
+        assert!(pos.make_move_checked(iccs_to_move("a5e5").unwrap()));
+
+        let report = pos.last_move_report().unwrap();
+        assert_eq!(report.mover, ROOK);
+        assert_eq!(report.mover_side, RED);
+        assert_eq!(report.captured, None);
+        assert!(!report.gives_check);
+        assert_eq!(report.threats, vec![CANNON]);
+    }
+
+    /// A capture reports what it took, and stops threatening what it just ate.
+    #[test]
+    fn a_move_report_names_the_capture() {
+        let mut pos = Position::from_fen("5k3/9/4c4/9/4R4/9/9/9/9/3K5 w - - 0 1").unwrap();
+        assert!(pos.make_move_checked(iccs_to_move("e5e7").unwrap()));
+
+        let report = pos.last_move_report().unwrap();
+        assert_eq!(report.mover, ROOK);
+        assert_eq!(report.captured, Some(CANNON));
+        assert!(report.threats.is_empty());
+    }
+
+    /// Nothing has been played, so there is nothing to report.
+    #[test]
+    fn a_move_report_needs_a_move() {
+        let mut pos = Position::new();
+        assert!(pos.last_move_report().is_none());
+    }
     use super::*;
 
     #[test]

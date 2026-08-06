@@ -9,12 +9,13 @@
  * desktop window with no breakpoints.
  */
 
+import type { CSSProperties } from 'react'
 import { useMemo, useState } from 'react'
 
 import { playSelect } from '../audio/sfx'
 import type { MoveInfo, Piece, Side } from '../engine/types'
 import type { LastMove } from '../game/useGame'
-import { usePieceLayout } from '../game/usePieceLayout'
+import { MOVE_MS, usePieceLayout } from '../game/usePieceLayout'
 
 /** Half-unit margin so edge pieces are not clipped by the board border. */
 const PAD = 0.6
@@ -36,6 +37,13 @@ export interface BoardProps {
   disabled: boolean
   /** Highlighted suggestion from the Hint button. */
   hint: { fromRow: number; fromCol: number; toRow: number; toCol: number } | null
+  /**
+   * How long the piece takes to slide, in milliseconds.
+   *
+   * Set per move so the computer's replies can be watched at a slower pace than
+   * the player's own. Presentation only — the position has already changed.
+   */
+  moveMs?: number
 }
 
 interface Point {
@@ -54,13 +62,14 @@ export function Board({
   controllable,
   onMove,
   lastMove,
+  moveMs = MOVE_MS,
   flipped,
   inCheck,
   disabled,
   hint,
 }: BoardProps) {
   const [selected, setSelected] = useState<Point | null>(null)
-  const { live, ghosts } = usePieceLayout(pieces, lastMove)
+  const { live, ghosts } = usePieceLayout(pieces, lastMove, moveMs)
 
   // Board coordinates are absolute; flipping only changes where they are drawn.
   const toScreen = (p: Point) => ({
@@ -193,7 +202,12 @@ export function Board({
   }, [])
 
   return (
-    <div className="board" role="group" aria-label="Bàn cờ tướng">
+    <div
+      className="board"
+      role="group"
+      aria-label="Bàn cờ tướng"
+      style={{ '--move-ms': `${moveMs}ms` } as CSSProperties}
+    >
       <svg
         className="board__grid"
         viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}

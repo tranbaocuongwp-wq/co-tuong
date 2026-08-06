@@ -21,8 +21,12 @@
   --warn: #b8860b;
   --shadow: 0 1px 3px rgba(36, 29, 22, 0.18), 0 6px 18px rgba(36, 29, 22, 0.08);
   --radius: 12px;
-  /* Duration of a piece moving. Mirrors MOVE_MS in game/usePieceLayout.ts. */
-  --move-ms: 420ms;
+  /*
+   * Duration of a piece moving. The board overrides this per move, faster for
+   * the player's own moves and slower for the computer's; this is the fallback
+   * for anywhere that does not set it. Mirrors MOVE_MS in usePieceLayout.ts.
+   */
+  --move-ms: 520ms;
   color-scheme: light;
 }
 
@@ -874,6 +878,8 @@ a {
   align-items: center;
   gap: 8px;
   font-size: 0.98rem;
+  /* Takes the slack so the two buttons stay pinned to the ends of the bar. */
+  flex: 1;
 }
 
 .stage__board {
@@ -946,55 +952,47 @@ a {
 /*
  * What the commentator is saying, right now.
  *
- * It sits above the thinking pill rather than beside it: both can be on screen
- * at once (the commentator talks while the engine searches) and stacking keeps
- * them from fighting over the same corner on a narrow phone.
+ * It sits *under* the board, in the flow, not floating over it. An earlier
+ * version fixed it above the bottom of the screen, where a three-line remark
+ * covered the pieces it was talking about — commentary that hides the game is
+ * worse than no commentary.
+ *
+ * The box keeps its height whether or not anything is being said, so the board
+ * does not jump every time he opens his mouth. Two lines is the ceiling: the
+ * script is written short, and this is the backstop if a line ever is not.
  *
  * Text is the fallback as much as the accompaniment — with no network there is
  * no voice, and this line is the whole of the commentary.
  */
 .commentary {
-  position: fixed;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: calc(72px + env(safe-area-inset-bottom));
-  z-index: 39;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
-  max-width: min(560px, calc(100vw - 32px));
-  padding: 9px 16px;
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--surface) 92%, transparent);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow);
-  color: var(--text);
-  font-size: 0.88rem;
-  line-height: 1.45;
-  pointer-events: none;
-  animation: commentary-in 0.26s ease-out;
+  width: min(100%, 560px);
+  margin: 10px auto 0;
+  min-height: 2.6em;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.4;
 }
 
 .commentary svg {
   flex: none;
+  margin-top: 2px;
   color: var(--accent);
+  opacity: 0.75;
 }
 
 .commentary__text {
   font-style: italic;
-}
-
-@keyframes commentary-in {
-  from {
-    opacity: 0;
-    transform: translate(-50%, 8px);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .commentary {
-    animation: none;
-  }
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
 }
 
 /* --- thinking toast ------------------------------------------------------- */

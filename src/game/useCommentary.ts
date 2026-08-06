@@ -1,16 +1,25 @@
 /**
  * Decides what the commentator says, and when.
  *
- * Reads the same game state the board does and picks a situation from it. The
- * hard part is not choosing a line — it is choosing *when to stay quiet*.
- * Someone talking over every single move stops being company and becomes noise,
- * so ordinary moves are passed over and only the moments that would make a real
- * commentator lean forward get a remark.
+ * He is an onlooker, not a participant: he never addresses anyone, and he names
+ * sides by colour because he does not know or care which one the player picked.
+ *
+ * Each move gets up to two remarks, in order. First the **fact** — "Đỏ dùng Xe
+ * ăn Pháo", built from the engine's own report so it is always true of the
+ * board in front of the player. Then, sometimes, the **reaction** — what to
+ * make of it. That pairing is what a broadcast sounds like, and the sequential
+ * voice queue plays them back to back without either cutting the other off.
+ *
+ * The hard part is not choosing a line, it is choosing when to stay quiet. A
+ * quiet move that takes nothing and threatens nothing is not news, and someone
+ * talking through every one of them stops being company and becomes noise.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { isVoiceBusy, onVoiceLine, speak, type VoicePriority } from '../audio/voice'
+import type { Kind, MoveReport, SideLetter } from '../commentary/facts'
+import { captureLine, checkLine, threatLine } from '../commentary/facts'
 import type { Line, Situation } from '../commentary/lines'
 import { pickLine } from '../commentary/lines'
 import type { GameStatus, Piece, SearchInfo, Side, StatusInfo } from '../engine/types'
@@ -18,33 +27,23 @@ import type { GameStatus, Piece, SearchInfo, Side, StatusInfo } from '../engine/
 /** How many recent lines to avoid repeating. */
 const MEMORY = 12
 
-/** Quiet moves worth commenting on, as a fraction. */
-const IDLE_CHANCE = 0.28
+/** Quiet moves that still earn a reaction, as a fraction. */
+const IDLE_CHANCE = 0.22
 
 /** Below this many pieces the game is an endgame worth remarking on. */
 const ENDGAME_PIECES = 14
 
-/** Centipawns that count as "in real trouble". */
-const TROUBLE = 350
+/** Centipawns past which one side is clearly better. */
+const CLEAR = 250
 
-/**
- * How far the assessment must move between turns before it is worth calling.
- *
- * A real commentator predicts when they have actually seen something change,
- * not on a timer. The engine's own evaluation swinging by more than a piece is
- * exactly that moment, so the prediction is grounded in something real rather
- * than sprinkled at random.
- */
+/** Centipawns past which the assessment has moved enough to be worth calling. */
 const SWING = 180
 
 /**
  * How long a silence may run before the commentator fills it.
  *
- * A player can sit on one move for a minute, and dead air for a minute is what
- * makes a broadcast feel switched off. So when nothing has been said for this
- * long the commentator reaches for something else to talk about — a scrap of
- * chess history, a memory of some roadside chess house — the way a real
- * commentator does while waiting for a hand to move.
+ * A player can sit on one move for a minute, and a minute of dead air is a
+ * broadcast that sounds switched off.
  */
 const FILLER_MS = 13_000
 
@@ -54,21 +53,20 @@ const FILLER_TICK_MS = 2500
 /** How often filler reaches for an anecdote rather than a read of the position. */
 const STORY_SHARE = 0.65
 
-/** Evaluation past which the filler comments on who stands better. */
-const LEANING = 120
-
 export interface CommentaryInput {
   enabled: boolean
   status: StatusInfo
   pieces: Piece[]
   moveCount: number
-  /** Whether the move just played took a piece, and who played it. */
-  lastCapture: { by: Side } | null
-  /** The engine's own last assessment; positive means the engine is ahead. */
+  /** The engine's account of the move just played. */
+  report: MoveReport | null
+  /** The engine's own last assessment, from its own side's point of view. */
   info: SearchInfo | null
-  /** Which side the human plays, or null in a two-player game. */
-  playerSide: Side | null
+  /** Which colour the engine plays, or null in a two-player game. */
+  engineSide: Side | null
   isOver: boolean
+  /** Called as each line is spoken, so the game can keep a record of it. */
+  onSpoke?: (line: Line) => void
 }
 
 export function useCommentary(input: CommentaryInput) {
@@ -83,6 +81,11 @@ export function useCommentary(input: CommentaryInput) {
   /** When the commentator last had the microphone, for measuring the silence. */
   const lastSpokeRef = useRef(0)
 
+  const { enabled, status, pieces, moveCount, report, info, engineSide, isOver, onSpoke } = input
+
+  const onSpokeRef = useRef(onSpoke)
+  onSpokeRef.current = onSpoke
+
   // The caption follows the microphone. Setting it here instead would show a
   // line while a different one was still being spoken.
   useEffect(
@@ -92,18 +95,23 @@ export function useCommentary(input: CommentaryInput) {
         // Both ends of a line restart the silence clock: starting one means the
         // filler must not fire, and finishing one is when the silence begins.
         lastSpokeRef.current = Date.now()
+        if (line) onSpokeRef.current?.(line)
       }),
     []
   )
 
-  const say = useCallback((situation: Situation, priority: VoicePriority) => {
-    const line = pickLine(situation, recentRef.current)
+  const sayLine = useCallback((line: Line | null, priority: VoicePriority) => {
     if (!line) return
     recentRef.current = [line.id, ...recentRef.current].slice(0, MEMORY)
     speak(line, priority)
   }, [])
 
-  const { enabled, status, pieces, moveCount, lastCapture, info, playerSide, isOver } = input
+  const say = useCallback(
+    (situation: Situation, priority: VoicePriority) => {
+      sayLine(pickLine(situation, recentRef.current), priority)
+    },
+    [sayLine]
+  )
 
   // Take a seat as the game begins.
   useEffect(() => {
@@ -121,8 +129,8 @@ export function useCommentary(input: CommentaryInput) {
   useEffect(() => {
     if (!enabled || !isOver || endedRef.current) return
     endedRef.current = true
-    say(resultSituation(status.status, playerSide), 'critical')
-  }, [enabled, isOver, status.status, playerSide, say])
+    say(resultSituation(status.status), 'critical')
+  }, [enabled, isOver, status.status, say])
 
   // Everything that happens mid-game.
   useEffect(() => {
@@ -130,10 +138,22 @@ export function useCommentary(input: CommentaryInput) {
     if (moveCount === 0 || moveCount === lastMoveSeenRef.current) return
     lastMoveSeenRef.current = moveCount
 
-    // The player's king is in check, or the computer's — either is worth a word.
-    if (status.inCheck) {
-      const humanInCheck = playerSide !== null && status.sideToMove === playerSide
-      say(humanInCheck ? 'playerCheck' : 'engineCheck', 'critical')
+    // 1. The fact. What just happened, in the pieces' own names.
+    const fact = factFor(report)
+    sayLine(fact, report?.givesCheck || report?.captured ? 'critical' : 'event')
+
+    // 2. The reaction, when there is something to react to. The fact is already
+    //    queued, so this lands straight after it rather than on top of it.
+    let swung = false
+    if (info) {
+      const prev = prevScoreRef.current
+      prevScoreRef.current = info.score
+      swung = prev !== null && Math.abs(info.score - prev) >= SWING
+    }
+
+    if (info?.mateIn !== null && info?.mateIn !== undefined && !mateCalledRef.current) {
+      mateCalledRef.current = true
+      say('foreseeMate', 'critical')
       return
     }
 
@@ -142,41 +162,20 @@ export function useCommentary(input: CommentaryInput) {
       return
     }
 
-    // A forced mate is the strongest thing a commentator can announce, and it
-    // only gets announced once.
-    if (info?.mateIn !== null && info?.mateIn !== undefined && !mateCalledRef.current) {
-      mateCalledRef.current = true
-      say('foreseeMate', 'critical')
+    if (swung) {
+      say('prediction', 'event')
       return
     }
 
-    if (lastCapture) {
-      const byHuman = playerSide !== null && lastCapture.by === playerSide
-      say(byHuman ? 'playerCapture' : 'engineCapture', 'event')
-      return
-    }
-
-    // The assessment has moved sharply: call what it means.
-    if (info) {
-      const prev = prevScoreRef.current
-      prevScoreRef.current = info.score
-      if (prev !== null && Math.abs(info.score - prev) >= SWING) {
-        say('prediction', 'event')
-        return
-      }
-    }
-
-    // The opening, once.
     if (moveCount <= 4) {
       say('opening', 'idle')
       return
     }
 
-    // A position that has turned decisively.
-    if (info && Math.abs(info.score) > TROUBLE) {
-      const engineAhead = info.score > 0
-      const humanLosing = playerSide !== null && engineAhead
-      say(humanLosing ? 'playerLosing' : 'engineLosing', 'event')
+    // A position that has turned decisively, named by colour.
+    const leader = leaderSituation(info, engineSide)
+    if (leader) {
+      say(leader, 'event')
       return
     }
 
@@ -185,18 +184,17 @@ export function useCommentary(input: CommentaryInput) {
       return
     }
 
-    // Otherwise, mostly say nothing. A commentator who fills every silence is
-    // exhausting; the occasional unprompted remark is what makes them feel
-    // present rather than scripted.
-    if (Math.random() < IDLE_CHANCE) say('thinking', 'idle')
-  }, [enabled, isOver, moveCount, status, lastCapture, info, pieces.length, playerSide, say])
+    // Otherwise mostly nothing. A fact was very likely already said, and a
+    // commentator who fills every silence is exhausting.
+    if (!fact && Math.random() < IDLE_CHANCE) say('thinking', 'idle')
+  }, [enabled, isOver, moveCount, status, report, info, pieces.length, engineSide, say, sayLine])
 
   /*
    * Keep the room warm.
    *
-   * This is the only part of the commentary not driven by a move, because the
-   * thing it reacts to is the *absence* of one. It never interrupts and never
-   * queues behind anything — it speaks only into real silence.
+   * The only part of the commentary not driven by a move, because what it
+   * reacts to is the *absence* of one. It never interrupts and never queues
+   * behind anything — it speaks only into real silence.
    */
   useEffect(() => {
     if (!enabled || isOver) return
@@ -206,10 +204,10 @@ export function useCommentary(input: CommentaryInput) {
       // Claim the slot before the audio is even fetched, so a slow network
       // cannot let a second filler fire on top of the first.
       lastSpokeRef.current = Date.now()
-      say(fillerSituation(info), 'idle')
+      say(fillerSituation(info, engineSide), 'idle')
     }, FILLER_TICK_MS)
     return () => clearInterval(tick)
-  }, [enabled, isOver, info, say])
+  }, [enabled, isOver, info, engineSide, say])
 
   // Reset when a new game starts.
   const reset = useCallback(() => {
@@ -227,24 +225,50 @@ export function useCommentary(input: CommentaryInput) {
 }
 
 /**
- * What to talk about when nothing is happening.
+ * The concrete remark for a move, or null when the move was quiet.
  *
- * Mostly anecdotes, but not always: a filler that never mentions the board
- * stops sounding like commentary and starts sounding like a radio left on. The
- * occasional read of who stands better keeps it tied to the game in front of it.
+ * Order is by how much a watcher would care: taking a piece beats giving check
+ * beats lining one up. Only one is said — reading a list at someone is not
+ * commentary.
  */
-function fillerSituation(info: SearchInfo | null): Situation {
-  if (Math.random() < STORY_SHARE) return 'story'
-  if (info && info.mateIn !== null && info.mateIn !== undefined) return 'thinkingMate'
-  if (info && info.score > LEANING) return 'thinkingAhead'
-  if (info && info.score < -LEANING) return 'thinkingBehind'
-  return 'thinking'
+function factFor(report: MoveReport | null): Line | null {
+  if (!report) return null
+  const side = report.side as SideLetter
+  const mover = report.mover as Kind
+  if (report.captured) return captureLine(side, mover, report.captured as Kind)
+  if (report.givesCheck) return checkLine(side, mover)
+  if (report.threats.length > 0) return threatLine(side, mover, report.threats[0] as Kind)
+  return null
 }
 
-function resultSituation(status: GameStatus, playerSide: Side | null): Situation {
-  if (status === 'draw') return 'draw'
-  if (playerSide === null) return 'draw'
-  const humanWon =
-    (playerSide === 'r' && status === 'redWin') || (playerSide === 'b' && status === 'blackWin')
-  return humanWon ? 'playerWin' : 'playerLose'
+/**
+ * Which colour stands clearly better, if either does.
+ *
+ * The engine scores from its own side's point of view, so the score has to be
+ * turned into a colour before it can be spoken about. Without an engine in the
+ * game there is no assessment to report.
+ */
+function leaderSituation(info: SearchInfo | null, engineSide: Side | null): Situation | null {
+  if (!info || engineSide === null) return null
+  if (Math.abs(info.score) <= CLEAR) return null
+  const engineAhead = info.score > 0
+  const aheadSide = engineAhead ? engineSide : engineSide === 'r' ? 'b' : 'r'
+  return aheadSide === 'r' ? 'redAhead' : 'blackAhead'
+}
+
+/**
+ * What to talk about when nothing is happening.
+ *
+ * Mostly anecdotes, but not always: filler that never mentions the board stops
+ * sounding like commentary and starts sounding like a radio left on.
+ */
+function fillerSituation(info: SearchInfo | null, engineSide: Side | null): Situation {
+  if (Math.random() < STORY_SHARE) return 'story'
+  return leaderSituation(info, engineSide) ?? (info ? 'balanced' : 'thinking')
+}
+
+function resultSituation(status: GameStatus): Situation {
+  if (status === 'redWin') return 'redWin'
+  if (status === 'blackWin') return 'blackWin'
+  return 'draw'
 }

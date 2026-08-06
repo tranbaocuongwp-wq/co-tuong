@@ -17,7 +17,10 @@ const API = process.env.COTUONG_API ?? 'https://co-tuong-api.tranbaocuongmkt.wor
 /** Requests in flight at once. Enough to be quick, gentle enough to not trip limits. */
 const CONCURRENCY = 3
 
-const listRes = await fetch(`${API}/v1/lines`)
+// The manifest is edge-cached for an hour, which is right for players and
+// wrong here: right after a deploy this script would warm the *previous*
+// script's ids and leave every new line missing.
+const listRes = await fetch(`${API}/v1/lines?bust=${Date.now()}`, { cache: 'no-store' })
 if (!listRes.ok) {
   console.error(`Could not read the line list: ${listRes.status} ${listRes.statusText}`)
   process.exit(1)
