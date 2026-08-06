@@ -11,6 +11,7 @@
 
 import { useMemo, useState } from 'react'
 
+import { playSelect } from '../audio/sfx'
 import type { MoveInfo, Piece, Side } from '../engine/types'
 import type { LastMove } from '../game/useGame'
 import { usePieceLayout } from '../game/usePieceLayout'
@@ -114,6 +115,8 @@ export function Board({
       piece.side === sideToMove &&
       (controllable === null || piece.side === controllable) &&
       movableSquares.has(`${row},${col}`)
+    // Only sound a *new* selection; re-tapping the same piece is not an event.
+    if (mayPick && !samePoint(selected, { row, col })) playSelect()
     setSelected(mayPick ? { row, col } : null)
   }
 

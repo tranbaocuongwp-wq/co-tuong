@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router'
 
+import { setSoundEnabled } from '../audio/sfx'
 import { Board } from '../components/Board'
 import { GameMenu } from '../components/GameMenu'
 import { Icon } from '../components/Icon'
@@ -63,6 +64,12 @@ export function PlayPage() {
   const resumedRef = useRef(false)
 
   const { projection, status, isOver, thinking, progress, lastInfo } = game
+
+  // The synthesiser is a module singleton, so the preference is pushed to it
+  // rather than threaded through every call site.
+  useEffect(() => {
+    setSoundEnabled(settings.sound)
+  }, [settings.sound])
   const preset = DIFFICULTY_PRESETS[settings.difficulty]
 
   const record = useMemo<GameRecord>(() => {

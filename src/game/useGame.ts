@@ -9,6 +9,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { playMoveOutcome } from '../audio/sfx'
 import { getEngineClient } from '../engine/client'
 import type {
   Difficulty,
@@ -153,6 +154,27 @@ export function useGame(config: GameConfig) {
             toCol: info.toCol,
           })
         }
+
+        // Read the outcome straight off the engine rather than waiting for the
+        // React state to catch up — the sound should land with the move, not a
+        // render later.
+        const after = game.status() as StatusInfo
+        const ended = after.status !== 'playing'
+        const winner = after.status === 'redWin' ? 'r' : after.status === 'blackWin' ? 'b' : null
+        const human = config.mode === 'pvp' ? null : config.playerSide
+        playMoveOutcome({
+          capture: info?.capture ?? false,
+          check: after.inCheck,
+          ended,
+          result: !ended
+            ? undefined
+            : winner === null
+              ? 'draw'
+              : human === null || winner === human
+                ? 'win'
+                : 'loss',
+        })
+
         refresh()
         return true
       } catch (e) {
@@ -160,7 +182,7 @@ export function useGame(config: GameConfig) {
         return false
       }
     },
-    [refresh]
+    [refresh, config.mode, config.playerSide]
   )
 
   // Let the engine move when it is its turn.
