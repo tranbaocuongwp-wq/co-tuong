@@ -16,6 +16,7 @@ import type {
   Difficulty,
   EndReason,
   GameStatus,
+  HintInfo,
   MoveInfo,
   Piece,
   SearchInfo,
@@ -309,22 +310,37 @@ export function useGame(config: GameConfig) {
   }, [config.mode, config.playerSide, projection.status.sideToMove])
 
   /** Ask the engine for a suggestion without playing it. */
-  const hint = useCallback(async (): Promise<SearchInfo | null> => {
+  /**
+   * The best few moves for the player, best first, each with its reasons.
+   *
+   * Longer than the old single-move hint on purpose: this scores every legal
+   * move separately, so the time buys a comparison rather than one more ply of
+   * certainty about a move the player was going to be told to play anyway.
+   */
+  const hints = useCallback(
+    async (count = 3, movetimeMs = 2_500): Promise<HintInfo[]> => {
     const game = gameRef.current
-    if (!game || isOver) return null
+    if (!game || isOver) return []
     try {
-      return await getEngineClient().search(game.startFen(), game.movesIccs(), {
-        maxDepth: 64,
-        movetimeMs: 1_000,
-        useBook: false,
-        useExperience: false,
-        seed: seedRef.current,
-      })
+      return await getEngineClient().hints(
+        game.startFen(),
+        game.movesIccs(),
+        {
+          maxDepth: 64,
+          movetimeMs,
+          useBook: false,
+          useExperience: false,
+          seed: seedRef.current,
+        },
+        count
+      )
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
-      return null
+      return []
     }
-  }, [isOver])
+    },
+    [isOver]
+  )
 
   /**
    * Rebuild a game from a saved move list, for "continue where I left off".
@@ -372,7 +388,7 @@ export function useGame(config: GameConfig) {
     undo,
     reset,
     resign,
-    hint,
+    hints,
     restore,
   }
 }

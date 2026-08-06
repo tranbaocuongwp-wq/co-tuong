@@ -21,11 +21,12 @@ import { allFragments } from '../commentary/fragments'
 import { LINES } from '../commentary/lines'
 import { Board } from '../components/Board'
 import { GameMenu } from '../components/GameMenu'
+import { HintDialog } from '../components/HintDialog'
 import { Icon } from '../components/Icon'
 import { ThinkingToast } from '../components/ThinkingToast'
 import { UpdateNotice } from '../components/UpdateNotice'
 import { getEngineClient } from '../engine/client'
-import type { SearchInfo } from '../engine/types'
+import type { HintInfo, Side } from '../engine/types'
 import { DIFFICULTY_PRESETS, describeResult } from '../engine/types'
 import { engineVersion } from '../engine/wasm'
 import { useCommentary } from '../game/useCommentary'
@@ -57,6 +58,17 @@ const HINTS_PER_GAME = 5
  */
 const UNDOS_PER_GAME = 5
 
+/**
+ * How long the player must be thinking before the commentator offers an opinion.
+ *
+ * Long enough that it reads as him filling a pause, not as the computer
+ * prompting the moment a turn starts.
+ */
+const ADVICE_AFTER_MS = 7_000
+
+/** How often he actually says something, once that pause has run. */
+const ADVICE_CHANCE = 0.45
+
 export function PlayPage() {
   const { settings, update } = useSettings()
   const game = useGame({
@@ -68,8 +80,12 @@ export function PlayPage() {
   const update_ = useAppUpdate()
   const [gameId, setGameId] = useState(newGameId)
   const [menuOpen, setMenuOpen] = useState(false)
-  const [hint, setHint] = useState<SearchInfo | null>(null)
+  const [hint, setHint] = useState<HintInfo | null>(null)
+  const [hintChoices, setHintChoices] = useState<HintInfo[]>([])
+  const [hintOpen, setHintOpen] = useState(false)
   const [hintBusy, setHintBusy] = useState(false)
+  /** A move the commentator may hold forth about while the player thinks. */
+  const [advice, setAdvice] = useState<{ hint: HintInfo; side: Side; ply: number } | null>(null)
   const [hintsLeft, setHintsLeft] = useState(HINTS_PER_GAME)
   const [undosLeft, setUndosLeft] = useState(UNDOS_PER_GAME)
   /** Hints taken and moves taken back, kept with the game. */
@@ -127,6 +143,7 @@ export function PlayPage() {
     // and so no assessment to speak about.
     engineSide: settings.mode === 'pvp' ? null : settings.playerSide === 'r' ? 'b' : 'r',
     isOver,
+    advice,
     onSpoke,
   })
 
@@ -145,6 +162,38 @@ export function PlayPage() {
     window.addEventListener('pointerdown', prime, { once: true })
     return () => window.removeEventListener('pointerdown', prime)
   }, [settings.sound])
+  /*
+   * Ask the engine what it would play, so the commentator has an opinion.
+   *
+   * Only while the player is actually thinking, only after they have been
+   * thinking a while, and only sometimes: advice on every turn is nagging, and
+   * advice offered instantly reads as the computer playing for them.
+   *
+   * The budget is a fraction of the hint's, because this is a remark rather
+   * than counsel — and because it must never compete with the engine's own
+   * search for the machine's move.
+   */
+  useEffect(() => {
+    if (!settings.voice || isOver || thinking || game.engineToMove) return
+    const ply = projection.movesIccs.length
+    if (ply === 0) return
+    const timer = setTimeout(() => {
+      if (Math.random() > ADVICE_CHANCE) return
+      void game.hints(1, 600).then(([best]) => {
+        if (best) setAdvice({ hint: best, side: status.sideToMove, ply })
+      })
+    }, ADVICE_AFTER_MS)
+    return () => clearTimeout(timer)
+  }, [
+    settings.voice,
+    isOver,
+    thinking,
+    game,
+    game.engineToMove,
+    projection.movesIccs.length,
+    status.sideToMove,
+  ])
+
   const preset = DIFFICULTY_PRESETS[settings.difficulty]
 
   const record = useMemo<GameRecord>(() => {
@@ -275,6 +324,8 @@ export function PlayPage() {
     game.reset()
     setGameId(newGameId())
     setHint(null)
+    setHintChoices([])
+    setHintOpen(false)
     setSavedNote(null)
     setMenuOpen(false)
     setHintsLeft(HINTS_PER_GAME)
@@ -293,17 +344,20 @@ export function PlayPage() {
   const onHint = useCallback(async () => {
     if (hintsLeft <= 0) return
     setMenuOpen(false)
+    setHint(null)
+    setHintChoices([])
+    setHintOpen(true)
     setHintBusy(true)
     try {
-      const suggestion = await game.hint()
-      setHint(suggestion)
-      // Only spend a hint when one actually came back.
-      if (suggestion) {
+      const choices = await game.hints(3)
+      setHintChoices(choices)
+      // Only spend a hint when advice actually came back.
+      if (choices.length > 0) {
         setHintsLeft((n) => n - 1)
         assistsRef.current.push({
           ply: projection.movesIccs.length,
           kind: 'hint',
-          iccs: suggestion.iccs,
+          iccs: choices[0].iccs,
           at: Date.now(),
         })
       }
@@ -311,6 +365,21 @@ export function PlayPage() {
       setHintBusy(false)
     }
   }, [game, hintsLeft, projection.movesIccs.length])
+
+  /**
+   * Picking an option highlights it rather than playing it.
+   *
+   * The player asked for advice, not for the computer to take their turn. They
+   * still have to make the move themselves, which is also the only way the
+   * board stays theirs.
+   */
+  const onPickHint = useCallback(
+    (iccs: string) => {
+      setHint(hintChoices.find((c) => c.iccs === iccs) ?? null)
+      setHintOpen(false)
+    },
+    [hintChoices]
+  )
 
   const hintSquares = useMemo(() => {
     if (!hint) return null
@@ -430,6 +499,14 @@ export function PlayPage() {
         visible={thinking || hintBusy}
         progress={progress}
         label={hintBusy ? 'Đang tìm gợi ý' : undefined}
+      />
+
+      <HintDialog
+        open={hintOpen}
+        busy={hintBusy}
+        choices={hintChoices}
+        onPick={onPickHint}
+        onClose={() => setHintOpen(false)}
       />
 
       <GameMenu

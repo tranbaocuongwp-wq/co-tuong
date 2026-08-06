@@ -7,7 +7,7 @@
  * this file knows or cares which is active.
  */
 
-import type { SearchInfo, SearchOptions } from './types'
+import type { HintInfo, SearchInfo, SearchOptions } from './types'
 import type { WorkerRequest, WorkerResponse } from './worker'
 
 export interface EngineClient {
@@ -18,6 +18,18 @@ export interface EngineClient {
     options: SearchOptions,
     onProgress?: (info: SearchInfo) => void
   ): Promise<SearchInfo>
+  /**
+   * The best few moves, best first, each with the reasons behind it.
+   *
+   * Separate from `search` because it asks a different question: not "what
+   * should I play" but "what are my options, and how much worse is each one".
+   */
+  hints(
+    startFen: string,
+    moves: string,
+    options: SearchOptions,
+    count: number
+  ): Promise<HintInfo[]>
   learn(
     startFen: string,
     moves: string,
@@ -108,6 +120,10 @@ class WorkerEngineClient implements EngineClient {
     return this.call<SearchInfo>({ type: 'search', startFen, moves, options }, onProgress)
   }
 
+  hints(startFen: string, moves: string, options: SearchOptions, count: number) {
+    return this.call<HintInfo[]>({ type: 'hints', startFen, moves, options, count })
+  }
+
   learn(startFen: string, moves: string, learner: 'r' | 'b', outcome: 'win' | 'loss' | 'draw') {
     return this.call<number>({ type: 'learn', startFen, moves, learner, outcome })
   }
@@ -147,6 +163,10 @@ class NativeEngineClient implements EngineClient {
   // toast falls back to showing that the engine is working without a depth.
   search(startFen: string, moves: string, options: SearchOptions) {
     return this.invoke<SearchInfo>('engine_search', { startFen, moves, options })
+  }
+
+  hints(startFen: string, moves: string, options: SearchOptions, count: number) {
+    return this.invoke<HintInfo[]>('engine_hints', { startFen, moves, options, count })
   }
 
   learn(startFen: string, moves: string, learner: 'r' | 'b', outcome: 'win' | 'loss' | 'draw') {

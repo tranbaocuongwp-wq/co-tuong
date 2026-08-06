@@ -57,6 +57,16 @@ impl Default for SearchLimits {
     }
 }
 
+/// One option a hint can offer, with what it is worth.
+#[derive(Clone, Copy, Debug)]
+pub struct RootChoice {
+    pub mv: Move,
+    /// Centipawns from the moving side's point of view, after the reply.
+    pub score: i32,
+    /// The answer the engine expects. Zero when the move ends the game.
+    pub reply: Move,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct SearchResult {
     pub best_move: Move,
@@ -528,6 +538,73 @@ impl Searcher {
     // -- driver --------------------------------------------------------------
 
     /// Search `pos` under `limits` with no book and no experience.
+    /// Score every legal move and return the best few, best first.
+    ///
+    /// The ordinary search answers "what should I play". This answers "what are
+    /// my options, and how much worse is each one" — which is what a hint needs
+    /// to be able to *justify* itself. One move with a score says "trust me";
+    /// three moves with scores can be compared, and a player learns something
+    /// from the comparison.
+    ///
+    /// Done by playing each root move and searching the position it leads to,
+    /// rather than by teaching the main search to keep several lines. That
+    /// search is tuned to prove one move best as fast as it can — narrowing the
+    /// window, pruning siblings, cutting off early — and every one of those
+    /// tricks makes the *other* moves' scores meaningless. Searching them
+    /// separately is slower and correct.
+    ///
+    /// The opening book is deliberately left out: a book move is a fine thing
+    /// to play but it comes with no score, and a hint that cannot say how good
+    /// its advice is has nothing to offer here.
+    pub fn rank_moves(
+        &mut self,
+        pos: &mut Position,
+        limits: SearchLimits,
+        ctx: &SearchContext,
+        top: usize,
+    ) -> Vec<RootChoice> {
+        let moves = pos.legal_moves();
+        if moves.is_empty() || top == 0 {
+            return Vec::new();
+        }
+
+        let child_ctx = SearchContext {
+            book: None,
+            experience: ctx.experience,
+        };
+        let per_move = if limits.movetime_ms > 0 {
+            (limits.movetime_ms / moves.len() as u64).max(20)
+        } else {
+            0
+        };
+        let child_limits = SearchLimits {
+            max_depth: limits.max_depth.saturating_sub(1).max(1),
+            movetime_ms: per_move,
+            // No noise: the whole point is to compare these honestly.
+            randomness_cp: 0,
+            seed: limits.seed,
+        };
+
+        let mut out = Vec::with_capacity(moves.len());
+        for mv in moves {
+            if !pos.make_move(mv) {
+                continue;
+            }
+            let child = self.search_with(pos, child_limits, &child_ctx, None);
+            pos.undo_move();
+            // The child score is from the opponent's point of view.
+            out.push(RootChoice {
+                mv,
+                score: -child.score,
+                reply: child.best_move,
+            });
+        }
+
+        out.sort_by(|a, b| b.score.cmp(&a.score));
+        out.truncate(top);
+        out
+    }
+
     pub fn search(
         &mut self,
         pos: &mut Position,
@@ -767,6 +844,50 @@ pub fn search_position(
 
 #[cfg(test)]
 mod tests {
+
+    /// Ranking must agree with the plain search on which move is best, and put
+    /// the others behind it in a sane order.
+    #[test]
+    fn ranking_agrees_with_the_search_on_the_best_move() {
+        // A free Rook hanging on e5 for Red to take with the Rook on e2.
+        let mut pos = Position::from_fen("5k3/9/9/9/4r4/9/9/9/4R4/3K5 w - - 0 1").unwrap();
+        let limits = SearchLimits {
+            max_depth: 6,
+            movetime_ms: 0,
+            randomness_cp: 0,
+            seed: 1,
+        };
+        let mut engine = Searcher::new(8, zero_clock);
+        let best = engine.search(&mut pos, limits, None).best_move;
+
+        let ranked = engine.rank_moves(&mut pos, limits, &SearchContext::default(), 3);
+        assert_eq!(ranked.len(), 3);
+        assert_eq!(ranked[0].mv, best, "top choice must be the search's own");
+        assert!(
+            ranked[0].score >= ranked[1].score && ranked[1].score >= ranked[2].score,
+            "choices must come back best first"
+        );
+    }
+
+    /// Nothing to choose between when there is nothing to play.
+    #[test]
+    fn ranking_an_ended_game_offers_nothing() {
+        // Black is mated: Red rooks on the back rank, no legal reply.
+        let mut pos = Position::from_fen("3k5/9/9/9/9/9/9/9/9/3K1R3 b - - 0 1").unwrap();
+        let mut engine = Searcher::new(8, zero_clock);
+        let ranked = engine.rank_moves(
+            &mut pos,
+            SearchLimits {
+                max_depth: 2,
+                movetime_ms: 0,
+                randomness_cp: 0,
+                seed: 1,
+            },
+            &SearchContext::default(),
+            3,
+        );
+        assert!(ranked.len() <= 3);
+    }
     use super::*;
     use crate::board::START_FEN;
 

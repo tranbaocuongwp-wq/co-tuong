@@ -27,10 +27,11 @@ import {
 } from '../audio/voice'
 import type { Kind, MoveReport, SideLetter } from '../commentary/facts'
 import { captureLine, checkLine, threatLine } from '../commentary/facts'
+import { adviceLead, adviceReason } from '../commentary/advice'
 import { speakMove } from '../commentary/fragments'
 import type { Line, Situation } from '../commentary/lines'
 import { pickLine } from '../commentary/lines'
-import type { GameStatus, Piece, SearchInfo, Side, StatusInfo } from '../engine/types'
+import type { GameStatus, HintInfo, Piece, SearchInfo, Side, StatusInfo } from '../engine/types'
 
 /** How many recent lines to avoid repeating. */
 const MEMORY = 12
@@ -75,6 +76,12 @@ export interface CommentaryInput {
   /** Which colour the engine plays, or null in a two-player game. */
   engineSide: Side | null
   isOver: boolean
+  /**
+   * A move the commentator may offer an opinion about, while the player thinks.
+   *
+   * Null most of the time: an opinion on every turn stops being an opinion.
+   */
+  advice: { hint: HintInfo; side: Side; ply: number } | null
   /** Called as each utterance is spoken, so the game can keep a record of it. */
   onSpoke?: (utterance: Utterance) => void
 }
@@ -91,8 +98,19 @@ export function useCommentary(input: CommentaryInput) {
   /** When the commentator last had the microphone, for measuring the silence. */
   const lastSpokeRef = useRef(0)
 
-  const { enabled, status, pieces, moveCount, report, notation, info, engineSide, isOver, onSpoke } =
-    input
+  const {
+    enabled,
+    status,
+    pieces,
+    moveCount,
+    report,
+    notation,
+    info,
+    engineSide,
+    isOver,
+    advice,
+    onSpoke,
+  } = input
 
   const onSpokeRef = useRef(onSpoke)
   onSpokeRef.current = onSpoke
@@ -246,6 +264,27 @@ export function useCommentary(input: CommentaryInput) {
     return () => clearInterval(tick)
   }, [enabled, isOver, info, engineSide, say])
 
+  /*
+   * The commentator's own opinion, offered while the player is still deciding.
+   *
+   * Three utterances in a row — a lead-in, the move read out, and the reason —
+   * which the queue plays back to back as one thought. Said once per position;
+   * repeating it would turn a remark into nagging.
+   */
+  const advisedRef = useRef(-1)
+  useEffect(() => {
+    if (!enabled || isOver || !advice) return
+    if (advisedRef.current === advice.ply) return
+    advisedRef.current = advice.ply
+
+    const words = speakMove(advice.hint.text, advice.side === 'r' ? 'r' : 'b')
+    if (!words) return
+
+    sayLine(adviceLead(recentRef.current), 'idle')
+    speakWords(`${advice.side === 'r' ? 'Đỏ' : 'Đen'}: ${advice.hint.text}`, words, 'idle')
+    sayLine(adviceReason(advice.hint), 'idle')
+  }, [enabled, isOver, advice, sayLine])
+
   // Reset when a new game starts.
   const reset = useCallback(() => {
     lastMoveSeenRef.current = -1
@@ -254,6 +293,7 @@ export function useCommentary(input: CommentaryInput) {
     prevScoreRef.current = null
     mateCalledRef.current = false
     recentRef.current = []
+    advisedRef.current = -1
     lastSpokeRef.current = Date.now()
     setSpoken(null)
   }, [])

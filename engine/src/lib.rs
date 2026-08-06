@@ -22,6 +22,7 @@ pub use eval::{evaluate, INFINITY, MATE_BOUND, MATE_VALUE};
 pub use learn::{Experience, Outcome};
 pub use movegen::{MoveList, MAX_MOVES};
 pub use search::{
+    RootChoice,
     search_position, InfoFn, NowFn, SearchContext, SearchLimits, SearchResult, Searcher,
 };
 pub use types::{iccs_to_move, move_to_iccs, Move, BLACK, RED};

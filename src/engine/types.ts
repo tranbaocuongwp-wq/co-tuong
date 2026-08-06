@@ -66,6 +66,29 @@ export interface SearchInfo {
   mateIn: number | null
 }
 
+/**
+ * One option offered by the hint, with everything needed to explain it.
+ *
+ * The score alone is not an explanation. What makes a move worth playing is
+ * usually something concrete — it takes a piece, it gives check, it lines
+ * something up — so those come back with it and the interface says *why*
+ * instead of quoting a number.
+ */
+export interface HintInfo {
+  iccs: string
+  /** Traditional Vietnamese notation, e.g. "Pháo 2 bình 5". */
+  text: string
+  /** Centipawns from the player's point of view, after the expected reply. */
+  score: number
+  /** Kind taken, or null. */
+  captured: PieceKind | null
+  givesCheck: boolean
+  /** Enemy kinds this move would then threaten, best first. */
+  threats: PieceKind[]
+  /** The reply the engine expects, in notation. Empty if the move ends it. */
+  reply: string
+}
+
 export interface SearchOptions {
   maxDepth?: number
   movetimeMs?: number

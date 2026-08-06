@@ -14,7 +14,7 @@
 
 import init, { Engine, Game } from '../wasm/xiangqi_engine_wasm.js'
 import wasmUrl from '../wasm/xiangqi_engine_wasm_bg.wasm?url'
-import type { SearchInfo, SearchOptions } from './types'
+import type { HintInfo, SearchInfo, SearchOptions } from './types'
 
 /** 16 MB is a reasonable table for a browser tab. */
 const TT_MB = 16
@@ -29,6 +29,7 @@ export type WorkerRequest =
       learner: 'r' | 'b'
       outcome: 'win' | 'loss' | 'draw'
     }
+  | { id: number; type: 'hints'; startFen: string; moves: string; options: SearchOptions; count: number }
   | { id: number; type: 'loadExperience'; text: string }
   | { id: number; type: 'experienceText' }
   | { id: number; type: 'reset' }
@@ -62,6 +63,11 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
           self.postMessage(update)
         }
         result = engine.search(game, msg.options, report) as SearchInfo
+        break
+      }
+      case 'hints': {
+        const game = Game.fromMoves(msg.startFen, msg.moves)
+        result = engine.hints(game, msg.options, msg.count) as HintInfo[]
         break
       }
       case 'learn':

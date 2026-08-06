@@ -109,6 +109,29 @@ pub struct MoveReportInfo {
     pub threats: Vec<&'static str>,
 }
 
+/// One option offered by the hint, with everything needed to explain it.
+///
+/// The score alone is not an explanation. What makes a move worth playing is
+/// usually something concrete on the board — it takes a piece, it gives check,
+/// it lines something up — and those are reported alongside so the interface
+/// can say *why* rather than quoting a number at the player.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HintInfo {
+    pub iccs: String,
+    /// Traditional Vietnamese notation, e.g. "Pháo 2 bình 5".
+    pub text: String,
+    /// Centipawns from the player's point of view, after the expected reply.
+    pub score: i32,
+    /// Kind taken, or null.
+    pub captured: Option<&'static str>,
+    pub gives_check: bool,
+    /// Enemy kinds this move would then threaten, best first.
+    pub threats: Vec<&'static str>,
+    /// The reply the engine expects, in notation. Empty if the move ends it.
+    pub reply: String,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StatusInfo {
@@ -597,6 +620,66 @@ impl Engine {
         let r = self.searcher.search_with(&mut pos, limits, &ctx, callback);
 
         to_js(&describe_search(&game.pos, &r))
+    }
+
+    /// The best few moves for the side to move, best first, each with its
+    /// reasons.
+    ///
+    /// This is what the hint offers. One move told the player what to do
+    /// without saying why; three moves with scores and consequences let them
+    /// compare, which is the only version of a hint anyone learns from.
+    pub fn hints(&mut self, game: &Game, options: JsValue, count: usize) -> Result<JsValue, JsValue> {
+        let opts: SearchOptions = if options.is_undefined() || options.is_null() {
+            SearchOptions::default()
+        } else {
+            serde_wasm_bindgen::from_value(options).map_err(err)?
+        };
+
+        let mut pos = game.pos.clone();
+        let limits = SearchLimits {
+            max_depth: opts.max_depth.clamp(1, 64),
+            movetime_ms: opts.movetime_ms,
+            randomness_cp: 0,
+            seed: opts.seed as u64,
+        };
+        let ctx = SearchContext {
+            book: None,
+            experience: opts.use_experience.then_some(&self.experience),
+        };
+
+        let ranked = self.searcher.rank_moves(&mut pos, limits, &ctx, count.clamp(1, 5));
+
+        let mut out = Vec::with_capacity(ranked.len());
+        for choice in ranked {
+            // Notation has to be read off the position *before* the move, and
+            // the consequences off the position after it.
+            let text = move_to_vietnamese(&pos, choice.mv);
+            if !pos.make_move(choice.mv) {
+                continue;
+            }
+            let report = pos.last_move_report();
+            let reply = if choice.reply == 0 {
+                String::new()
+            } else {
+                move_to_vietnamese(&pos, choice.reply)
+            };
+            pos.undo_move();
+
+            out.push(HintInfo {
+                iccs: move_to_iccs(choice.mv),
+                text,
+                score: choice.score,
+                captured: report.as_ref().and_then(|r| r.captured.map(kind_name)),
+                gives_check: report.as_ref().is_some_and(|r| r.gives_check),
+                threats: report
+                    .as_ref()
+                    .map(|r| r.threats.iter().copied().map(kind_name).collect())
+                    .unwrap_or_default(),
+                reply,
+            });
+        }
+
+        to_js(&out)
     }
 }
 

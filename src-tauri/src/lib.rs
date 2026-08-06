@@ -17,6 +17,7 @@ use tauri::Manager;
 use xiangqi_engine::learn::Outcome;
 use xiangqi_engine::search::system_now_ms;
 use xiangqi_engine::types::{iccs_to_move, move_to_iccs, Move, BLACK, RED};
+use xiangqi_engine::notation::move_to_vietnamese;
 use xiangqi_engine::{
     Book, Experience, Position, SearchContext, SearchLimits, Searcher, MATE_BOUND, MATE_VALUE,
     START_FEN,
@@ -41,6 +42,34 @@ pub struct SearchInfo {
     pub from_book: bool,
     pub from_experience: bool,
     pub mate_in: Option<i32>,
+}
+
+/// One option offered by the hint, with everything needed to explain it.
+///
+/// Mirrors the WebAssembly build's shape exactly. The interface above this
+/// cannot tell which engine answered, and must not have to.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HintInfo {
+    pub iccs: String,
+    pub text: String,
+    pub score: i32,
+    pub captured: Option<&'static str>,
+    pub gives_check: bool,
+    pub threats: Vec<&'static str>,
+    pub reply: String,
+}
+
+fn kind_name(kind: u8) -> &'static str {
+    match kind {
+        0 => "k",
+        1 => "a",
+        2 => "e",
+        3 => "h",
+        4 => "r",
+        5 => "c",
+        _ => "p",
+    }
 }
 
 #[derive(Deserialize)]
@@ -150,6 +179,71 @@ async fn engine_search(
     .map_err(|e| e.to_string())?
 }
 
+/// The best few moves for the side to move, best first, each with its reasons.
+#[tauri::command]
+async fn engine_hints(
+    app: tauri::AppHandle,
+    start_fen: String,
+    moves: String,
+    options: SearchOptions,
+    count: usize,
+) -> Result<Vec<HintInfo>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<EngineState>();
+        let (mut pos, _) = replay(&start_fen, &moves)?;
+
+        let limits = SearchLimits {
+            max_depth: options.max_depth.clamp(1, 64),
+            movetime_ms: options.movetime_ms,
+            randomness_cp: 0,
+            seed: options.seed as u64,
+        };
+
+        let experience = state.experience.lock().map_err(|e| e.to_string())?;
+        let ctx = SearchContext {
+            book: None,
+            experience: options.use_experience.then_some(&*experience),
+        };
+        let mut searcher = state.searcher.lock().map_err(|e| e.to_string())?;
+        let ranked = searcher.rank_moves(&mut pos, limits, &ctx, count.clamp(1, 5));
+        drop(searcher);
+
+        let mut out = Vec::with_capacity(ranked.len());
+        for choice in ranked {
+            // Notation is read off the position before the move; the
+            // consequences off the position after it.
+            let text = move_to_vietnamese(&pos, choice.mv);
+            if !pos.make_move(choice.mv) {
+                continue;
+            }
+            let report = pos.last_move_report();
+            let reply = if choice.reply == 0 {
+                String::new()
+            } else {
+                move_to_vietnamese(&pos, choice.reply)
+            };
+            pos.undo_move();
+
+            out.push(HintInfo {
+                iccs: move_to_iccs(choice.mv),
+                text,
+                score: choice.score,
+                captured: report.as_ref().and_then(|r| r.captured.map(kind_name)),
+                gives_check: report.as_ref().is_some_and(|r| r.gives_check),
+                threats: report
+                    .as_ref()
+                    .map(|r| r.threats.iter().copied().map(kind_name).collect())
+                    .unwrap_or_default(),
+                reply,
+            });
+        }
+
+        Ok(out)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 /// Grade a finished game into the experience book.
 #[tauri::command]
 async fn engine_learn(
@@ -246,6 +340,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             engine_search,
+            engine_hints,
             engine_learn,
             engine_experience_text,
             engine_load_experience,

@@ -1665,6 +1665,164 @@ body.drawer-open {
   font-size: 0.95rem;
 }
 
+
+/* --- hint sheet ------------------------------------------------------------ */
+
+/*
+ * The three options, over the board.
+ *
+ * A sheet rather than the drawer: this is a question being asked, and it should
+ * be answered and gone. It rises from the bottom on a phone, where the thumb
+ * is, and centres on anything larger.
+ */
+.sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.sheet__scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(20, 14, 10, 0.42);
+}
+
+.sheet__panel {
+  position: relative;
+  width: min(100%, 460px);
+  max-height: 88dvh;
+  overflow-y: auto;
+  display: grid;
+  gap: 10px;
+  padding: 16px 16px calc(18px + env(safe-area-inset-bottom));
+  border-radius: 18px 18px 0 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  animation: sheet-in 0.2s ease-out;
+}
+
+@media (min-width: 560px) {
+  .sheet {
+    align-items: center;
+  }
+
+  .sheet__panel {
+    border-radius: 18px;
+    padding-bottom: 18px;
+  }
+}
+
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet__panel {
+    animation: none;
+  }
+}
+
+.sheet__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sheet__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  flex: 1;
+  font-size: 1.02rem;
+}
+
+.sheet__note {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+/* The honest warning when nothing on offer actually saves the position. */
+.sheet__warn {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--loss, #b4534a) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--loss, #b4534a) 35%, transparent);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.hint-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.hint-card:hover {
+  border-color: var(--accent);
+}
+
+/* The engine's own first choice, marked so the ordering is not just implied. */
+.hint-card--best {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-2));
+}
+
+.hint-card__rank {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.hint-card__body {
+  display: grid;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.hint-card__move {
+  font-weight: 600;
+  font-size: 0.98rem;
+}
+
+.hint-card__why {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.hint-card__verdict {
+  flex: none;
+  color: var(--muted);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
 /* --- history -------------------------------------------------------------- */
 
 .game-list {
