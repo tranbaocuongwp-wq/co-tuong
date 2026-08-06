@@ -25,3 +25,6 @@ src-tauri/gen/schemas/
 .env
 .env.local
 .dev.vars
+
+# Wrangler local dev state (miniflare caches, local R2/D1 copies)
+worker/.wrangler/

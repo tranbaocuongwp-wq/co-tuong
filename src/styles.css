@@ -941,6 +941,62 @@ a {
   top: 6px;
 }
 
+/* --- commentator caption --------------------------------------------------- */
+
+/*
+ * What the commentator is saying, right now.
+ *
+ * It sits above the thinking pill rather than beside it: both can be on screen
+ * at once (the commentator talks while the engine searches) and stacking keeps
+ * them from fighting over the same corner on a narrow phone.
+ *
+ * Text is the fallback as much as the accompaniment — with no network there is
+ * no voice, and this line is the whole of the commentary.
+ */
+.commentary {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(72px + env(safe-area-inset-bottom));
+  z-index: 39;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(560px, calc(100vw - 32px));
+  padding: 9px 16px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  font-size: 0.88rem;
+  line-height: 1.45;
+  pointer-events: none;
+  animation: commentary-in 0.26s ease-out;
+}
+
+.commentary svg {
+  flex: none;
+  color: var(--accent);
+}
+
+.commentary__text {
+  font-style: italic;
+}
+
+@keyframes commentary-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .commentary {
+    animation: none;
+  }
+}
+
 /* --- thinking toast ------------------------------------------------------- */
 
 .toast-layer {

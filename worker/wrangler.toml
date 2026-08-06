@@ -1,0 +1,13 @@
+name = "co-tuong-api"
+main = "src/index.ts"
+compatibility_date = "2026-08-01"
+
+# The generated voice lines. Keyed by voice id, so changing voice does not
+# serve the old one from cache.
+[[r2_buckets]]
+binding = "AUDIO"
+bucket_name = "co-tuong-audio"
+
+# ELEVENLABS_API_KEY is a secret, set with:
+#   npx wrangler secret put ELEVENLABS_API_KEY
+# It is never committed and never reaches the browser.

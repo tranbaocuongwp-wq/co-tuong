@@ -16,6 +16,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router'
 
 import { primeSounds, setSoundEnabled } from '../audio/sfx'
+import { primeVoice, setVoiceEnabled, stopVoice } from '../audio/voice'
+import { LINES } from '../commentary/lines'
 import { Board } from '../components/Board'
 import { GameMenu } from '../components/GameMenu'
 import { Icon } from '../components/Icon'
@@ -25,6 +27,7 @@ import { getEngineClient } from '../engine/client'
 import type { SearchInfo } from '../engine/types'
 import { DIFFICULTY_PRESETS, describeResult } from '../engine/types'
 import { engineVersion } from '../engine/wasm'
+import { useCommentary } from '../game/useCommentary'
 import { useGame } from '../game/useGame'
 import { useSettings } from '../settings'
 import { getHistoryStore } from '../storage'
@@ -64,6 +67,30 @@ export function PlayPage() {
   const resumedRef = useRef(false)
 
   const { projection, status, isOver, thinking, progress, lastInfo } = game
+
+  // The voice is a module singleton, like the synthesiser, so the preference is
+  // pushed to it rather than threaded through every call site.
+  useEffect(() => {
+    setVoiceEnabled(settings.voice)
+    if (settings.voice) {
+      // The opening remark should not be the one that waits on the network.
+      primeVoice([...LINES.greeting, ...LINES.opening])
+    }
+  }, [settings.voice])
+
+  // Leaving the board should not leave a voice talking over the next screen.
+  useEffect(() => stopVoice, [])
+
+  const { spoken: spokenLine, reset: resetCommentary } = useCommentary({
+    enabled: settings.voice,
+    status,
+    pieces: projection.pieces,
+    moveCount: projection.movesIccs.length,
+    lastCapture: game.lastCapture,
+    info: lastInfo,
+    playerSide: settings.mode === 'pvp' ? null : settings.playerSide,
+    isOver,
+  })
 
   // The synthesiser is a module singleton, so the preference is pushed to it
   // rather than threaded through every call site.
@@ -212,11 +239,13 @@ export function PlayPage() {
     setMenuOpen(false)
     setHintsLeft(HINTS_PER_GAME)
     filedRef.current = null
+    stopVoice()
+    resetCommentary()
     // A new game replaces the autosave; otherwise reloading would resurrect the
     // abandoned one.
     void getHistoryStore().then((store) => store.saveInProgress(null))
     void getEngineClient().reset()
-  }, [game])
+  }, [game, resetCommentary])
 
   const onHint = useCallback(async () => {
     if (hintsLeft <= 0) return
@@ -323,6 +352,13 @@ export function PlayPage() {
         </p>
       )}
 
+      {spokenLine && !isOver && (
+        <div className="commentary" role="status">
+          <Icon name="speaker" size={16} />
+          <span className="commentary__text">{spokenLine.text}</span>
+        </div>
+      )}
+
       {/* Only ever on the engine's turn, or while a hint is being fetched. */}
       <ThinkingToast
         visible={thinking || hintBusy}
@@ -341,6 +377,12 @@ export function PlayPage() {
         isOver={isOver}
         busy={thinking || hintBusy}
         hintsLeft={hintsLeft}
+        voiceOn={settings.voice}
+        onToggleVoice={() => {
+          const next = !settings.voice
+          update({ voice: next })
+          if (!next) stopVoice()
+        }}
         onNewGame={onNewGame}
         onUndo={() => {
           game.undo()

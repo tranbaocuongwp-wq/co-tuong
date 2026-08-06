@@ -35,6 +35,8 @@ export type IconName =
   | 'trash'
   | 'download'
   | 'upload'
+  | 'speaker'
+  | 'speakerOff'
 
 const PATHS: Record<IconName, ReactNode> = {
   // Circular arrow — start again.
@@ -179,6 +181,19 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M2.5 19a6 6 0 0 1 12 0" />
       <path d="M16 5.5a3 3 0 0 1 0 5.6" />
       <path d="M17 14.2a6 6 0 0 1 4.5 4.8" />
+    </>
+  ),
+  speaker: (
+    <>
+      <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4v-5Z" />
+      <path d="M15.5 9.2a4 4 0 0 1 0 5.6" />
+      <path d="M18 6.8a7.5 7.5 0 0 1 0 10.4" />
+    </>
+  ),
+  speakerOff: (
+    <>
+      <path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4v-5Z" />
+      <path d="M16 10l4 4M20 10l-4 4" />
     </>
   ),
   trash: (

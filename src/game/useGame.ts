@@ -50,6 +50,11 @@ export interface LastMove {
   toCol: number
 }
 
+/** Set when the move just played took a piece; cleared when it did not. */
+export interface LastCapture {
+  by: Side
+}
+
 const EMPTY_STATUS: StatusInfo = {
   status: 'playing',
   reason: '',
@@ -87,6 +92,7 @@ export function useGame(config: GameConfig) {
   /** Live search progress, refreshed once per completed iteration. */
   const [progress, setProgress] = useState<SearchInfo | null>(null)
   const [lastMove, setLastMove] = useState<LastMove | null>(null)
+  const [lastCapture, setLastCapture] = useState<LastCapture | null>(null)
   const [error, setError] = useState<string | null>(null)
   /** Set when the human resigns; the engine has no notion of resignation. */
   const [manualEnd, setManualEnd] = useState<{
@@ -145,7 +151,10 @@ export function useGame(config: GameConfig) {
         const info = game.legalMoves().find((m: MoveInfo) => m.iccs === iccs) as
           | MoveInfo
           | undefined
+        // Whose move this is has to be read before playing it.
+        const mover = (game.status() as StatusInfo).sideToMove
         game.play(iccs)
+        setLastCapture(info?.capture ? { by: mover } : null)
         if (info) {
           setLastMove({
             fromRow: info.fromRow,
@@ -240,6 +249,7 @@ export function useGame(config: GameConfig) {
     const steps = config.mode === 'pve' ? 2 : 1
     for (let i = 0; i < steps; i++) game.undo()
     setLastMove(null)
+    setLastCapture(null)
     setLastInfo(null)
     refresh()
   }, [config.mode, refresh])
@@ -252,6 +262,7 @@ export function useGame(config: GameConfig) {
     setThinking(false)
     setManualEnd(null)
     setLastMove(null)
+    setLastCapture(null)
     setLastInfo(null)
     setError(null)
     refresh()
@@ -300,6 +311,7 @@ export function useGame(config: GameConfig) {
         setThinking(false)
         setManualEnd(null)
         setLastMove(null)
+        setLastCapture(null)
         setLastInfo(null)
         refresh()
         return true
@@ -316,6 +328,7 @@ export function useGame(config: GameConfig) {
     thinking,
     progress,
     lastInfo,
+    lastCapture,
     lastMove,
     projection,
     status: effectiveStatus,

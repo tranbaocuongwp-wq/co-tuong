@@ -86,7 +86,11 @@ export function SettingsPage() {
     setNotice('Đã xóa toàn bộ lịch sử ván đấu.')
   }, [])
 
-  const toggle = (key: 'sound' | 'showHints' | 'flipped' | 'learnFromGames', label: string, help: string) => (
+  const toggle = (
+    key: 'sound' | 'voice' | 'showHints' | 'flipped' | 'learnFromGames',
+    label: string,
+    help: string
+  ) => (
     <div className="switch-row">
       <div>
         <div>{label}</div>
@@ -134,7 +138,12 @@ export function SettingsPage() {
       <div className="card" style={{ marginBottom: 18 }}>
         {toggle('flipped', 'Lật bàn cờ', 'Đặt quân Đen ở phía dưới.')}
         {toggle('showHints', 'Hiện gợi ý', 'Tô sáng nước đi khi bấm nút Gợi ý.')}
-        {toggle('sound', 'Âm thanh', 'Phát tiếng khi đi quân.')}
+        {toggle('sound', 'Âm thanh', 'Phát tiếng khi đi quân, ăn quân, chiếu tướng.')}
+        {toggle(
+          'voice',
+          'Bình luận viên',
+          'Có người bình cờ suốt ván, lúc rảnh thì kể chuyện. Bật tắt được ngay trong ván. Cần mạng; mất mạng thì chỉ còn chữ.'
+        )}
         {toggle(
           'learnFromGames',
           'Máy rút kinh nghiệm',

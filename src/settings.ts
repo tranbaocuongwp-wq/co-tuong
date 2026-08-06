@@ -18,6 +18,8 @@ export interface Settings {
   /** Draw the board with Red at the bottom (false) or Black (true). */
   flipped: boolean
   sound: boolean
+  /** Spoken commentary. Needs a network; the effects do not. */
+  voice: boolean
   showHints: boolean
   /** Feed finished games back into the engine's experience book. */
   learnFromGames: boolean
@@ -29,6 +31,7 @@ export const DEFAULT_SETTINGS: Settings = {
   playerSide: 'r',
   flipped: false,
   sound: true,
+  voice: true,
   showHints: true,
   learnFromGames: true,
 }

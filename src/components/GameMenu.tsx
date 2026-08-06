@@ -30,6 +30,8 @@ export interface GameMenuProps {
   busy: boolean
   /** Suggestions left in this game. */
   hintsLeft: number
+  voiceOn: boolean
+  onToggleVoice: () => void
   onNewGame: () => void
   onUndo: () => void
   onHint: () => void
@@ -70,6 +72,8 @@ export function GameMenu({
   isOver,
   busy,
   hintsLeft,
+  voiceOn,
+  onToggleVoice,
   onNewGame,
   onUndo,
   onHint,
@@ -135,6 +139,14 @@ export function GameMenu({
             </button>
             <button type="button" className="btn" onClick={onFlip}>
               <Icon name="flip" /> Lật bàn
+            </button>
+            <button
+              type="button"
+              className="btn"
+              onClick={onToggleVoice}
+              aria-pressed={voiceOn}
+            >
+              <Icon name={voiceOn ? 'speaker' : 'speakerOff'} /> Bình luận
             </button>
             <button type="button" className="btn btn--danger" onClick={onResign} disabled={isOver}>
               <Icon name="resign" /> Chịu thua
