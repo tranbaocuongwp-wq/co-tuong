@@ -142,27 +142,72 @@ export function setSoundEnabled(on: boolean): void {
  * Web Audio, and on iOS those are two competing audio sessions: a piece landing
  * would cut the commentator off mid-sentence. One graph, one session, nothing
  * interrupts anything.
+ *
+ * Deliberately does *not* consult the sound-effects switch. Sharing the graph
+ * must not mean sharing the preference: turning the effects off silenced the
+ * commentator too, which is not what that switch says it does.
  */
 export function audioContext(): AudioContext | null {
-  return audio()
+  return context()
 }
 
 function audio(): AudioContext | null {
   if (!enabled) return null
+  return context()
+}
+
+/**
+ * Create the context, or return the one already made.
+ *
+ * Browsers refuse to start audio until the page has been interacted with, and
+ * on iOS a context created before that point stays suspended — resuming it
+ * later only works from inside a real gesture, which is what `unlock` below is
+ * for. Everything here tolerates a suspended context; nothing assumes sound.
+ */
+function context(): AudioContext | null {
   if (typeof window === 'undefined') return null
   try {
     if (!ctx) {
-      const Ctor = window.AudioContext ?? (window as unknown as {
-        webkitAudioContext?: typeof AudioContext
-      }).webkitAudioContext
+      const Ctor =
+        window.AudioContext ??
+        (
+          window as unknown as {
+            webkitAudioContext?: typeof AudioContext
+          }
+        ).webkitAudioContext
       if (!Ctor) return null
       ctx = new Ctor()
+      listenForGesture()
     }
-    // Safari and Chrome start the context suspended until a gesture.
     if (ctx.state === 'suspended') void ctx.resume()
     return ctx
   } catch {
     return null
+  }
+}
+
+let listening = false
+
+/**
+ * Resume the context on the player's first touch.
+ *
+ * This has to run *inside* the gesture handler — a resume started from a timer
+ * or a promise that a gesture happened to kick off does not count on iOS. It is
+ * registered once, on every kind of first contact a player might make.
+ */
+function listenForGesture(): void {
+  if (listening || typeof window === 'undefined') return
+  listening = true
+  const wake = () => {
+    if (ctx && ctx.state !== 'running') void ctx.resume()
+    if (ctx?.state === 'running') {
+      for (const type of ['pointerdown', 'touchend', 'keydown']) {
+        window.removeEventListener(type, wake)
+      }
+    }
+  }
+  for (const type of ['pointerdown', 'touchend', 'keydown']) {
+    window.addEventListener(type, wake)
   }
 }
 

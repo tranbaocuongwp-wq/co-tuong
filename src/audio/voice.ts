@@ -305,19 +305,29 @@ async function run(): Promise<void> {
       if (next.priority === 'idle' && Date.now() - next.queuedAt > STALE_MS) continue
 
       const ctx = audioContext()
-      if (ctx) await Promise.all(next.utterance.parts.map((id) => load(ctx, id)))
+      // A context that will not start is worse than none: scheduling into it
+      // loses the utterance silently, where falling through shows the caption.
+      if (ctx && ctx.state !== 'running') {
+        try {
+          await ctx.resume()
+        } catch {
+          // Still waiting on a gesture; the caption carries this one.
+        }
+      }
+      const live = ctx?.state === 'running' ? ctx : null
+      if (live) await Promise.all(next.utterance.parts.map((id) => load(live, id)))
       if (!enabled) break
 
       // The caption goes up when the utterance actually starts, audio or not.
       emit(next.utterance)
 
-      const list = ctx
+      const list = live
         ? next.utterance.parts.map((id) => buffers.get(id)).filter((b): b is AudioBuffer => !!b)
         : []
 
       // All or nothing: half a sentence is worse than a caption on its own.
-      if (ctx && list.length === next.utterance.parts.length) {
-        await playSequence(ctx, list)
+      if (live && list.length === next.utterance.parts.length) {
+        await playSequence(live, list)
       } else {
         await sleep(
           Math.max(MIN_CAPTION_MS, (next.utterance.text.length / CHARS_PER_SECOND) * 1000)
@@ -369,14 +379,29 @@ export function speakWords(text: string, words: Line[], priority: VoicePriority 
 }
 
 /**
- * Fetch recordings ahead of time.
+ * Pull recordings down ahead of time.
  *
- * Called when a game starts so the opening remark is not the one that waits on
- * the network. Anything already decoded costs nothing here.
+ * Network only — deliberately no decoding, because decoding needs an
+ * AudioContext and this runs as the page loads, before the player has touched
+ * anything. A context created at that moment starts suspended, and on iOS the
+ * gesture that would have unlocked it has already gone by.
+ *
+ * Anything already in the cache costs nothing here.
  */
 export function primeVoice(lines: Line[]): void {
   if (!enabled) return
-  const ctx = audioContext()
-  if (!ctx) return
-  for (const line of lines) void load(ctx, line.id)
+  for (const line of lines) void warm(line.id)
+}
+
+async function warm(id: string): Promise<void> {
+  if (buffers.has(id) || !('caches' in globalThis)) return
+  try {
+    const cache = await caches.open(CACHE_NAME)
+    const request = `${API}/v1/line/${id}`
+    if (await cache.match(request)) return
+    const fresh = await fetch(request)
+    if (fresh.ok) await cache.put(request, fresh)
+  } catch {
+    // Offline. The words still appear on screen.
+  }
 }

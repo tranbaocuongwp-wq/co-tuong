@@ -53,10 +53,10 @@ const SWING = 180
  * A player can sit on one move for a minute, and a minute of dead air is a
  * broadcast that sounds switched off.
  */
-const FILLER_MS = 13_000
+const FILLER_MS = 5_000
 
 /** How often the silence is checked. Cheap, and never while something is playing. */
-const FILLER_TICK_MS = 2500
+const FILLER_TICK_MS = 1200
 
 /** How often filler reaches for an anecdote rather than a read of the position. */
 const STORY_SHARE = 0.65
