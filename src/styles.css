@@ -915,6 +915,7 @@ a {
       'board update'
       'board bar'
       'board caption'
+      'board insight'
       'board end'
       'board hint'
       'board .';
@@ -923,7 +924,7 @@ a {
      * others share the leftover height and the panel floats in the middle of
      * the column. The last row absorbs it and everything sits at the top.
      */
-    grid-template-rows: auto auto auto auto auto 1fr;
+    grid-template-rows: auto auto auto auto auto auto 1fr;
     align-content: start;
     justify-content: center;
     gap: 12px 20px;
@@ -1073,6 +1074,116 @@ a {
   -webkit-line-clamp: 2;
   line-clamp: 2;
   overflow: hidden;
+}
+
+/* --- profile stats --------------------------------------------------------- */
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.stat {
+  display: grid;
+  gap: 2px;
+}
+
+.stat__value {
+  font-size: 1.3rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.stat__label {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+/* --- match insight --------------------------------------------------------- */
+
+/*
+ * Who is winning, drawn as bars.
+ *
+ * Only shown where there is room beside the board. On a phone held upright the
+ * board already fills the screen, and pushing it up to make space for a chart
+ * would trade the thing being played for a picture of it.
+ */
+.insight {
+  grid-area: insight;
+  display: none;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+@media (min-width: 700px) and (orientation: landscape) {
+  .insight {
+    display: grid;
+  }
+}
+
+.insight__title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0 0 4px;
+  font-size: 0.9rem;
+}
+
+.insight__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.insight__label {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.insight__value {
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Red fills from the left, Black is whatever is left over. */
+.insight__bar {
+  height: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 22%, transparent);
+  overflow: hidden;
+}
+
+.insight__fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.45s ease-out;
+}
+
+.insight__fill--red {
+  background: var(--red-piece, #a8342a);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .insight__fill {
+    transition: none;
+  }
+}
+
+.insight__notes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 0.76rem;
 }
 
 /* --- thinking toast ------------------------------------------------------- */

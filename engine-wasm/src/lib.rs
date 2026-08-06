@@ -16,7 +16,7 @@
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
-use xiangqi_engine::board::{Forcing, RepKind};
+use xiangqi_engine::board::{Forcing, Formation, RepKind};
 use xiangqi_engine::learn::Outcome;
 use xiangqi_engine::notation::move_to_vietnamese;
 use xiangqi_engine::types::{
@@ -111,6 +111,9 @@ pub struct MoveReportInfo {
     pub crossed_river: bool,
     /// The move carried the piece into the enemy palace.
     pub into_palace: bool,
+    /// A named shape this move completed: "centralCannon", "stackedCannons",
+    /// "riverCannon", "bothRooksOver" — or null, which is nearly every move.
+    pub formation: Option<&'static str>,
 }
 
 /// One option offered by the hint, with everything needed to explain it.
@@ -471,6 +474,12 @@ impl Game {
             threats: r.threats.into_iter().map(kind_name).collect(),
             crossed_river: r.crossed_river,
             into_palace: r.into_palace,
+            formation: r.formation.map(|f| match f {
+                Formation::CentralCannon => "centralCannon",
+                Formation::StackedCannons => "stackedCannons",
+                Formation::RiverCannon => "riverCannon",
+                Formation::BothRooksOver => "bothRooksOver",
+            }),
         })
     }
 

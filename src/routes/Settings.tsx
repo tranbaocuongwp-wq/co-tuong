@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { downloadVoicePack } from '../audio/pack'
 import { Icon } from '../components/Icon'
 import { getEngineClient } from '../engine/client'
 import { DIFFICULTY_ORDER, DIFFICULTY_PRESETS } from '../engine/types'
@@ -16,6 +17,30 @@ import {
 const EXPERIENCE_KEY = 'engine.experience'
 
 export function SettingsPage() {
+  const [packBusy, setPackBusy] = useState(false)
+  const [packPercent, setPackPercent] = useState(0)
+  const [packNote, setPackNote] = useState<string | null>(null)
+
+  const onDownloadPack = useCallback(async () => {
+    setPackBusy(true)
+    setPackPercent(0)
+    setPackNote(null)
+    try {
+      const result = await downloadVoicePack(({ done, total }) =>
+        setPackPercent(Math.round((done / total) * 100))
+      )
+      setPackNote(
+        result.failed > 0
+          ? `Đã tải ${result.fetched + result.already}/${result.total} câu. ${result.failed} câu chưa có bản ghi, sẽ hiện chữ thay vì đọc.`
+          : `Xong. ${result.total} câu đã nằm trong máy, không cần mạng nữa.`
+      )
+    } catch (e) {
+      setPackNote(e instanceof Error ? e.message : 'Không tải được.')
+    } finally {
+      setPackBusy(false)
+    }
+  }, [])
+
   const { settings, update } = useSettings()
   const [storeKind, setStoreKind] = useState<string>('…')
   const [experienceSize, setExperienceSize] = useState<number | null>(null)
@@ -154,6 +179,25 @@ export function SettingsPage() {
           'Máy rút kinh nghiệm',
           'Sau mỗi ván, máy nhớ những nước đã khiến nó thua để lần sau tránh.'
         )}
+      </div>
+
+      <div className="card" style={{ marginBottom: 18 }}>
+        <h2 style={{ fontSize: '1rem', marginTop: 0 }}>Tiếng nói ngoại tuyến</h2>
+        <p className="muted" style={{ marginTop: 0 }}>
+          {packNote ??
+            'Tải sẵn toàn bộ lời bình về máy để nghe được cả khi mất mạng. Vài megabyte, chỉ tải một lần.'}
+        </p>
+        {packBusy && (
+          <div className="insight__bar" style={{ marginBottom: 10 }}>
+            <span
+              className="insight__fill insight__fill--red"
+              style={{ width: `${packPercent}%` }}
+            />
+          </div>
+        )}
+        <button type="button" className="btn" onClick={onDownloadPack} disabled={packBusy}>
+          <Icon name="download" /> {packBusy ? 'Đang tải…' : 'Tải gói lời nói'}
+        </button>
       </div>
 
       <div className="card" style={{ marginBottom: 18 }}>

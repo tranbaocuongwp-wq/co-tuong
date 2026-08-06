@@ -11,6 +11,7 @@ import { createHashRouter } from 'react-router'
 
 import { AppLayout } from './App'
 import { AboutPage } from './routes/About'
+import { ProfilePage } from './routes/Profile'
 import { HistoryPage } from './routes/History'
 import { HomePage } from './routes/Home'
 import { PlayPage } from './routes/Play'
@@ -24,6 +25,7 @@ export const router = createHashRouter([
     children: [
       { index: true, element: <HomePage /> },
       { path: 'play', element: <PlayPage /> },
+      { path: 'profile', element: <ProfilePage /> },
       { path: 'history', element: <HistoryPage /> },
       { path: 'review/:id', element: <ReviewPage /> },
       { path: 'settings', element: <SettingsPage /> },

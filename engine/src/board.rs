@@ -87,6 +87,30 @@ pub struct MoveReport {
     pub crossed_river: bool,
     /// The move carried the piece into the enemy palace.
     pub into_palace: bool,
+    /// A named formation this move completed, if it completed one.
+    ///
+    /// Only shapes the moved piece itself takes part in: what the rest of the
+    /// army was already doing is not news. `None` for the ordinary case, which
+    /// is nearly every move.
+    pub formation: Option<Formation>,
+}
+
+/// Board shapes worth calling by name.
+///
+/// A commentator does not say "the cannon moved to the middle file"; they say
+/// "pháo đầu", and everyone at the table knows what that means and what it
+/// threatens. These are the few that are both common and unmistakable — a
+/// pattern that fires on the wrong position is worse than one that never fires.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Formation {
+    /// 中炮 — a cannon on the central file, bearing on the enemy general.
+    CentralCannon,
+    /// 重炮 — two cannons stacked on the enemy general's file.
+    StackedCannons,
+    /// 巡河炮 — a cannon patrolling its own bank of the river.
+    RiverCannon,
+    /// 双车过河 — both chariots across the river.
+    BothRooksOver,
 }
 
 /// The starting array, in Xiangqi FEN.
@@ -538,6 +562,53 @@ impl Position {
         Some(probe.judge_cycle(plies))
     }
 
+    /// A named shape the piece on `at` has just completed, if any.
+    ///
+    /// Checked only for the piece that moved, so the report is about *this*
+    /// move rather than about the position in general.
+    fn formation_after(&self, at: usize, moved: u8, side: u8) -> Option<Formation> {
+        let enemy_king = self.king_sq[1 - side as usize];
+
+        match kind_of(moved) {
+            CANNON => {
+                if disp_col(at) == disp_col(enemy_king) {
+                    // Two cannons on the general's file is the heavier threat,
+                    // so it is checked first.
+                    let stacked = all_squares()
+                        .filter(|&s| {
+                            is_side(self.board[s], side)
+                                && kind_of(self.board[s]) == CANNON
+                                && disp_col(s) == disp_col(enemy_king)
+                        })
+                        .count();
+                    if stacked >= 2 {
+                        return Some(Formation::StackedCannons);
+                    }
+                    if disp_col(at) == 4 {
+                        return Some(Formation::CentralCannon);
+                    }
+                }
+                // The rank on this side's own bank of the river.
+                let bank = if side == RED { 5 } else { 4 };
+                if disp_row(at) == bank {
+                    return Some(Formation::RiverCannon);
+                }
+                None
+            }
+            ROOK => {
+                let over = all_squares()
+                    .filter(|&s| {
+                        is_side(self.board[s], side)
+                            && kind_of(self.board[s]) == ROOK
+                            && crossed_river(s, side)
+                    })
+                    .count();
+                (over >= 2).then_some(Formation::BothRooksOver)
+            }
+            _ => None,
+        }
+    }
+
     /// How many times this exact position has already occurred in the game.
     ///
     /// Separate from [`repetition`], which answers *whether* the position
@@ -906,6 +977,7 @@ impl Position {
             };
 
         Some(MoveReport {
+            formation: self.formation_after(to, moved, mover_side),
             mover: kind_of(moved),
             captured: if u.captured == EMPTY {
                 None
@@ -934,6 +1006,32 @@ impl Position {
 
 #[cfg(test)]
 mod tests {
+
+    /// A cannon swinging onto the central file is 中炮, and gets named.
+    #[test]
+    fn a_central_cannon_is_recognised() {
+        // Black king on the middle file; a Red cannon swings onto it.
+        let mut pos = Position::from_fen("4k4/9/9/9/9/9/9/C8/9/3K5 w - - 0 1").unwrap();
+        assert!(pos.make_move_checked(iccs_to_move("a2e2").unwrap()));
+        let report = pos.last_move_report().unwrap();
+        assert_eq!(report.formation, Some(Formation::CentralCannon));
+    }
+
+    /// An ordinary move names no shape at all, which is the common case.
+    #[test]
+    fn an_ordinary_move_names_no_formation() {
+        let mut pos = Position::new();
+        assert!(pos.make_move_checked(iccs_to_move("h2e2").unwrap()));
+        let report = pos.last_move_report().unwrap();
+        // The Black general is on the middle file from the start, so this very
+        // move *is* pháo đầu — the classic opening. Anything else would mean
+        // the pattern had missed the most famous shape in the game.
+        assert_eq!(report.formation, Some(Formation::CentralCannon));
+
+        let mut pos = Position::new();
+        assert!(pos.make_move_checked(iccs_to_move("b0c2").unwrap()));
+        assert_eq!(pos.last_move_report().unwrap().formation, None);
+    }
 
     /// A position coming round again is counted, not judged.
     ///

@@ -17,13 +17,21 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { isVoiceBusy, onVoiceLine, speak, type Utterance, type VoicePriority } from '../audio/voice'
+import {
+  isVoiceBusy,
+  onVoiceLine,
+  speak,
+  stopVoice,
+  type Utterance,
+  type VoicePriority,
+} from '../audio/voice'
 import { adviceLead, adviceReason } from '../commentary/advice'
 import type { Kind, MoveReport, SideLetter } from '../commentary/facts'
 import {
   actionOf,
   captureLine,
   checkLine,
+  formationLine,
   kindOfNotation,
   moveLines,
   palaceLine,
@@ -155,10 +163,19 @@ export function useCommentary(input: CommentaryInput) {
     say('greeting', 'event')
   }, [enabled, moveCount, say])
 
-  // The result, which always gets said.
+  /*
+   * The result, and then nothing.
+   *
+   * The queue is cleared first so remarks about a position that no longer
+   * exists cannot trail out over the result. A game that has just been lost is
+   * exactly the wrong moment to still be chattering about the middlegame, and
+   * tacking on more after the verdict makes the commentator sound like he did
+   * not notice it was over.
+   */
   useEffect(() => {
     if (!enabled || !isOver || endedRef.current) return
     endedRef.current = true
+    stopVoice()
     say(resultSituation(status.status), 'critical')
   }, [enabled, isOver, status.status, say])
 
@@ -175,6 +192,17 @@ export function useCommentary(input: CommentaryInput) {
      */
     const fact = factFor(report, notation, recentRef.current)
     sayLine(fact, report?.givesCheck || report?.captured ? 'critical' : 'event')
+
+    /*
+     * The shape it made, named.
+     *
+     * Said as a second sentence rather than folded into the first: "pháo đầu"
+     * is a different observation from "the cannon moved", and running them
+     * together would bury the one a player actually learns from.
+     */
+    if (report?.formation) {
+      sayLine(formationLine(report.side as SideLetter, report.formation), 'critical')
+    }
 
     // 2. The reaction, when there is something to react to. The line above is
     //    already queued, so this lands after it rather than on top of it.

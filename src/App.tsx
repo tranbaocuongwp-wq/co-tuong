@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation } from 'react-router'
 const LINKS = [
   { to: '/', label: 'Trang chủ', end: true },
   { to: '/play', label: 'Chơi' },
+  { to: '/profile', label: 'Hồ sơ' },
   { to: '/history', label: 'Lịch sử' },
   { to: '/settings', label: 'Cài đặt' },
   { to: '/about', label: 'Giới thiệu' },

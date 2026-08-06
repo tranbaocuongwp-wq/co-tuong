@@ -21,6 +21,7 @@ import { LINES } from '../commentary/lines'
 import { Board } from '../components/Board'
 import { GameMenu } from '../components/GameMenu'
 import { HintDialog } from '../components/HintDialog'
+import { MatchInsight } from '../components/MatchInsight'
 import { Icon } from '../components/Icon'
 import { ThinkingToast } from '../components/ThinkingToast'
 import { UpdateNotice } from '../components/UpdateNotice'
@@ -475,6 +476,13 @@ export function PlayPage() {
           label={hintBusy ? 'Đang tìm gợi ý' : undefined}
         />
       </div>
+
+      <MatchInsight
+        info={lastInfo}
+        engineSide={settings.mode === 'pvp' ? null : settings.playerSide === 'r' ? 'b' : 'r'}
+        pieces={projection.pieces}
+        moveCount={projection.movesIccs.length}
+      />
 
       {settings.voice && !isOver && (
         <div className="commentary" role="status">

@@ -54,6 +54,9 @@ function cors(extra: HeadersInit = {}): HeadersInit {
   }
 }
 
+/** What went wrong upstream, kept so a failure can be diagnosed rather than guessed at. */
+let lastVoiceError = ''
+
 async function synthesise(env: Env, text: string): Promise<ArrayBuffer | null> {
   const res = await fetch(
     `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}?output_format=mp3_44100_128`,
@@ -66,7 +69,12 @@ async function synthesise(env: Env, text: string): Promise<ArrayBuffer | null> {
       body: JSON.stringify({ text, model_id: MODEL_ID }),
     }
   )
-  if (!res.ok) return null
+  if (!res.ok) {
+    // Swallowing this was a mistake: a whole category of lines failed
+    // identically twice and there was nothing to look at but a 503.
+    lastVoiceError = `${res.status} ${(await res.text()).slice(0, 300)}`
+    return null
+  }
   return res.arrayBuffer()
 }
 
@@ -156,9 +164,12 @@ export default {
 
     const audio = await synthesise(env, text)
     if (!audio) {
-      // Upstream trouble is not the player's problem: say so plainly and let
-      // the client fall back to text.
-      return new Response('Voice unavailable', { status: 503, headers: cors() })
+      // Upstream trouble is not the player's problem: the client falls back to
+      // text either way. The reason is included for whoever is generating.
+      return new Response(`Voice unavailable: ${lastVoiceError}`, {
+        status: 503,
+        headers: cors(),
+      })
     }
 
     // Store for everyone who comes next. `waitUntil` is not used because a

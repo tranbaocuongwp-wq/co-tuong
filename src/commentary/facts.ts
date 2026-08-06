@@ -42,7 +42,11 @@ export interface MoveReport {
   crossedRiver: boolean
   /** The move carried the piece into the enemy palace. */
   intoPalace: boolean
+  /** A named shape this move completed, or null. */
+  formation: FormationName | null
 }
+
+export type FormationName = 'centralCannon' | 'stackedCannons' | 'riverCannon' | 'bothRooksOver'
 
 const PIECE: Record<Kind, string> = {
   k: 'Tướng',
@@ -196,9 +200,15 @@ function weight(victim: Kind): 'big' | 'fair' | 'small' {
 }
 
 const CAPTURE_TEXT: Record<'big' | 'fair' | 'small', string> = {
-  big: '{s} tung {m} chém rụng {v} bên {o}! Mất con này là mất nửa sức mạnh.',
-  fair: '{s} dùng {m} hạ {v} bên {o}. Một đòn đổi đáng giá.',
-  small: '{s} cho {m} nhặt gọn {v} bên {o}.',
+  big:
+    '{s} tung {m} chém rụng {v} bên {o}! Mất con chủ lực này thì cả cánh ấy trống hoác, ' +
+    'bên {o} từ giờ phải co về mà thủ chứ không còn cửa nào để tấn.',
+  fair:
+    '{s} dùng {m} hạ {v} bên {o}. Một quân tấn công đã rời bàn, thế trận bên {o} ' +
+    'mỏng đi trông thấy và mọi tính toán từ nãy phải làm lại từ đầu.',
+  small:
+    '{s} cho {m} nhặt gọn {v} bên {o}. Quân nhỏ thôi, nhưng lấy đi một chỗ dựa, ' +
+    'và trong cờ tướng mất chỗ dựa là chuyện lớn.',
 }
 
 const CAPTURE_TONE: Record<'big' | 'fair' | 'small', string> = {
@@ -243,7 +253,8 @@ for (const side of SIDES) {
 
     for (const victim of TAKEABLE) {
       const text = fill(
-        '{m} {s} đã khoá chặt {v} bên {o}, không gỡ là mất.',
+        '{m} {s} vừa chĩa thẳng vào {v} bên {o}. Nước sau mà không gỡ là mất quân, ' +
+          'mà gỡ thì thế trận phải xô lệch — đằng nào bên {o} cũng phải trả giá.',
         side,
         mover,
         victim
@@ -251,7 +262,7 @@ for (const side of SIDES) {
       THREATS[`${side}-${mover}-${victim}`] = make(
         `thr-${side}-${mover}-${victim}`,
         text,
-        `[cảnh báo] ${text}`
+        `[thì thầm] ${text.split('.')[0]}. [cảnh báo] ${text.split('.').slice(1).join('.').trim()}`
       )
     }
   }
@@ -259,16 +270,35 @@ for (const side of SIDES) {
   for (const mover of CHECKERS) {
     const text =
       mover === 'k'
-        ? fill('{s} để lộ mặt Tướng, chiếu thẳng sang cung {o}!', side)
-        : fill('{m} {s} chiếu Tướng! Bên {o} phải gỡ trước đã.', side, mover)
-    CHECKS[`${side}-${mover}`] = make(`chk-${side}-${mover}`, text, `[dõng dạc] ${text}`)
+        ? fill(
+            '{s} để lộ mặt Tướng, chiếu thẳng sang cung {o}! Cả bàn cờ dừng lại, ' +
+              'bên {o} phải bỏ hết mọi ý đồ mà lo gỡ cái đã.',
+            side
+          )
+        : fill(
+            '{m} {s} chiếu Tướng! Bên {o} không được đi nước nào khác ngoài gỡ chiếu — ' +
+              'mất một nhịp ở đây là mất cả thế chủ động.',
+            side,
+            mover
+          )
+    CHECKS[`${side}-${mover}`] = make(`chk-${side}-${mover}`, text, `[hào hùng] ${text}`)
   }
 
   for (const mover of ALL) {
-    const river = fill('{m} {s} đã qua sông. Đi rồi thì khó mà quay đầu.', side, mover)
+    const river = fill(
+      '{m} {s} đã qua sông. Đi rồi là không có đường lui, từ đây chỉ có tiến — ' +
+        'và mỗi bước tiến là một mối lo mới cho bên {o}.',
+      side,
+      mover
+    )
     RIVER[`${side}-${mover}`] = make(`riv-${side}-${mover}`, river, `[nhấn mạnh] ${river}`)
 
-    const palace = fill('{m} {s} đã vào tới cửa cung bên {o}!', side, mover)
+    const palace = fill(
+      '{m} {s} đã đặt chân vào cung bên {o}! Tới nước này thì Tướng {o} không còn ' +
+        'chỗ nào là an toàn nữa, mọi nước đi đều phải ngó về nhà.',
+      side,
+      mover
+    )
     PALACE[`${side}-${mover}`] = make(`pal-${side}-${mover}`, palace, `[hào hùng] ${palace}`)
   }
 }
@@ -284,6 +314,46 @@ export function actionOf(notation: string): Action {
   if (notation.includes(' bình ')) return 'across'
   if (notation.includes(' thoái ')) return 'retreat'
   return 'advance'
+}
+
+/**
+ * Named shapes, with what each one means for the position.
+ *
+ * This is the layer a real commentator reaches for first: nobody says "the
+ * cannon went to the middle file", they say "pháo đầu" and everyone knows what
+ * is coming. Each line names the shape and then says what it does, because the
+ * name alone only helps people who already knew.
+ */
+const FORMATION_TEXT: Record<FormationName, string> = {
+  centralCannon:
+    '{s} lên pháo đầu! Khẩu pháo ngắm thẳng vào Tướng {o} qua trung lộ. ' +
+    'Đây là thế mở màn kinh điển nhất của cờ tướng, và cũng hung hãn nhất: ' +
+    'bên {o} phải trả lời ngay, chậm một nhịp là trung lộ vỡ.',
+  stackedCannons:
+    '{s} dựng thế trùng pháo! Hai khẩu pháo chồng lên nhau cùng một đường, ' +
+    'khẩu sau làm ngòi cho khẩu trước. Đây là một trong những thế sát mạnh nhất trên bàn cờ — ' +
+    'Tướng {o} mà còn đứng đó thì khó thọ.',
+  riverCannon:
+    '{s} đưa pháo tuần hà. Khẩu pháo chạy dọc bờ sông, vừa ngăn quân {o} qua sông ' +
+    'vừa sẵn sàng chuyển hướng bất cứ lúc nào. Thế này khó chịu lắm, nó không doạ gì ngay ' +
+    'nhưng bó chân người ta.',
+  bothRooksOver:
+    'Song xe {s} đã cùng qua sông! Hai cỗ xe cùng lúc đè xuống trận địa {o}. ' +
+    'Cờ tướng có câu một xe địch mười quân, giờ có hai — bên {o} không thể giữ được ' +
+    'khắp mọi hướng.',
+}
+
+const FORMATION: Record<string, Line> = {}
+
+for (const side of SIDES) {
+  for (const name of Object.keys(FORMATION_TEXT) as FormationName[]) {
+    const text = fill(FORMATION_TEXT[name], side)
+    FORMATION[`${side}-${name}`] = make(`frm-${side}-${name}`, text, `[hào hùng] ${text}`)
+  }
+}
+
+export function formationLine(side: SideLetter, name: FormationName): Line | null {
+  return FORMATION[`${side}-${name}`] ?? null
 }
 
 /**
@@ -332,5 +402,6 @@ export function allFactLines(): Line[] {
     ...Object.values(CHECKS),
     ...Object.values(RIVER),
     ...Object.values(PALACE),
+    ...Object.values(FORMATION),
   ]
 }
