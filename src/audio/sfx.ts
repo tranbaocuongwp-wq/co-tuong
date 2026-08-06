@@ -1,11 +1,16 @@
 /**
- * Game sound effects, synthesised rather than downloaded.
+ * Game sound effects.
  *
- * Every sound here is generated with the Web Audio API. That is a deliberate
- * choice over shipping audio files: it costs no download at all, it works with
- * no network — which is the whole point of this app — and it sidesteps sample
- * licensing entirely. These are short percussive sounds, exactly the kind
- * synthesis does well.
+ * Recorded samples in `public/sfx/`, generated once and committed with the app
+ * so a piece still lands with a sound when there is no network — the same
+ * reason the rest of the game works offline.
+ *
+ * The synthesised versions below remain as a fallback for the case where a
+ * sample fails to load or decode. Keeping them costs nothing, and a silent
+ * board is a worse failure than a slightly electronic one.
+ *
+ * Samples are decoded into buffers rather than played through `<audio>`, so
+ * two sounds close together overlap cleanly instead of cutting each other off.
  *
  * Browsers refuse to start audio until the user has interacted with the page,
  * so the context is created lazily on the first sound and resumed if suspended.
@@ -16,6 +21,87 @@ let enabled = true
 
 /** Master level. Deliberately modest: a chess app should not startle anyone. */
 const MASTER_GAIN = 0.32
+
+/** Per-sample level, trimming the generated files to a comfortable balance. */
+const SAMPLE_GAIN: Record<SampleId, number> = {
+  move: 0.9,
+  capture: 1,
+  select: 0.55,
+  check: 0.8,
+  win: 0.85,
+  loss: 0.85,
+  draw: 0.8,
+}
+
+export type SampleId = 'move' | 'capture' | 'select' | 'check' | 'win' | 'loss' | 'draw'
+
+/** Decoded samples, and the in-flight loads that will become them. */
+const buffers = new Map<SampleId, AudioBuffer>()
+const loading = new Map<SampleId, Promise<void>>()
+
+function sampleUrl(id: SampleId): string {
+  // Relative to the document, matching Vite's `base: './'` and the Tauri
+  // custom protocol.
+  return new URL(`sfx/${id}.mp3`, document.baseURI).href
+}
+
+async function load(c: AudioContext, id: SampleId): Promise<void> {
+  if (buffers.has(id)) return
+  const existing = loading.get(id)
+  if (existing) return existing
+
+  const job = (async () => {
+    try {
+      const res = await fetch(sampleUrl(id))
+      if (!res.ok) return
+      buffers.set(id, await c.decodeAudioData(await res.arrayBuffer()))
+    } catch {
+      // Leave it absent; `play` falls back to synthesis.
+    } finally {
+      loading.delete(id)
+    }
+  })()
+  loading.set(id, job)
+  return job
+}
+
+/**
+ * Play a sample if it is ready, and report whether it was.
+ *
+ * Never waits for a download: a sound arriving after the move it belongs to is
+ * worse than no sound, so a cold sample falls back to synthesis this once and
+ * loads in the background for next time.
+ */
+function playSample(id: SampleId): boolean {
+  const c = audio()
+  if (!c) return true // Sound is off; treat as handled.
+
+  const buffer = buffers.get(id)
+  if (!buffer) {
+    void load(c, id)
+    return false
+  }
+
+  const src = c.createBufferSource()
+  src.buffer = buffer
+  const amp = c.createGain()
+  amp.gain.value = SAMPLE_GAIN[id] * MASTER_GAIN
+  src.connect(amp).connect(c.destination)
+  src.start()
+  return true
+}
+
+/**
+ * Fetch and decode every sample.
+ *
+ * Called on the first interaction, which is both when the audio context can
+ * legally start and well before the first move needs a sound.
+ */
+export function primeSounds(): void {
+  const c = audio()
+  if (!c) return
+  for (const id of Object.keys(SAMPLE_GAIN) as SampleId[]) void load(c, id)
+}
 
 export function setSoundEnabled(on: boolean): void {
   enabled = on
@@ -104,6 +190,7 @@ function tone(
 
 /** Picking a piece up: a light tick, quieter than a move. */
 export function playSelect(): void {
+  if (playSample('select')) return
   const c = audio()
   if (!c) return
   knock(c, c.currentTime, { freq: 1700, decay: 0.05, gain: 0.35, q: 4 })
@@ -111,6 +198,7 @@ export function playSelect(): void {
 
 /** A quiet move: wood on wood. */
 export function playMove(): void {
+  if (playSample('move')) return
   const c = audio()
   if (!c) return
   const t = c.currentTime
@@ -121,6 +209,7 @@ export function playMove(): void {
 
 /** A capture: heavier, with the two pieces meeting. */
 export function playCapture(): void {
+  if (playSample('capture')) return
   const c = audio()
   if (!c) return
   const t = c.currentTime
@@ -132,6 +221,7 @@ export function playCapture(): void {
 
 /** Check: a bright gong, the one sound that should cut through. */
 export function playCheck(): void {
+  if (playSample('check')) return
   const c = audio()
   if (!c) return
   const t = c.currentTime
@@ -144,6 +234,7 @@ export function playCheck(): void {
 
 /** Checkmate or resignation, from the winner's point of view. */
 export function playGameEnd(result: 'win' | 'loss' | 'draw'): void {
+  if (playSample(result)) return
   const c = audio()
   if (!c) return
   const t = c.currentTime

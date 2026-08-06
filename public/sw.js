@@ -15,7 +15,7 @@
  * played, so getting it into the cache is the whole point of the exercise.
  */
 
-const CACHE = 'co-tuong-v2'
+const CACHE = 'co-tuong-v3'
 
 /* Stable-named files worth having before the first offline load. */
 const APP_SHELL = [
@@ -25,6 +25,19 @@ const APP_SHELL = [
   './icon.svg',
   './icon-192.png',
   './icon-512.png',
+  /*
+   * The sound effects. Their names are not content-hashed, and the whole point
+   * of shipping them with the app is that a piece lands with a sound whether or
+   * not there is a network — so they belong in the first cache, not in whatever
+   * happens to have been played once.
+   */
+  './sfx/move.mp3',
+  './sfx/capture.mp3',
+  './sfx/select.mp3',
+  './sfx/check.mp3',
+  './sfx/win.mp3',
+  './sfx/loss.mp3',
+  './sfx/draw.mp3',
 ]
 
 self.addEventListener('install', (event) => {

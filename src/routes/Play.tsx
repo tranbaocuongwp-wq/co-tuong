@@ -15,7 +15,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router'
 
-import { setSoundEnabled } from '../audio/sfx'
+import { primeSounds, setSoundEnabled } from '../audio/sfx'
 import { Board } from '../components/Board'
 import { GameMenu } from '../components/GameMenu'
 import { Icon } from '../components/Icon'
@@ -69,6 +69,16 @@ export function PlayPage() {
   // rather than threaded through every call site.
   useEffect(() => {
     setSoundEnabled(settings.sound)
+  }, [settings.sound])
+
+  // Fetch and decode the samples on the first touch of the board. That is both
+  // the earliest a browser will allow audio to start and well before the first
+  // move needs a sound.
+  useEffect(() => {
+    if (!settings.sound) return
+    const prime = () => primeSounds()
+    window.addEventListener('pointerdown', prime, { once: true })
+    return () => window.removeEventListener('pointerdown', prime)
   }, [settings.sound])
   const preset = DIFFICULTY_PRESETS[settings.difficulty]
 

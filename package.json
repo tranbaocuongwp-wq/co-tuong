@@ -16,7 +16,8 @@
     "tauri:dev": "npm run wasm:dev && tauri dev",
     "tauri:build": "npm run wasm && tauri build",
     "test:engine": "cargo test -p xiangqi-engine --release",
-    "check:ui": "node scripts/check-ui.mjs"
+    "check:ui": "node scripts/check-ui.mjs",
+    "gen:sfx": "node scripts/generate-sfx.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.1",

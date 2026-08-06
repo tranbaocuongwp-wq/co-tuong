@@ -17,10 +17,10 @@
         "vite",
         "preview",
         "--port",
-        "4210",
+        "4211",
         "--strictPort"
       ],
-      "port": 4210
+      "port": 4211
     }
   ]
 }
