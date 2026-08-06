@@ -147,27 +147,46 @@ a {
   max-width: none;
   display: flex;
   flex-direction: column;
+  align-items: center;
   justify-content: center;
 }
 
-/* A compact top bar once the window gets narrow. */
-@media (max-width: 560px) {
+/*
+ * A compact top bar once the window gets narrow.
+ *
+ * The nav scrolls sideways in a single row rather than wrapping onto a second
+ * line: wrapping pushed the brand into two lines and cost a third of the screen
+ * before any content appeared.
+ */
+@media (max-width: 620px) {
   .topbar {
-    padding: 8px 12px;
+    padding: 8px 10px;
     gap: 8px;
   }
 
   .topbar__brand {
-    font-size: 0.95rem;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    flex: none;
   }
 
   .topbar__nav {
+    flex-wrap: nowrap;
+    overflow-x: auto;
     gap: 2px;
+    /* Hide the scrollbar; the row is short and obviously swipeable. */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .topbar__nav::-webkit-scrollbar {
+    display: none;
   }
 
   .topbar__link {
     padding: 5px 9px;
-    font-size: 0.85rem;
+    font-size: 0.84rem;
+    white-space: nowrap;
   }
 }
 
@@ -234,6 +253,15 @@ a {
 
 .btn--danger {
   color: var(--accent);
+}
+
+.icon {
+  flex: none;
+  display: block;
+}
+
+.btn .icon {
+  margin-right: -2px;
 }
 
 .btn-row {
@@ -551,7 +579,17 @@ a {
 .stage {
   display: grid;
   gap: 12px;
-  justify-items: center;
+  /*
+   * The width limit lives on the stage, not on each child. Putting it on the
+   * children left them free to sit wherever the flex container placed them,
+   * which is how the board ended up off-centre on a wide window.
+   *
+   * The board is taller than it is wide, so its size is governed by the
+   * viewport *height*; the floor stops it collapsing on a short, wide window.
+   */
+  width: 100%;
+  max-width: min(100%, max(320px, 74vh));
+  margin-inline: auto;
 }
 
 .stage__bar {
@@ -559,7 +597,6 @@ a {
   align-items: center;
   gap: 12px;
   width: 100%;
-  max-width: min(100%, 72vh);
 }
 
 .turn {
@@ -571,12 +608,10 @@ a {
 
 .stage__board {
   width: 100%;
-  max-width: min(100%, 72vh);
 }
 
 .stage__end {
   width: 100%;
-  max-width: min(100%, 72vh);
   text-align: center;
 }
 
@@ -860,10 +895,21 @@ a {
 
 .drawer__title {
   margin: 0;
-  font-size: 0.82rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-dim);
+}
+
+.drawer__credit {
+  margin: 0;
+  padding-top: 4px;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  text-align: center;
 }
 
 .drawer__section .muted {
@@ -923,15 +969,20 @@ a {
 
 .drawer__nav {
   display: grid;
-  gap: 2px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
 }
 
 .drawer__nav a {
-  padding: 9px 10px;
+  padding: 10px;
   border-radius: 8px;
   text-decoration: none;
   color: var(--text);
-  font-size: 0.93rem;
+  font-size: 0.9rem;
+  text-align: center;
+  border: 1px solid transparent;
 }
 
 .drawer__nav a:hover {
@@ -946,7 +997,6 @@ a {
   gap: 10px;
   flex-wrap: wrap;
   width: 100%;
-  max-width: min(100%, 72vh);
   padding: 10px 14px;
   border-radius: 10px;
   border: 1px solid var(--border);
@@ -992,19 +1042,45 @@ a {
   font-weight: 600;
 }
 
-/* On a phone the drawer takes the whole screen rather than a sliver. */
-@media (max-width: 480px) {
+/*
+ * On a phone the drawer is the screen. The header stays pinned so "close" is
+ * always reachable with a thumb, the buttons grow to a comfortable target, and
+ * the scrolling body clears the home indicator.
+ */
+@media (max-width: 560px) {
   .drawer {
     width: 100vw;
+    border-left: 0;
+  }
+
+  .drawer__head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--surface);
+    padding: 14px 14px;
   }
 
   .drawer__body {
-    padding: 12px;
-    gap: 16px;
+    padding: 14px 14px calc(24px + env(safe-area-inset-bottom));
+    gap: 18px;
   }
 
   .drawer__actions {
-    gap: 6px;
+    gap: 8px;
+  }
+
+  .drawer__actions .btn {
+    min-height: 50px;
+    font-size: 0.95rem;
+  }
+
+  .movelist {
+    max-height: 220px;
+  }
+
+  .tray__pieces {
+    font-size: 1.3rem;
   }
 }
 

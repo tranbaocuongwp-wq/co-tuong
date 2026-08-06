@@ -45,12 +45,26 @@ export function ThinkingToast({ visible, progress, label }: ThinkingToastProps) 
   )
 }
 
+/**
+ * Plain-language status.
+ *
+ * A raw centipawn score means nothing to a player, so the advantage is stated
+ * in words. The look-ahead depth stays because it is genuinely legible: bigger
+ * means the computer is seeing further.
+ */
 function detail(info: SearchInfo): string {
   if (info.mateIn !== null && info.mateIn !== undefined) {
     const moves = Math.ceil(Math.abs(info.mateIn) / 2)
-    return info.mateIn > 0 ? `thấy chiếu hết sau ${moves} nước` : `bị chiếu hết sau ${moves} nước`
+    return info.mateIn > 0 ? `sắp chiếu hết sau ${moves} nước` : `sắp bị chiếu hết sau ${moves} nước`
   }
-  const pawns = info.score / 100
-  const sign = pawns >= 0 ? '+' : ''
-  return `nhìn trước ${info.depth} nước · ${sign}${pawns.toFixed(1)}`
+  // Scores are from the side to move — the computer — so a positive number
+  // means the computer is ahead.
+  const cp = info.score
+  let standing: string
+  if (cp > 200) standing = 'máy đang ưu thế'
+  else if (cp > 60) standing = 'máy hơi hơn'
+  else if (cp < -200) standing = 'bạn đang ưu thế'
+  else if (cp < -60) standing = 'bạn hơi hơn'
+  else standing = 'đang cân bằng'
+  return `nghĩ trước ${info.depth} nước · ${standing}`
 }

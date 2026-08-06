@@ -1,0 +1,28 @@
+# Cloudflare Pages header rules.
+#
+# Two files must never be served stale, because they are what tells a returning
+# player that a new build exists:
+#
+#   version.json — the update check itself. A cached copy pins every client to
+#                  the version it first saw, so updates are either never noticed
+#                  or, worse, noticed forever in a reload loop.
+#   index.html   — names the hashed asset files. A cached copy keeps handing out
+#                  the previous build's filenames no matter what was deployed.
+#
+# Everything under /assets/ is content-hashed by Vite, so it is immutable and
+# can be cached as long as the browser likes.
+
+/version.json
+  Cache-Control: no-store, must-revalidate
+
+/index.html
+  Cache-Control: no-cache, must-revalidate
+
+/
+  Cache-Control: no-cache, must-revalidate
+
+/sw.js
+  Cache-Control: no-cache, must-revalidate
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable

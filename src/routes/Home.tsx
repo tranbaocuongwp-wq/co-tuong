@@ -22,10 +22,10 @@ export function HomePage() {
 
   return (
     <>
-      <h1 className="page__title">Cờ Tướng</h1>
+      <h1 className="page__title">Đệ Nhất Cờ Tướng</h1>
       <p className="page__lede">
-        Chơi hoàn toàn ngoại tuyến. Engine viết bằng Rust, có chế độ siêu khó và tự học từ những
-        ván bạn đã chơi.
+        Chơi hoàn toàn ngoại tuyến, không cần mạng. Máy có mức Siêu khó và biết rút kinh nghiệm
+        từ những ván bạn đã chơi.
       </p>
 
       {resumable && resumable.moveCount > 0 && (
@@ -108,9 +108,15 @@ export function HomePage() {
           <button
             type="button"
             className="btn btn--primary"
-            onClick={() => navigate('/play')}
+            onClick={() => {
+              // "Start" means start: drop the autosave so the play screen does
+              // not resume the old game instead.
+              void getHistoryStore()
+                .then((s) => s.saveInProgress(null))
+                .finally(() => navigate('/play'))
+            }}
           >
-            Bắt đầu chơi
+            Ván mới
           </button>
           <Link className="btn" to="/history">
             Lịch sử ván đấu

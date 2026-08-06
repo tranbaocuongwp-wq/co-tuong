@@ -14,7 +14,9 @@ export function SettingsPage() {
   const [notice, setNotice] = useState<string | null>(null)
 
   useEffect(() => {
-    void getHistoryStore().then((s) => setStoreKind(s.kind))
+    void getHistoryStore().then((s) =>
+      setStoreKind(s.kind === 'sqlite' ? 'trong ứng dụng' : 'trong trình duyệt')
+    )
   }, [])
 
   const refreshExperience = useCallback(async () => {
@@ -97,24 +99,24 @@ export function SettingsPage() {
         {toggle('sound', 'Âm thanh', 'Phát tiếng khi đi quân.')}
         {toggle(
           'learnFromGames',
-          'Máy học từ ván đã chơi',
-          'Sau mỗi ván, máy ghi nhớ những nước dẫn tới thua để lần sau tránh.'
+          'Máy rút kinh nghiệm',
+          'Sau mỗi ván, máy nhớ những nước đã khiến nó thua để lần sau tránh.'
         )}
       </div>
 
       <div className="card">
         <h2 style={{ fontSize: '1rem', marginTop: 0 }}>Dữ liệu</h2>
         <p className="muted">
-          Lưu trữ đang dùng: <strong>{storeKind}</strong>
-          {experienceSize !== null && (
+          Ván đấu được lưu <strong>{storeKind}</strong>, trên máy này.
+          {experienceSize !== null && experienceSize > 0 && (
             <>
-              {' '}· máy đã ghi nhớ <strong>{experienceSize}</strong> nước đi từ các ván trước
+              {' '}Máy đã ghi nhớ <strong>{experienceSize}</strong> nước đi từ các ván trước.
             </>
           )}
         </p>
         <div className="btn-row">
           <button type="button" className="btn" onClick={() => void clearExperience()}>
-            Xóa phần máy đã học
+            Xóa kinh nghiệm của máy
           </button>
           <button type="button" className="btn btn--danger" onClick={() => void clearHistory()}>
             Xóa toàn bộ lịch sử

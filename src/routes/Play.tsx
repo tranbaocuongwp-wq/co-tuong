@@ -17,6 +17,7 @@ import { Link } from 'react-router'
 
 import { Board } from '../components/Board'
 import { GameMenu } from '../components/GameMenu'
+import { Icon } from '../components/Icon'
 import { ThinkingToast } from '../components/ThinkingToast'
 import { UpdateNotice } from '../components/UpdateNotice'
 import { getEngineClient } from '../engine/client'
@@ -58,6 +59,8 @@ export function PlayPage() {
   const [savedNote, setSavedNote] = useState<string | null>(null)
   /** Ensures a finished game is filed once, not once per re-render. */
   const filedRef = useRef<string | null>(null)
+  /** Ensures the autosaved game is picked up once, on arrival. */
+  const resumedRef = useRef(false)
 
   const { projection, status, isOver, thinking, progress, lastInfo } = game
   const preset = DIFFICULTY_PRESETS[settings.difficulty]
@@ -144,6 +147,28 @@ export function PlayPage() {
     })()
   }, [isOver, gameId, record, projection.movesIccs.length, settings, status.status])
 
+  // Pick up an unfinished game. Without this the board is saved after every
+  // move but never read back, so "Chơi tiếp" silently started a new game and
+  // the previous one appeared to vanish.
+  useEffect(() => {
+    if (!game.ready || resumedRef.current) return
+    resumedRef.current = true
+    void (async () => {
+      try {
+        const store = await getHistoryStore()
+        const saved = await store.getInProgress()
+        if (!saved || !saved.moves.trim()) return
+        if (game.restore(saved.startFen, saved.moves)) {
+          // Keep the saved game's identity so finishing it updates the same
+          // history entry rather than creating a second one.
+          setGameId(saved.id)
+        }
+      } catch {
+        // A corrupt autosave should cost the resume, not the app.
+      }
+    })()
+  }, [game.ready, game.restore])
+
   // Restore the engine's saved experience once per session.
   useEffect(() => {
     if (!game.ready) return
@@ -166,6 +191,9 @@ export function PlayPage() {
     setMenuOpen(false)
     setHintsLeft(HINTS_PER_GAME)
     filedRef.current = null
+    // A new game replaces the autosave; otherwise reloading would resurrect the
+    // abandoned one.
+    void getHistoryStore().then((store) => store.saveInProgress(null))
     void getEngineClient().reset()
   }, [game])
 
@@ -210,6 +238,7 @@ export function PlayPage() {
         available={update_.available}
         kind={update_.kind}
         safeToApply={safeToUpdate}
+        canAutoApply={update_.canAutoApply}
         onApply={update_.apply}
       />
       <div className="stage__bar">
@@ -230,7 +259,7 @@ export function PlayPage() {
           onClick={() => setMenuOpen(true)}
           aria-label="Mở bảng điều khiển"
         >
-          <span className="icon-btn__bars" />
+          <Icon name="menu" size={20} />
         </button>
       </div>
 

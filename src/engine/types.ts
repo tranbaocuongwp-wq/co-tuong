@@ -88,7 +88,7 @@ export const DIFFICULTY_PRESETS: Record<
 > = {
   easy: {
     label: 'Dễ',
-    blurb: 'Nhìn trước 2 nước, thỉnh thoảng đi hụt như người mới.',
+    blurb: 'Nghĩ nông, thỉnh thoảng đi hớ như người mới học.',
     options: {
       maxDepth: 2,
       movetimeMs: 0,
@@ -99,7 +99,7 @@ export const DIFFICULTY_PRESETS: Record<
   },
   medium: {
     label: 'Trung bình',
-    blurb: 'Nhìn trước khoảng 5 nước, ít khi cho không quân.',
+    blurb: 'Đi chắc tay, ít khi cho không quân.',
     options: {
       maxDepth: 5,
       movetimeMs: 0,
@@ -110,7 +110,7 @@ export const DIFFICULTY_PRESETS: Record<
   },
   hard: {
     label: 'Khó',
-    blurb: 'Suy nghĩ 1,5 giây mỗi nước, trừng phạt sai lầm.',
+    blurb: 'Nghĩ kỹ trước mỗi nước và trừng phạt sai lầm.',
     options: {
       maxDepth: 64,
       movetimeMs: 1_500,
@@ -121,7 +121,7 @@ export const DIFFICULTY_PRESETS: Record<
   },
   master: {
     label: 'Siêu khó',
-    blurb: 'Suy nghĩ 5 giây mỗi nước, bật toàn bộ kỹ thuật và học từ ván cũ.',
+    blurb: 'Nghĩ 5 giây mỗi nước, chơi hết sức và nhớ cả ván cũ.',
     options: {
       maxDepth: 64,
       movetimeMs: 5_000,

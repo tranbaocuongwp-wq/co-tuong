@@ -16,41 +16,46 @@ export interface UpdateNoticeProps {
   kind: UpdateKind
   /** True when reloading now would not interrupt anything. */
   safeToApply: boolean
+  /** False once this tab has already reloaded once for an update. */
+  canAutoApply: boolean
   onApply: () => void
 }
 
 /** Grace period before applying, so the notice is readable first. */
 const AUTO_DELAY_MS = 2500
 
-export function UpdateNotice({ available, kind, safeToApply, onApply }: UpdateNoticeProps) {
+export function UpdateNotice({
+  available,
+  kind,
+  safeToApply,
+  canAutoApply,
+  onApply,
+}: UpdateNoticeProps) {
   const [applying, setApplying] = useState(false)
 
   useEffect(() => {
-    if (!available || !safeToApply) return
+    if (!available || !safeToApply || !canAutoApply) return
     setApplying(true)
     const timer = setTimeout(onApply, AUTO_DELAY_MS)
     return () => {
       clearTimeout(timer)
       setApplying(false)
     }
-  }, [available, safeToApply, onApply])
+  }, [available, safeToApply, canAutoApply, onApply])
 
   if (!available) return null
 
-  const what = kind === 'core' ? 'lõi engine' : 'giao diện'
+  // Plain words only: "engine core" and "bundle" mean nothing to a player.
+  const what = kind === 'core' ? 'Máy chơi cờ có bản mới' : 'Có bản mới'
 
   return (
     <div className="update" role="status">
       <span className="update__dot" aria-hidden="true" />
       <span className="update__text">
-        {applying ? (
-          <>Đang cập nhật {what}… ván đang chơi đã được lưu.</>
-        ) : (
-          <>Có bản cập nhật {what}. Sẽ áp dụng khi bạn đi xong nước này.</>
-        )}
+        {applying ? <>Đang cập nhật… ván của bạn đã được lưu.</> : <>{what}.</>}
       </span>
       <button type="button" className="btn btn--primary update__btn" onClick={onApply}>
-        Cập nhật ngay
+        Cập nhật
       </button>
     </div>
   )

@@ -14,7 +14,12 @@
  * comes back to the main menu with "Chơi tiếp" waiting for them.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+
+import wasmUrl from './wasm/xiangqi_engine_wasm_bg.wasm?url'
+
+/** Injected by Vite at build time; see `vite.config.ts`. */
+declare const __BUILD_ID__: string
 
 export interface VersionManifest {
   app: string
@@ -28,12 +33,77 @@ export interface UpdateState {
   available: boolean
   /** `core` whenever the engine binary changed, even if the app changed too. */
   kind: UpdateKind
+  /**
+   * False once this tab has already reloaded for an update, so the interface
+   * stops applying it automatically and just offers the button.
+   */
+  canAutoApply: boolean
   /** Applies the update: reloads onto the new build. */
   apply: () => void
 }
 
 /** How often to look for a new build. */
 const POLL_MS = 15 * 60 * 1000
+
+/**
+ * Marks that this tab has already reloaded for an update.
+ *
+ * Without it a single failure to pick up the new assets — a stale HTTP cache, a
+ * service worker that has not yet handed over — turns auto-update into an
+ * infinite reload loop, because the freshly loaded page still reports the old
+ * version and immediately decides it needs updating again. One automatic
+ * attempt per tab; after that the player is offered a button and left alone.
+ */
+const APPLIED_KEY = 'co-tuong.update-applied'
+
+function alreadyTried(): boolean {
+  try {
+    return sessionStorage.getItem(APPLIED_KEY) !== null
+  } catch {
+    return false
+  }
+}
+
+function markTried(): void {
+  try {
+    sessionStorage.setItem(APPLIED_KEY, '1')
+  } catch {
+    /* private browsing can refuse writes; the guard is best-effort */
+  }
+}
+
+/**
+ * What this build actually is.
+ *
+ * `app` is compiled in. `core` is read off the hashed filename of the very
+ * WebAssembly binary this bundle imports, so it describes the engine that is
+ * really running rather than the one the server currently offers.
+ */
+/**
+ * Last path segment of a URL or filename.
+ *
+ * Applied to *both* sides of the comparison. The build records a bare filename
+ * while the runtime holds a fully-qualified URL, and comparing those directly
+ * made the app believe the engine had changed on every single check — a
+ * permanent "there is an update" banner that no amount of updating cleared.
+ */
+function basename(value: string): string {
+  const clean = value.split(/[?#]/)[0]
+  return clean.slice(clean.lastIndexOf('/') + 1) || clean
+}
+
+function runningVersion(): { app: string; core: string } {
+  const app = typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'dev'
+  const core = basename(wasmUrl)
+  const version = { app, core }
+  // Left on `window` deliberately: when someone reports "it keeps asking me to
+  // update", this is the first thing worth looking at.
+  ;(window as unknown as { __coTuongVersion?: unknown }).__coTuongVersion = {
+    ...version,
+    wasmUrl,
+  }
+  return version
+}
 
 async function fetchManifest(): Promise<VersionManifest | null> {
   try {
@@ -61,7 +131,6 @@ async function fetchManifest(): Promise<VersionManifest | null> {
 export function useAppUpdate(): UpdateState {
   const [available, setAvailable] = useState(false)
   const [kind, setKind] = useState<UpdateKind>('app')
-  const baselineRef = useRef<VersionManifest | null>(null)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -69,19 +138,15 @@ export function useAppUpdate(): UpdateState {
 
     let cancelled = false
 
+    const running = runningVersion()
+
     const check = async () => {
       const latest = await fetchManifest()
       if (cancelled || !latest) return
+      const latestCore = basename(latest.core)
+      if (latest.app === running.app && latestCore === running.core) return
 
-      if (!baselineRef.current) {
-        // First successful read is what "the running build" means.
-        baselineRef.current = latest
-        return
-      }
-      const base = baselineRef.current
-      if (latest.app === base.app && latest.core === base.core) return
-
-      setKind(latest.core !== base.core ? 'core' : 'app')
+      setKind(latestCore !== running.core ? 'core' : 'app')
       setAvailable(true)
 
       // Ask the service worker to pull the new assets down now, so applying the
@@ -106,19 +171,20 @@ export function useAppUpdate(): UpdateState {
   }, [])
 
   const apply = useCallback(() => {
+    markTried()
     void (async () => {
       try {
-        const reg = await navigator.serviceWorker?.getRegistration()
-        // Drop the caches so the reload cannot be served the old build.
-        if (reg) {
-          await reg.update()
-          if ('caches' in window) {
-            const keys = await caches.keys()
-            await Promise.all(keys.map((k) => caches.delete(k)))
-          }
+        // Every cache has to go, and the old worker with it: leaving the worker
+        // registered lets it answer the very next navigation from the copy we
+        // are trying to replace.
+        if ('caches' in window) {
+          const keys = await caches.keys()
+          await Promise.all(keys.map((k) => caches.delete(k)))
         }
+        const regs = (await navigator.serviceWorker?.getRegistrations()) ?? []
+        await Promise.all(regs.map((r) => r.unregister()))
       } catch {
-        // A failed cache purge is not worth blocking the reload over.
+        // A failed purge is not worth blocking the reload over.
       }
       // Land on the main menu, where the autosaved game offers "Chơi tiếp".
       window.location.hash = '#/'
@@ -126,5 +192,5 @@ export function useAppUpdate(): UpdateState {
     })()
   }, [])
 
-  return { available, kind, apply }
+  return { available, kind, canAutoApply: !alreadyTried(), apply }
 }

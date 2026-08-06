@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -7,6 +6,18 @@ import react from '@vitejs/plugin-react'
 import { defineConfig, type Plugin } from 'vite'
 
 const here = fileURLToPath(new URL('.', import.meta.url))
+
+/**
+ * Identity of this build, fixed when the config is evaluated and compiled into
+ * the bundle as `__BUILD_ID__`.
+ *
+ * The running app has to know its *own* version without asking the network. If
+ * it instead adopted the first manifest it fetched as "current", a client
+ * loading stale assets from the service-worker cache would record the newest
+ * version as its baseline and conclude it was already up to date — leaving it
+ * stuck on the old build forever.
+ */
+const BUILD_ID = Date.now().toString(36)
 
 /**
  * Emit `version.json` describing the build, split into two identities.
@@ -30,16 +41,14 @@ function versionManifest(): Plugin {
     writeBundle(options, bundle) {
       const names = Object.keys(bundle).sort()
 
-      // Vite already content-hashes every filename, so hashing the file list
-      // captures any change to any asset.
-      const app = createHash('sha256').update(names.join('|')).digest('hex').slice(0, 12)
-
       // The engine's identity is the hash Vite gave its .wasm, which is the
-      // hash of the binary itself.
+      // hash of the binary itself — so it changes only when the engine really
+      // changed, and the client can read it straight off the URL it imported.
+      // The bare filename, which already carries Vite's content hash. The
+      // client compares the same string, so there is no pattern to get wrong.
       const wasmName = names.find((n) => n.endsWith('.wasm')) ?? ''
-      const core =
-        wasmName.match(/-([A-Za-z0-9_-]{8,})\.wasm$/)?.[1] ??
-        createHash('sha256').update(wasmName).digest('hex').slice(0, 12)
+      const core = wasmName.split('/').pop() ?? 'unknown'
+      const app = BUILD_ID
 
       const outDir = options.dir ?? join(here, 'dist')
       writeFileSync(
@@ -56,6 +65,9 @@ function versionManifest(): Plugin {
 export default defineConfig({
   plugins: [react(), versionManifest()],
   base: './',
+  define: {
+    __BUILD_ID__: JSON.stringify(BUILD_ID),
+  },
   build: {
     target: 'es2022',
     // Never inline .wasm — it must stay a separate file so the browser can

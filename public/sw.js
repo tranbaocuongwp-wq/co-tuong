@@ -15,7 +15,7 @@
  * played, so getting it into the cache is the whole point of the exercise.
  */
 
-const CACHE = 'co-tuong-v1'
+const CACHE = 'co-tuong-v2'
 
 /* Stable-named files worth having before the first offline load. */
 const APP_SHELL = [
@@ -67,7 +67,10 @@ self.addEventListener('fetch', (event) => {
 
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request)
+      // `reload` bypasses the browser's own HTTP cache. Without it the worker
+      // can "refresh" the page and still be handed the previous build, which
+      // is one way an auto-update turns into a reload loop.
+      fetch(request, { cache: 'reload' })
         .then((response) => {
           const copy = response.clone()
           void caches.open(CACHE).then((cache) => cache.put('./index.html', copy))

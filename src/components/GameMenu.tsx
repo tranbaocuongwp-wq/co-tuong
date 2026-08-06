@@ -2,15 +2,20 @@
  * The game drawer.
  *
  * Everything that is not the board lives here — controls, the score sheet,
- * what has been captured, and what the engine is thinking — so the playing
- * screen itself stays a board and nothing else. On a phone that is the
- * difference between a board you can read and one squeezed between panels.
+ * what has been captured — so the playing screen itself stays a board and
+ * nothing else. On a phone that is the difference between a board you can read
+ * and one squeezed between panels.
+ *
+ * The wording avoids engine vocabulary throughout. A player wants to know the
+ * computer is looking eight moves ahead; "nodes", "depth" and "centipawns" tell
+ * them nothing.
  */
 
 import { useEffect, useRef } from 'react'
 import { NavLink } from 'react-router'
 
 import type { Piece, SearchInfo, Side } from '../engine/types'
+import { Icon } from './Icon'
 import { MoveList } from './MoveList'
 
 export interface GameMenuProps {
@@ -33,15 +38,7 @@ export interface GameMenuProps {
 }
 
 /** The full complement each side starts with, by piece kind. */
-const FULL_SET: Record<string, number> = {
-  k: 1,
-  a: 2,
-  e: 2,
-  h: 2,
-  r: 2,
-  c: 2,
-  p: 5,
-}
+const FULL_SET: Record<string, number> = { k: 1, a: 2, e: 2, h: 2, r: 2, c: 2, p: 5 }
 
 const GLYPHS: Record<Side, Record<string, string>> = {
   r: { k: '帥', a: '仕', e: '相', h: '傌', r: '俥', c: '炮', p: '兵' },
@@ -98,11 +95,7 @@ export function GameMenu({
 
   return (
     <>
-      <div
-        className={`scrim${open ? ' scrim--open' : ''}`}
-        onClick={onClose}
-        aria-hidden="true"
-      />
+      <div className={`scrim${open ? ' scrim--open' : ''}`} onClick={onClose} aria-hidden="true" />
       <aside
         ref={panelRef}
         className={`drawer${open ? ' drawer--open' : ''}`}
@@ -113,42 +106,39 @@ export function GameMenu({
         <div className="drawer__head">
           <strong>Ván đấu</strong>
           <button type="button" className="icon-btn" onClick={onClose} aria-label="Đóng">
-            ✕
+            <Icon name="close" />
           </button>
         </div>
 
         <div className="drawer__body">
           <div className="drawer__actions">
             <button type="button" className="btn btn--primary" onClick={onNewGame}>
-              Ván mới
+              <Icon name="new" /> Ván mới
             </button>
             <button type="button" className="btn" onClick={onUndo} disabled={!canUndo}>
-              Đi lại
+              <Icon name="undo" /> Đi lại
             </button>
             <button
               type="button"
               className="btn"
               onClick={onHint}
               disabled={isOver || busy || hintsLeft <= 0}
-              title={hintsLeft > 0 ? undefined : 'Đã dùng hết gợi ý của ván này'}
+              title={hintsLeft > 0 ? undefined : 'Hết gợi ý cho ván này'}
             >
-              Gợi ý <span className="pill">{hintsLeft}</span>
+              <Icon name="hint" /> Gợi ý <span className="pill">{hintsLeft}</span>
             </button>
             <button type="button" className="btn" onClick={onFlip}>
-              Lật bàn
+              <Icon name="flip" /> Lật bàn
             </button>
-            <button
-              type="button"
-              className="btn btn--danger"
-              onClick={onResign}
-              disabled={isOver}
-            >
-              Xin thua
+            <button type="button" className="btn btn--danger" onClick={onResign} disabled={isOver}>
+              <Icon name="resign" /> Chịu thua
             </button>
           </div>
 
           <section className="drawer__section">
-            <h3 className="drawer__title">Quân đã ăn</h3>
+            <h3 className="drawer__title">
+              <Icon name="captured" size={15} /> Đã ăn
+            </h3>
             <div className="tray">
               <div className="tray__row">
                 <span className="tray__label">Đỏ mất</span>
@@ -167,43 +157,46 @@ export function GameMenu({
 
           {(info || difficultyLabel) && (
             <section className="drawer__section">
-              <h3 className="drawer__title">Máy</h3>
-              {difficultyLabel && <p className="muted">Mức {difficultyLabel}</p>}
-              {info && (
-                <p className="muted">
-                  {info.fromBook
-                    ? 'Nước cuối lấy từ sách khai cuộc.'
-                    : `Nhìn trước ${info.depth} nước · ${Math.round(
-                        info.nodes / 1000
-                      )}k thế cờ trong ${info.timeMs}ms`}
-                  {info.fromExperience && ' · đã học từ ván trước'}
-                </p>
-              )}
+              <h3 className="drawer__title">
+                <Icon name="engine" size={15} /> Máy
+              </h3>
+              <p className="muted">
+                {difficultyLabel && <>Mức {difficultyLabel}</>}
+                {info && (
+                  <>
+                    {difficultyLabel && ' · '}
+                    {info.fromBook
+                      ? 'nước vừa rồi theo bài bản'
+                      : `nghĩ trước ${info.depth} nước`}
+                  </>
+                )}
+              </p>
             </section>
           )}
 
           <section className="drawer__section">
-            <h3 className="drawer__title">Biên bản</h3>
+            <h3 className="drawer__title">
+              <Icon name="moves" size={15} /> Nước đi
+            </h3>
             <MoveList moves={moves} />
           </section>
 
-          <section className="drawer__section">
-            <h3 className="drawer__title">Đi tới</h3>
-            <nav className="drawer__nav">
-              <NavLink to="/" end onClick={onClose}>
-                Trang chủ
-              </NavLink>
-              <NavLink to="/history" onClick={onClose}>
-                Lịch sử
-              </NavLink>
-              <NavLink to="/settings" onClick={onClose}>
-                Cài đặt
-              </NavLink>
-              <NavLink to="/about" onClick={onClose}>
-                Giới thiệu
-              </NavLink>
-            </nav>
-          </section>
+          <nav className="drawer__nav" aria-label="Đi tới">
+            <NavLink to="/" end onClick={onClose}>
+              Trang chủ
+            </NavLink>
+            <NavLink to="/history" onClick={onClose}>
+              Lịch sử
+            </NavLink>
+            <NavLink to="/settings" onClick={onClose}>
+              Cài đặt
+            </NavLink>
+            <NavLink to="/about" onClick={onClose}>
+              Giới thiệu
+            </NavLink>
+          </nav>
+
+          <p className="drawer__credit">Tác giả: Trần Bảo Cường</p>
         </div>
       </aside>
     </>
