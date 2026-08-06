@@ -21,11 +21,12 @@
 // refusing ids the client was asking for.
 import { SFX_PROMPTS } from '../../src/audio/sfx-prompts'
 import { allFactLines } from '../../src/commentary/facts'
+import { allFragments } from '../../src/commentary/fragments'
 import { allLines } from '../../src/commentary/lines'
 
 /** id → the text actually spoken, including its performance directions. */
 const LINE_SPEECH: Record<string, string> = Object.fromEntries(
-  [...allLines(), ...allFactLines()].map((l) => [l.id, l.speech ?? l.text])
+  [...allLines(), ...allFactLines(), ...allFragments()].map((l) => [l.id, l.speech ?? l.text])
 )
 const LINE_IDS = Object.keys(LINE_SPEECH)
 

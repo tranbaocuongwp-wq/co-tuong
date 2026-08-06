@@ -17,9 +17,17 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
-import { isVoiceBusy, onVoiceLine, speak, type VoicePriority } from '../audio/voice'
+import {
+  isVoiceBusy,
+  onVoiceLine,
+  speak,
+  speakWords,
+  type Utterance,
+  type VoicePriority,
+} from '../audio/voice'
 import type { Kind, MoveReport, SideLetter } from '../commentary/facts'
 import { captureLine, checkLine, threatLine } from '../commentary/facts'
+import { speakMove } from '../commentary/fragments'
 import type { Line, Situation } from '../commentary/lines'
 import { pickLine } from '../commentary/lines'
 import type { GameStatus, Piece, SearchInfo, Side, StatusInfo } from '../engine/types'
@@ -60,18 +68,20 @@ export interface CommentaryInput {
   moveCount: number
   /** The engine's account of the move just played. */
   report: MoveReport | null
+  /** The move just played, in Vietnamese notation: "Pháo 2 bình 5". */
+  notation: string | null
   /** The engine's own last assessment, from its own side's point of view. */
   info: SearchInfo | null
   /** Which colour the engine plays, or null in a two-player game. */
   engineSide: Side | null
   isOver: boolean
-  /** Called as each line is spoken, so the game can keep a record of it. */
-  onSpoke?: (line: Line) => void
+  /** Called as each utterance is spoken, so the game can keep a record of it. */
+  onSpoke?: (utterance: Utterance) => void
 }
 
 export function useCommentary(input: CommentaryInput) {
   /** The line currently being said — driven by the voice, not by this hook. */
-  const [spoken, setSpoken] = useState<Line | null>(null)
+  const [spoken, setSpoken] = useState<Utterance | null>(null)
   const recentRef = useRef<string[]>([])
   const lastMoveSeenRef = useRef(-1)
   const greetedRef = useRef(false)
@@ -81,7 +91,8 @@ export function useCommentary(input: CommentaryInput) {
   /** When the commentator last had the microphone, for measuring the silence. */
   const lastSpokeRef = useRef(0)
 
-  const { enabled, status, pieces, moveCount, report, info, engineSide, isOver, onSpoke } = input
+  const { enabled, status, pieces, moveCount, report, notation, info, engineSide, isOver, onSpoke } =
+    input
 
   const onSpokeRef = useRef(onSpoke)
   onSpokeRef.current = onSpoke
@@ -138,12 +149,26 @@ export function useCommentary(input: CommentaryInput) {
     if (moveCount === 0 || moveCount === lastMoveSeenRef.current) return
     lastMoveSeenRef.current = moveCount
 
-    // 1. The fact. What just happened, in the pieces' own names.
+    /*
+     * 1. The move itself, read out: "Đỏ: Pháo 2 bình 5".
+     *
+     * This is the line that makes it commentary. Everything else here is an
+     * opinion about the position; this is the one thing a listener cannot get
+     * any other way without looking at the board.
+     */
+    if (notation && report) {
+      const words = speakMove(notation, report.side as SideLetter)
+      if (words) {
+        speakWords(`${report.side === 'r' ? 'Đỏ' : 'Đen'}: ${notation}`, words, 'event')
+      }
+    }
+
+    // 2. The fact. What that move did, in the pieces' own names.
     const fact = factFor(report)
     sayLine(fact, report?.givesCheck || report?.captured ? 'critical' : 'event')
 
-    // 2. The reaction, when there is something to react to. The fact is already
-    //    queued, so this lands straight after it rather than on top of it.
+    // 3. The reaction, when there is something to react to. The two above are
+    //    already queued, so this lands after them rather than on top of them.
     let swung = false
     if (info) {
       const prev = prevScoreRef.current
@@ -187,7 +212,19 @@ export function useCommentary(input: CommentaryInput) {
     // Otherwise mostly nothing. A fact was very likely already said, and a
     // commentator who fills every silence is exhausting.
     if (!fact && Math.random() < IDLE_CHANCE) say('thinking', 'idle')
-  }, [enabled, isOver, moveCount, status, report, info, pieces.length, engineSide, say, sayLine])
+  }, [
+    enabled,
+    isOver,
+    moveCount,
+    status,
+    report,
+    notation,
+    info,
+    pieces.length,
+    engineSide,
+    say,
+    sayLine,
+  ])
 
   /*
    * Keep the room warm.

@@ -17,6 +17,7 @@ import { Link } from 'react-router'
 
 import { primeSounds, setSoundEnabled } from '../audio/sfx'
 import { primeVoice, setVoiceEnabled, stopVoice } from '../audio/voice'
+import { allFragments } from '../commentary/fragments'
 import { LINES } from '../commentary/lines'
 import { Board } from '../components/Board'
 import { GameMenu } from '../components/GameMenu'
@@ -33,7 +34,7 @@ import { useGame } from '../game/useGame'
 import { useSettings } from '../settings'
 import { getHistoryStore } from '../storage'
 import { useAppUpdate } from '../update'
-import type { Line } from '../commentary/lines'
+import type { Utterance } from '../audio/voice'
 import type { AssistEntry, CommentaryEntry, GameRecord } from '../storage/types'
 import { GAME_FORMAT, newGameId } from '../storage/types'
 
@@ -87,7 +88,9 @@ export function PlayPage() {
     setVoiceEnabled(settings.voice)
     if (settings.voice) {
       // The opening remark should not be the one that waits on the network.
-      primeVoice([...LINES.greeting, ...LINES.opening])
+      // The words a move is read out of are twenty-odd short files and are
+      // needed on the very first move, so they come first.
+      primeVoice([...allFragments(), ...LINES.greeting, ...LINES.opening])
     }
   }, [settings.voice])
 
@@ -102,10 +105,10 @@ export function PlayPage() {
    * nothing.
    */
   const commentaryRef = useRef<CommentaryEntry[]>([])
-  const onSpoke = useCallback((line: Line) => {
+  const onSpoke = useCallback((utterance: Utterance) => {
     commentaryRef.current.push({
       ply: projectionRef.current,
-      id: line.id,
+      id: utterance.id,
       at: Date.now(),
     })
   }, [])
@@ -118,6 +121,7 @@ export function PlayPage() {
     pieces: projection.pieces,
     moveCount: projection.movesIccs.length,
     report: game.lastReport,
+    notation: projection.movesText[projection.movesText.length - 1] ?? null,
     info: lastInfo,
     // Which colour the computer has. In a two-player game there is no engine
     // and so no assessment to speak about.
