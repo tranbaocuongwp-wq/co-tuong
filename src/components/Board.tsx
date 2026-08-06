@@ -120,6 +120,56 @@ export function Board({
     setSelected(mayPick ? { row, col } : null)
   }
 
+  /**
+   * Geometry of the arrow marking the last move.
+   *
+   * Both ends are pulled back by roughly a piece radius so the arrow points
+   * *at* the pieces rather than skewering them, and the head is built as a
+   * triangle rather than an SVG marker — markers do not inherit the line's
+   * opacity, and a solid head over a translucent shaft looks wrong.
+   */
+  const arrow = useMemo(() => {
+    if (!lastMove) return null
+    const from = toScreen({ row: lastMove.fromRow, col: lastMove.fromCol })
+    const to = toScreen({ row: lastMove.toRow, col: lastMove.toCol })
+    const ax = PAD + from.col
+    const ay = PAD + from.row
+    const bx = PAD + to.col
+    const by = PAD + to.row
+
+    const dx = bx - ax
+    const dy = by - ay
+    const len = Math.hypot(dx, dy)
+    if (len < 0.001) return null
+    const ux = dx / len
+    const uy = dy / len
+
+    // Clearance at each end, in board units (a piece is ~0.9 across).
+    const startGap = 0.42
+    const endGap = 0.5
+    if (len <= startGap + endGap) return null
+
+    const x1 = ax + ux * startGap
+    const y1 = ay + uy * startGap
+    const x2 = bx - ux * endGap
+    const y2 = by - uy * endGap
+
+    const headLen = 0.26
+    const headHalf = 0.15
+    const px = -uy
+    const py = ux
+    const baseX = x2 - ux * headLen
+    const baseY = y2 - uy * headLen
+    const head = [
+      `${x2},${y2}`,
+      `${baseX + px * headHalf},${baseY + py * headHalf}`,
+      `${baseX - px * headHalf},${baseY - py * headHalf}`,
+    ].join(' ')
+
+    // Stop the shaft where the head begins so it does not show through.
+    return { x1, y1, x2: baseX, y2: baseY, head }
+  }, [lastMove, flipped])
+
   const gridLines = useMemo(() => {
     const lines: { x1: number; y1: number; x2: number; y2: number }[] = []
     for (let r = 0; r < ROWS; r++) {
@@ -174,6 +224,23 @@ export function Board({
         <text className="board__river" x={VIEW_W / 2} y={PAD + 4.62} textAnchor="middle">
           ĐỆ NHẤT CỜ TƯỚNG
         </text>
+
+        {arrow && (
+          <>
+            <line
+              className="board__arrow"
+              x1={arrow.x1}
+              y1={arrow.y1}
+              x2={arrow.x2}
+              y2={arrow.y2}
+              strokeWidth={0.11}
+            />
+            <polygon
+              className="board__arrowhead"
+              points={arrow.head}
+            />
+          </>
+        )}
       </svg>
 
       {/* Click targets: one per intersection, so empty points are tappable. */}
@@ -228,6 +295,8 @@ export function Board({
         {live.map((p) => {
           const isCheckedKing = samePoint(checkedKingPoint, { row: p.row, col: p.col })
           const isSelected = samePoint(selected, { row: p.row, col: p.col })
+          const isMover =
+            !!lastMove && p.row === lastMove.toRow && p.col === lastMove.toCol
           return (
             <div
               // Keyed by identity, not by square: this is what lets the node
@@ -238,6 +307,7 @@ export function Board({
                 p.side === 'r' ? 'piece--red' : 'piece--black',
                 isSelected ? 'piece--selected' : '',
                 isCheckedKing ? 'piece--check' : '',
+                isMover ? 'piece--moving' : '',
               ]
                 .filter(Boolean)
                 .join(' ')}

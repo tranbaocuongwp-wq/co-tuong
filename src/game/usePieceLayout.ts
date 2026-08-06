@@ -27,8 +27,18 @@ export interface PieceLayout {
   ghosts: RenderedPiece[]
 }
 
+/**
+ * How long a move takes on screen, in milliseconds.
+ *
+ * Exported because the stylesheet animates the slide over the same span and a
+ * captured piece must not dissolve before the piece taking it has arrived. Two
+ * numbers would drift apart; one cannot. Keep in step with `--move-ms` in
+ * `styles.css`.
+ */
+export const MOVE_MS = 420
+
 /** How long a captured piece stays mounted so its animation can finish. */
-const GHOST_MS = 420
+const GHOST_MS = MOVE_MS
 
 const at = (row: number, col: number) => `${row},${col}`
 

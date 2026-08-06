@@ -1,9 +1,17 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { Icon } from '../components/Icon'
 import { getEngineClient } from '../engine/client'
 import { DIFFICULTY_ORDER, DIFFICULTY_PRESETS } from '../engine/types'
+import { engineVersion } from '../engine/wasm'
 import { useSettings } from '../settings'
-import { getHistoryStore } from '../storage'
+import {
+  deserializeGames,
+  downloadJson,
+  getHistoryStore,
+  serializeGames,
+  suggestedFilename,
+} from '../storage'
 
 const EXPERIENCE_KEY = 'engine.experience'
 
@@ -12,6 +20,8 @@ export function SettingsPage() {
   const [storeKind, setStoreKind] = useState<string>('…')
   const [experienceSize, setExperienceSize] = useState<number | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     void getHistoryStore().then((s) =>
@@ -42,6 +52,33 @@ export function SettingsPage() {
     setNotice('Đã xóa những gì máy học được.')
   }, [refreshExperience])
 
+  // Backup lives here rather than on the history page: it is maintenance, and
+  // the file format is an implementation detail a player should not have to
+  // think about while browsing their games.
+  const exportAll = useCallback(async () => {
+    const store = await getHistoryStore()
+    const games = await store.listGames()
+    if (games.length === 0) {
+      setNotice('Chưa có ván nào để sao lưu.')
+      return
+    }
+    downloadJson(suggestedFilename(), serializeGames(games, engineVersion()))
+    setNotice(`Đã lưu ${games.length} ván ra tệp.`)
+  }, [])
+
+  const importFile = useCallback(async (file: File) => {
+    setError(null)
+    setNotice(null)
+    try {
+      const imported = deserializeGames(await file.text())
+      const store = await getHistoryStore()
+      for (const g of imported) await store.saveGame(g)
+      setNotice(`Đã khôi phục ${imported.length} ván.`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }, [])
+
   const clearHistory = useCallback(async () => {
     const store = await getHistoryStore()
     await store.clearGames()
@@ -71,6 +108,7 @@ export function SettingsPage() {
       <h1 className="page__title">Cài đặt</h1>
       <p className="page__lede">Mọi thiết lập và dữ liệu đều nằm trên máy này.</p>
 
+      {error && <div className="banner banner--error">{error}</div>}
       {notice && <div className="banner">{notice}</div>}
 
       <div className="card" style={{ marginBottom: 18 }}>
@@ -102,6 +140,33 @@ export function SettingsPage() {
           'Máy rút kinh nghiệm',
           'Sau mỗi ván, máy nhớ những nước đã khiến nó thua để lần sau tránh.'
         )}
+      </div>
+
+      <div className="card" style={{ marginBottom: 18 }}>
+        <h2 style={{ fontSize: '1rem', marginTop: 0 }}>Sao lưu</h2>
+        <p className="muted">
+          Lưu toàn bộ ván đấu ra một tệp để giữ lại hoặc chuyển sang máy khác.
+        </p>
+        <div className="btn-row">
+          <button type="button" className="btn" onClick={() => void exportAll()}>
+            <Icon name="download" /> Lưu ra tệp
+          </button>
+          <button type="button" className="btn" onClick={() => fileRef.current?.click()}>
+            <Icon name="upload" /> Khôi phục từ tệp
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="application/json,.json"
+            hidden
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) void importFile(file)
+              // Reset so choosing the same file twice still fires a change.
+              e.target.value = ''
+            }}
+          />
+        </div>
       </div>
 
       <div className="card">

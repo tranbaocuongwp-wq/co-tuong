@@ -19,6 +19,22 @@ export type IconName =
   | 'captured'
   | 'moves'
   | 'engine'
+  | 'first'
+  | 'prev'
+  | 'play'
+  | 'pause'
+  | 'next'
+  | 'last'
+  | 'trophy'
+  | 'user'
+  | 'history'
+  | 'settings'
+  | 'info'
+  | 'board'
+  | 'people'
+  | 'trash'
+  | 'download'
+  | 'upload'
 
 const PATHS: Record<IconName, ReactNode> = {
   // Circular arrow — start again.
@@ -87,6 +103,104 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M4 6h16" />
       <path d="M4 12h16" />
       <path d="M4 18h10" />
+    </>
+  ),
+  // Transport controls for replaying a game.
+  first: (
+    <>
+      <path d="M18 6L9 12l9 6V6Z" />
+      <path d="M6 5v14" />
+    </>
+  ),
+  prev: <path d="M16 5L7 12l9 7V5Z" />,
+  play: <path d="M7 4l13 8-13 8V4Z" />,
+  pause: (
+    <>
+      <path d="M9 5v14" />
+      <path d="M15 5v14" />
+    </>
+  ),
+  next: <path d="M8 5l9 7-9 7V5Z" />,
+  last: (
+    <>
+      <path d="M6 6l9 6-9 6V6Z" />
+      <path d="M18 5v14" />
+    </>
+  ),
+  // A cup — the leaderboard.
+  trophy: (
+    <>
+      <path d="M8 4h8v5a4 4 0 0 1-8 0V4Z" />
+      <path d="M8 6H5v1a3 3 0 0 0 3 3" />
+      <path d="M16 6h3v1a3 3 0 0 1-3 3" />
+      <path d="M12 13v4" />
+      <path d="M9 20h6" />
+      <path d="M10 17h4v3h-4z" />
+    </>
+  ),
+  user: (
+    <>
+      <circle cx="12" cy="8" r="3.5" />
+      <path d="M5 20a7 7 0 0 1 14 0" />
+    </>
+  ),
+  // A clock turning back — past games.
+  history: (
+    <>
+      <path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1" />
+      <path d="M3 4v4h4" />
+      <path d="M12 8v4l3 2" />
+    </>
+  ),
+  settings: (
+    <>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 3v2.2M12 18.8V21M4.2 7.5l1.9 1.1M17.9 15.4l1.9 1.1M4.2 16.5l1.9-1.1M17.9 8.6l1.9-1.1" />
+    </>
+  ),
+  info: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v5" />
+      <path d="M12 7.6v.6" />
+    </>
+  ),
+  // The board itself — playing against the computer.
+  board: (
+    <>
+      <rect x="3.5" y="3.5" width="17" height="17" rx="1.5" />
+      <path d="M3.5 9h17M3.5 15h17M9 3.5v17M15 3.5v17" />
+    </>
+  ),
+  // Two figures — two players sharing a device.
+  people: (
+    <>
+      <circle cx="8.5" cy="8" r="3" />
+      <path d="M2.5 19a6 6 0 0 1 12 0" />
+      <path d="M16 5.5a3 3 0 0 1 0 5.6" />
+      <path d="M17 14.2a6 6 0 0 1 4.5 4.8" />
+    </>
+  ),
+  trash: (
+    <>
+      <path d="M4 7h16" />
+      <path d="M9 7V5h6v2" />
+      <path d="M6 7l1 13h10l1-13" />
+      <path d="M10 11v6M14 11v6" />
+    </>
+  ),
+  download: (
+    <>
+      <path d="M12 4v11" />
+      <path d="M8 11l4 4 4-4" />
+      <path d="M4 19h16" />
+    </>
+  ),
+  upload: (
+    <>
+      <path d="M12 15V4" />
+      <path d="M8 8l4-4 4 4" />
+      <path d="M4 19h16" />
     </>
   ),
   // A chip — the computer.

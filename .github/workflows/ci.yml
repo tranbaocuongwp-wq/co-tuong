@@ -69,7 +69,9 @@ jobs:
       - name: WebAssembly smoke test
         run: node scripts/smoke-wasm.mjs
 
-      - name: Typecheck
+      # Type checking plus the two things the compiler cannot see: a class name
+      # used in JSX with no rule in the stylesheet, and emoji in the interface.
+      - name: Typecheck and UI guard
         run: npm run typecheck
 
       - name: Build site

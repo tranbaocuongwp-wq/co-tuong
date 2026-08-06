@@ -184,7 +184,7 @@ export function GameMenu({
             <h3 className="drawer__title">
               <Icon name="moves" size={15} /> Nước đi
             </h3>
-            <MoveList moves={moves} />
+            <MoveList moves={moves} limit={5} />
           </section>
 
           <nav className="drawer__nav" aria-label="Đi tới">

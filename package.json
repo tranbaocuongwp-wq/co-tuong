@@ -8,14 +8,15 @@
     "wasm": "wasm-pack build engine-wasm --target web --out-dir ../src/wasm --release",
     "wasm:dev": "wasm-pack build engine-wasm --target web --out-dir ../src/wasm --dev",
     "dev": "npm run wasm:dev && vite",
-    "typecheck": "tsc --noEmit",
-    "build": "npm run wasm && tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit && node scripts/check-ui.mjs",
+    "build": "npm run wasm && tsc --noEmit && node scripts/check-ui.mjs && vite build",
     "build:web": "npm run build",
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "npm run wasm:dev && tauri dev",
     "tauri:build": "npm run wasm && tauri build",
-    "test:engine": "cargo test -p xiangqi-engine --release"
+    "test:engine": "cargo test -p xiangqi-engine --release",
+    "check:ui": "node scripts/check-ui.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.11.1",

@@ -11,6 +11,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router'
 
 import { Board } from '../components/Board'
+import { Icon } from '../components/Icon'
 import { MoveList } from '../components/MoveList'
 import type { MoveInfo, Piece, StatusInfo } from '../engine/types'
 import { describeResult } from '../engine/types'
@@ -171,11 +172,22 @@ export function ReviewPage() {
               {view.status.inCheck && <span className="badge badge--loss">Chiếu tướng</span>}
             </div>
             <div className="btn-row" style={{ marginTop: 12 }}>
-              <button type="button" className="btn" onClick={() => step(-moves.length)}>
-                ⏮
+              <button
+                type="button"
+                className="btn"
+                onClick={() => step(-moves.length)}
+                aria-label="Về đầu ván"
+              >
+                <Icon name="first" />
               </button>
-              <button type="button" className="btn" onClick={() => step(-1)} disabled={ply === 0}>
-                ◀
+              <button
+                type="button"
+                className="btn"
+                onClick={() => step(-1)}
+                disabled={ply === 0}
+                aria-label="Lùi một nước"
+              >
+                <Icon name="prev" />
               </button>
               <button
                 type="button"
@@ -183,18 +195,24 @@ export function ReviewPage() {
                 onClick={() => setPlaying((p) => !p)}
                 disabled={ply >= moves.length}
               >
-                {playing ? '⏸ Dừng' : '▶ Phát'}
+                <Icon name={playing ? 'pause' : 'play'} /> {playing ? 'Dừng' : 'Phát'}
               </button>
               <button
                 type="button"
                 className="btn"
                 onClick={() => step(1)}
                 disabled={ply >= moves.length}
+                aria-label="Tiến một nước"
               >
-                ▶
+                <Icon name="next" />
               </button>
-              <button type="button" className="btn" onClick={() => step(moves.length)}>
-                ⏭
+              <button
+                type="button"
+                className="btn"
+                onClick={() => step(moves.length)}
+                aria-label="Tới cuối ván"
+              >
+                <Icon name="last" />
               </button>
             </div>
           </div>
