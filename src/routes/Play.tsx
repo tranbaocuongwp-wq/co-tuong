@@ -169,6 +169,10 @@ export function PlayPage() {
           // Keep the saved game's identity so finishing it updates the same
           // history entry rather than creating a second one.
           setGameId(saved.id)
+        } else {
+          // The save will not replay. Drop it and let the fresh board stand —
+          // far better than stranding the player on an error they cannot clear.
+          await store.saveInProgress(null)
         }
       } catch {
         // A corrupt autosave should cost the resume, not the app.

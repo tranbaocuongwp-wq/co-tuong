@@ -285,7 +285,13 @@ export function useGame(config: GameConfig) {
     }
   }, [isOver])
 
-  /** Rebuild a game from a saved move list, for "continue where I left off". */
+  /**
+   * Rebuild a game from a saved move list, for "continue where I left off".
+   *
+   * Returns false rather than raising: a save that will not replay — written by
+   * an older build, or corrupted — must not strand the player on an error
+   * screen with no way to start a new game. The caller discards it and plays on.
+   */
   const restore = useCallback(
     (startFen: string, moves: string) => {
       try {
@@ -297,8 +303,7 @@ export function useGame(config: GameConfig) {
         setLastInfo(null)
         refresh()
         return true
-      } catch (e) {
-        setError(e instanceof Error ? e.message : String(e))
+      } catch {
         return false
       }
     },

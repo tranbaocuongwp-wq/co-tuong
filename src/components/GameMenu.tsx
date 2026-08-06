@@ -79,15 +79,21 @@ export function GameMenu({
   const panelRef = useRef<HTMLDivElement>(null)
 
   // Escape closes the drawer, which is what anyone who opened it by accident
-  // will reach for first.
+  // will reach for first. Opening also locks the page behind it: without that,
+  // scrolling the drawer drags the board around underneath and the whole thing
+  // judders.
   useEffect(() => {
     if (!open) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
     }
     window.addEventListener('keydown', onKey)
+    document.body.classList.add('drawer-open')
     panelRef.current?.focus()
-    return () => window.removeEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.classList.remove('drawer-open')
+    }
   }, [open, onClose])
 
   const redLost = capturedFrom(pieces, 'r')

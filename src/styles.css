@@ -837,6 +837,9 @@ a {
   box-shadow: -8px 0 30px rgba(0, 0, 0, 0.22);
   transform: translateX(100%);
   transition: transform 0.26s cubic-bezier(0.32, 0.72, 0, 1);
+  /* Promote to its own layer so the slide is composited rather than repainted;
+     without it the close animation stutters on a phone. */
+  will-change: transform;
   z-index: 51;
   display: flex;
   flex-direction: column;
@@ -871,17 +874,27 @@ a {
 
 .drawer__body {
   flex: 1;
+  /*
+   * `min-height: 0` is load-bearing. A flex child defaults to `min-height:
+   * auto`, which refuses to shrink below its content — so this panel grew to
+   * the full height of the move list instead of scrolling, and the sections
+   * below it spilled out of the drawer and printed over each other.
+   */
+  min-height: 0;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   padding: 16px;
-  display: grid;
-  gap: 20px;
-  align-content: start;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 
 .drawer__actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+  flex: none;
 }
 
 .drawer__actions .btn:first-child {
@@ -889,8 +902,10 @@ a {
 }
 
 .drawer__section {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 8px;
+  flex: none;
 }
 
 .drawer__title {
@@ -910,6 +925,12 @@ a {
   font-size: 0.8rem;
   color: var(--text-dim);
   text-align: center;
+  flex: none;
+}
+
+/* While the drawer is open the page behind it must not scroll. */
+body.drawer-open {
+  overflow: hidden;
 }
 
 .drawer__section .muted {
@@ -971,6 +992,7 @@ a {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 4px;
+  flex: none;
   border-top: 1px solid var(--border);
   padding-top: 12px;
 }
@@ -1054,16 +1076,12 @@ a {
   }
 
   .drawer__head {
-    position: sticky;
-    top: 0;
-    z-index: 1;
-    background: var(--surface);
-    padding: 14px 14px;
+    padding: 14px;
   }
 
   .drawer__body {
     padding: 14px 14px calc(24px + env(safe-area-inset-bottom));
-    gap: 18px;
+    gap: 16px;
   }
 
   .drawer__actions {
