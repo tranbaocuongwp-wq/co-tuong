@@ -13,6 +13,7 @@ import { useMemo, useState } from 'react'
 
 import type { MoveInfo, Piece, Side } from '../engine/types'
 import type { LastMove } from '../game/useGame'
+import { usePieceLayout } from '../game/usePieceLayout'
 
 /** Half-unit margin so edge pieces are not clipped by the board border. */
 const PAD = 0.6
@@ -58,6 +59,7 @@ export function Board({
   hint,
 }: BoardProps) {
   const [selected, setSelected] = useState<Point | null>(null)
+  const { live, ghosts } = usePieceLayout(pieces, lastMove)
 
   // Board coordinates are absolute; flipping only changes where they are drawn.
   const toScreen = (p: Point) => ({
@@ -166,11 +168,8 @@ export function Board({
             strokeWidth={0.03}
           />
         ))}
-        <text className="board__river" x={PAD + 1.9} y={PAD + 4.62}>
-          楚 河
-        </text>
-        <text className="board__river" x={PAD + 5.05} y={PAD + 4.62}>
-          漢 界
+        <text className="board__river" x={VIEW_W / 2} y={PAD + 4.62} textAnchor="middle">
+          ĐỆ NHẤT CỜ TƯỚNG
         </text>
       </svg>
 
@@ -210,12 +209,27 @@ export function Board({
       </div>
 
       <div className="board__pieces">
-        {pieces.map((p) => {
+        {/* Captured pieces render first so the taker slides in over them. */}
+        {ghosts.map((p) => (
+          <div
+            key={`ghost-${p.id}`}
+            className={`piece piece--${p.side === 'r' ? 'red' : 'black'} piece--taken`}
+            style={percent({ row: p.row, col: p.col })}
+            aria-hidden="true"
+          >
+            <span className="piece__glyph">{p.glyph}</span>
+            <span className="piece__burst" />
+          </div>
+        ))}
+
+        {live.map((p) => {
           const isCheckedKing = samePoint(checkedKingPoint, { row: p.row, col: p.col })
           const isSelected = samePoint(selected, { row: p.row, col: p.col })
           return (
             <div
-              key={`${p.side}${p.kind}-${p.row}-${p.col}`}
+              // Keyed by identity, not by square: this is what lets the node
+              // survive a move and animate across the board.
+              key={p.id}
               className={[
                 'piece',
                 p.side === 'r' ? 'piece--red' : 'piece--black',

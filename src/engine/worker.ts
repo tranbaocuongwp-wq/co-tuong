@@ -36,6 +36,8 @@ export type WorkerRequest =
 export type WorkerResponse =
   | { id: number; ok: true; result: unknown }
   | { id: number; ok: false; error: string }
+  /** Emitted repeatedly while a search runs; never terminates the request. */
+  | { id: number; progress: SearchInfo }
 
 let enginePromise: Promise<Engine> | null = null
 
@@ -55,7 +57,11 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
     switch (msg.type) {
       case 'search': {
         const game = Game.fromMoves(msg.startFen, msg.moves)
-        result = engine.search(game, msg.options) as SearchInfo
+        const report = (info: SearchInfo) => {
+          const update: WorkerResponse = { id: msg.id, progress: info }
+          self.postMessage(update)
+        }
+        result = engine.search(game, msg.options, report) as SearchInfo
         break
       }
       case 'learn':

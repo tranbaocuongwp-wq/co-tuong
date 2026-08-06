@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "Cờ Tướng",
+  "productName": "Đệ Nhất Cờ Tướng",
   "version": "0.1.0",
   "identifier": "com.tranbaocuong.cotuong",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Cờ Tướng",
+        "title": "Đệ Nhất Cờ Tướng",
         "width": 1100,
         "height": 860,
         "minWidth": 380,

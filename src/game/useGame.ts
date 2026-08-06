@@ -83,6 +83,8 @@ export function useGame(config: GameConfig) {
   })
   const [thinking, setThinking] = useState(false)
   const [lastInfo, setLastInfo] = useState<SearchInfo | null>(null)
+  /** Live search progress, refreshed once per completed iteration. */
+  const [progress, setProgress] = useState<SearchInfo | null>(null)
   const [lastMove, setLastMove] = useState<LastMove | null>(null)
   const [error, setError] = useState<string | null>(null)
   /** Set when the human resigns; the engine has no notion of resignation. */
@@ -170,12 +172,21 @@ export function useGame(config: GameConfig) {
     const token = ++searchTokenRef.current
     const preset = DIFFICULTY_PRESETS[config.difficulty]
     setThinking(true)
+    setProgress(null)
 
     getEngineClient()
-      .search(game.startFen(), game.movesIccs(), {
-        ...preset.options,
-        seed: seedRef.current + game.moveCount(),
-      })
+      .search(
+        game.startFen(),
+        game.movesIccs(),
+        {
+          ...preset.options,
+          seed: seedRef.current + game.moveCount(),
+        },
+        (info) => {
+          // Ignore progress from a search the game has already moved past.
+          if (token === searchTokenRef.current) setProgress(info)
+        }
+      )
       .then((info) => {
         // Discard the answer if the game moved on while we were thinking —
         // after an undo or a new game, this move would apply to the wrong
@@ -189,7 +200,10 @@ export function useGame(config: GameConfig) {
         setError(e instanceof Error ? e.message : String(e))
       })
       .finally(() => {
-        if (token === searchTokenRef.current) setThinking(false)
+        if (token === searchTokenRef.current) {
+          setThinking(false)
+          setProgress(null)
+        }
       })
   }, [ready, engineToMove, thinking, config.difficulty, playMove])
 
@@ -273,6 +287,7 @@ export function useGame(config: GameConfig) {
     ready,
     error,
     thinking,
+    progress,
     lastInfo,
     lastMove,
     projection,

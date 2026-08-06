@@ -12,7 +12,12 @@ import type { WorkerRequest, WorkerResponse } from './worker'
 
 export interface EngineClient {
   readonly kind: 'native' | 'wasm'
-  search(startFen: string, moves: string, options: SearchOptions): Promise<SearchInfo>
+  search(
+    startFen: string,
+    moves: string,
+    options: SearchOptions,
+    onProgress?: (info: SearchInfo) => void
+  ): Promise<SearchInfo>
   learn(
     startFen: string,
     moves: string,
@@ -48,7 +53,11 @@ class WorkerEngineClient implements EngineClient {
   private nextId = 1
   private pending = new Map<
     number,
-    { resolve: (value: never) => void; reject: (reason: Error) => void }
+    {
+      resolve: (value: never) => void
+      reject: (reason: Error) => void
+      onProgress?: (info: SearchInfo) => void
+    }
   >()
 
   constructor() {
@@ -57,6 +66,11 @@ class WorkerEngineClient implements EngineClient {
       const msg = event.data
       const entry = this.pending.get(msg.id)
       if (!entry) return
+      if ('progress' in msg) {
+        // Progress arrives many times per request and must not settle it.
+        entry.onProgress?.(msg.progress)
+        return
+      }
       this.pending.delete(msg.id)
       if (msg.ok) entry.resolve(msg.result as never)
       else entry.reject(new Error(msg.error))
@@ -70,19 +84,28 @@ class WorkerEngineClient implements EngineClient {
     }
   }
 
-  private call<T>(request: RequestBody): Promise<T> {
+  private call<T>(
+    request: RequestBody,
+    onProgress?: (info: SearchInfo) => void
+  ): Promise<T> {
     const id = this.nextId++
     return new Promise<T>((resolve, reject) => {
       this.pending.set(id, {
         resolve: resolve as (value: never) => void,
         reject,
+        onProgress,
       })
       this.worker.postMessage({ ...request, id } as WorkerRequest)
     })
   }
 
-  search(startFen: string, moves: string, options: SearchOptions) {
-    return this.call<SearchInfo>({ type: 'search', startFen, moves, options })
+  search(
+    startFen: string,
+    moves: string,
+    options: SearchOptions,
+    onProgress?: (info: SearchInfo) => void
+  ) {
+    return this.call<SearchInfo>({ type: 'search', startFen, moves, options }, onProgress)
   }
 
   learn(startFen: string, moves: string, learner: 'r' | 'b', outcome: 'win' | 'loss' | 'draw') {
@@ -119,6 +142,9 @@ class NativeEngineClient implements EngineClient {
     return invoke<T>(cmd, args)
   }
 
+  // The native path reports no intermediate progress: the search runs inside a
+  // blocking Rust task, and streaming it would need a Tauri event channel. The
+  // toast falls back to showing that the engine is working without a depth.
   search(startFen: string, moves: string, options: SearchOptions) {
     return this.invoke<SearchInfo>('engine_search', { startFen, moves, options })
   }

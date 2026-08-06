@@ -1,6 +1,6 @@
 {
-  "name": "Cờ Tướng",
-  "short_name": "Cờ Tướng",
+  "name": "Đệ Nhất Cờ Tướng",
+  "short_name": "Đệ Nhất Cờ Tướng",
   "description": "Cờ Tướng offline với engine mạnh — chơi trên máy tính và điện thoại, không cần mạng.",
   "lang": "vi",
   "dir": "ltr",
@@ -10,7 +10,10 @@
   "orientation": "any",
   "background_color": "#1b1410",
   "theme_color": "#1b1410",
-  "categories": ["games", "entertainment"],
+  "categories": [
+    "games",
+    "entertainment"
+  ],
   "icons": [
     {
       "src": "./icon-192.png",

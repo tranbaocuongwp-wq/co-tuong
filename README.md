@@ -1,4 +1,4 @@
-# Cờ Tướng
+# Đệ Nhất Cờ Tướng
 
 Ứng dụng cờ tướng **chạy hoàn toàn ngoại tuyến**, với engine viết bằng Rust, chế độ máy siêu khó, và lưu lịch sử ván đấu xem lại được. Chạy trên máy tính (macOS · Windows · Linux) qua Tauri v2, và trên trình duyệt/điện thoại dưới dạng PWA cài được.
 
@@ -16,6 +16,8 @@
 - **Xuất/nhập JSON** — chia sẻ ván đấu bằng tệp, không cần tài khoản.
 - **Biên bản tiếng Việt** — "Pháo 2 bình 5", "Mã 8 tiến 7".
 - **Chơi tiếp ván dở** — đóng app giữa chừng, mở lại vẫn đúng thế cờ.
+- **5 lượt gợi ý mỗi ván** — đủ để gỡ bí, không đủ để máy chơi thay bạn.
+- **Tự cập nhật (bản web)** — tách riêng *giao diện* và *lõi engine*, không bao giờ cắt ngang ván đang chơi.
 
 ## Chạy thử
 
@@ -125,9 +127,23 @@ Và một project Pages tên `co-tuong`.
 
 > ⚠️ Bản cài đặt **chưa được ký số**. Lần mở đầu tiên: macOS → chuột phải → Open → Open; Windows → More info → Run anyway. Ký số cần tài khoản Apple Developer và chứng chỉ Windows.
 
+## Tự cập nhật (bản web)
+
+Mỗi lần build sinh ra `version.json` với **hai** danh tính lấy từ mã băm nội dung:
+
+| Phần | Là gì | Đổi khi |
+|---|---|---|
+| `app` | Giao diện | Gần như mỗi lần triển khai; tải lại là xong |
+| `core` | Nhị phân WebAssembly của engine | Hiếm; là tệp tải nặng nhất |
+
+Ứng dụng đọc tệp này lúc khởi động và kiểm tra lại định kỳ (cũng như mỗi khi bạn quay lại tab). Vì cả hai danh tính đều dựa trên nội dung, build lại mà không sửa gì thì máy khách **không** thấy bản cập nhật nào.
+
+Bản cập nhật **không bao giờ tự tải lại giữa ván**. Nó chỉ áp dụng khi ván đã kết thúc, chưa bắt đầu, hoặc đang tới lượt bạn và máy không tính toán. Vì mỗi nước đi đều được tự lưu, sau khi tải lại bạn về màn hình chính và bấm **Chơi tiếp** là chơi tiếp đúng thế cờ.
+
+Bản máy tính không dùng cơ chế này — nó cập nhật qua bản cài đặt của hệ điều hành.
+
 ## Dự định
 
-- Luật đuổi bắt liên hoàn (捉).
 - Tài khoản và đồng bộ đám mây — **chỉ khi cần chia sẻ ván đấu online**. Hiện tại xuất/nhập JSON đã đủ, và giữ ứng dụng hoàn toàn ngoại tuyến là điều đáng giá hơn.
 - Bản Android/iOS native (crate engine và giao diện đã sẵn sàng; chỉ cần cài SDK và `tauri android init`).
 - Đa luồng Lazy SMP cho bản native.

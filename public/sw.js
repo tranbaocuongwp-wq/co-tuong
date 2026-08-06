@@ -60,6 +60,11 @@ self.addEventListener('fetch', (event) => {
   // would only add a way to get things wrong.
   if (url.origin !== self.location.origin) return
 
+  // The version manifest is how the app notices a new deployment. Serving it
+  // from cache would pin it to the build it shipped with and updates would
+  // never be detected at all.
+  if (url.pathname.endsWith('/version.json')) return
+
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)

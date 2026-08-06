@@ -167,6 +167,31 @@ fn glyph_for(pc: u8) -> &'static str {
     }
 }
 
+/// Convert a search result into the shape the interface consumes.
+///
+/// `source` is the position the move is played *from*, needed to render the
+/// move in Vietnamese notation.
+fn describe_search(source: &Position, r: &xiangqi_engine::SearchResult) -> SearchInfo {
+    let mate_in = if r.score.abs() >= xiangqi_engine::MATE_BOUND {
+        let plies = xiangqi_engine::MATE_VALUE - r.score.abs();
+        Some(if r.score > 0 { plies } else { -plies })
+    } else {
+        None
+    };
+    SearchInfo {
+        iccs: move_to_iccs(r.best_move),
+        text: move_to_vietnamese(source, r.best_move),
+        score: r.score,
+        depth: r.depth,
+        nodes: r.nodes as f64,
+        time_ms: r.time_ms as f64,
+        pv: r.pv.iter().map(|m| move_to_iccs(*m)).collect(),
+        from_book: r.from_book,
+        from_experience: r.from_experience,
+        mate_in,
+    }
+}
+
 /// Why a repeated position was scored against one side.
 fn forcing_reason(offence: Forcing) -> &'static str {
     match offence {
@@ -474,7 +499,17 @@ impl Engine {
     }
 
     /// Choose a move for the side to move in `game`.
-    pub fn search(&mut self, game: &Game, options: JsValue) -> Result<JsValue, JsValue> {
+    ///
+    /// `on_progress`, if given, is called once per completed iteration with the
+    /// same shape as the final result. A "siêu khó" move takes five seconds;
+    /// without this the interface can only show a spinner, which tells the
+    /// player nothing about whether the engine is getting anywhere.
+    pub fn search(
+        &mut self,
+        game: &Game,
+        options: JsValue,
+        on_progress: Option<js_sys::Function>,
+    ) -> Result<JsValue, JsValue> {
         let opts: SearchOptions = if options.is_undefined() || options.is_null() {
             SearchOptions::default()
         } else {
@@ -493,27 +528,24 @@ impl Engine {
             book: opts.use_book.then_some(&self.book),
             experience: opts.use_experience.then_some(&self.experience),
         };
-        let r = self.searcher.search_with(&mut pos, limits, &ctx, None);
-
-        let mate_in = if r.score.abs() >= xiangqi_engine::MATE_BOUND {
-            let plies = xiangqi_engine::MATE_VALUE - r.score.abs();
-            Some(if r.score > 0 { plies } else { -plies })
+        let source = &game.pos;
+        let mut report = |partial: &xiangqi_engine::SearchResult| {
+            if let Some(f) = &on_progress {
+                if let Ok(payload) = to_js(&describe_search(source, partial)) {
+                    // A throwing or detached callback must not abort the
+                    // search that is already running.
+                    let _ = f.call1(&JsValue::NULL, &payload);
+                }
+            }
+        };
+        let callback: Option<xiangqi_engine::InfoFn> = if on_progress.is_some() {
+            Some(&mut report)
         } else {
             None
         };
+        let r = self.searcher.search_with(&mut pos, limits, &ctx, callback);
 
-        to_js(&SearchInfo {
-            iccs: move_to_iccs(r.best_move),
-            text: move_to_vietnamese(&game.pos, r.best_move),
-            score: r.score,
-            depth: r.depth,
-            nodes: r.nodes as f64,
-            time_ms: r.time_ms as f64,
-            pv: r.pv.iter().map(|m| move_to_iccs(*m)).collect(),
-            from_book: r.from_book,
-            from_experience: r.from_experience,
-            mate_in,
-        })
+        to_js(&describe_search(&game.pos, &r))
     }
 }
 

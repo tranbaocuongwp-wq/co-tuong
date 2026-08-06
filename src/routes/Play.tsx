@@ -1,16 +1,24 @@
 /**
  * The playing screen.
  *
- * Owns three responsibilities beyond rendering: autosaving the game in progress
- * after every move, filing the finished game into history exactly once, and
- * feeding the result back to the engine's experience book.
+ * Deliberately just a board. Whose turn it is sits above it in one line, the
+ * engine speaks through a single floating pill, and everything else — controls,
+ * score sheet, captured pieces — is one tap away in the drawer. A five-second
+ * "siêu khó" move is a long time to stare at a screen, so what is on it should
+ * be the game.
+ *
+ * Beyond rendering it owns three things: autosaving the game after every move,
+ * filing the finished game into history exactly once, and feeding the result
+ * back to the engine's experience book.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router'
 
 import { Board } from '../components/Board'
-import { MoveList } from '../components/MoveList'
+import { GameMenu } from '../components/GameMenu'
+import { ThinkingToast } from '../components/ThinkingToast'
+import { UpdateNotice } from '../components/UpdateNotice'
 import { getEngineClient } from '../engine/client'
 import type { SearchInfo } from '../engine/types'
 import { DIFFICULTY_PRESETS, describeResult } from '../engine/types'
@@ -18,29 +26,40 @@ import { engineVersion } from '../engine/wasm'
 import { useGame } from '../game/useGame'
 import { useSettings } from '../settings'
 import { getHistoryStore } from '../storage'
+import { useAppUpdate } from '../update'
 import type { GameRecord } from '../storage/types'
 import { GAME_FORMAT, newGameId } from '../storage/types'
 
 /** Key under which the experience book is persisted. */
 const EXPERIENCE_KEY = 'engine.experience'
 
+/**
+ * Suggestions allowed per game.
+ *
+ * The engine will hand out a best move all day; a budget is what keeps the
+ * hint button a lifeline rather than a way to have the computer play for you.
+ */
+const HINTS_PER_GAME = 5
+
 export function PlayPage() {
-  const { settings } = useSettings()
+  const { settings, update } = useSettings()
   const game = useGame({
     mode: settings.mode,
     playerSide: settings.playerSide,
     difficulty: settings.difficulty,
   })
 
+  const update_ = useAppUpdate()
   const [gameId, setGameId] = useState(newGameId)
+  const [menuOpen, setMenuOpen] = useState(false)
   const [hint, setHint] = useState<SearchInfo | null>(null)
   const [hintBusy, setHintBusy] = useState(false)
-  const [shared, setShared] = useState(false)
+  const [hintsLeft, setHintsLeft] = useState(HINTS_PER_GAME)
   const [savedNote, setSavedNote] = useState<string | null>(null)
   /** Ensures a finished game is filed once, not once per re-render. */
   const filedRef = useRef<string | null>(null)
 
-  const { projection, status, isOver, thinking, lastInfo } = game
+  const { projection, status, isOver, thinking, progress, lastInfo } = game
   const preset = DIFFICULTY_PRESETS[settings.difficulty]
 
   const record = useMemo<GameRecord>(() => {
@@ -62,7 +81,7 @@ export function PlayPage() {
       moveCount: projection.movesIccs.length,
       durationMs: Date.now() - game.startedAt,
       appVersion: engineVersion(),
-      shared,
+      shared: false,
     }
   }, [
     gameId,
@@ -74,7 +93,6 @@ export function PlayPage() {
     status.status,
     status.reason,
     projection,
-    shared,
   ])
 
   // Autosave the game in progress so closing the app never loses it.
@@ -113,8 +131,7 @@ export function PlayPage() {
       const engineWon =
         (engineSide === 'r' && status.status === 'redWin') ||
         (engineSide === 'b' && status.status === 'blackWin')
-      const outcome =
-        status.status === 'draw' ? 'draw' : engineWon ? 'win' : 'loss'
+      const outcome = status.status === 'draw' ? 'draw' : engineWon ? 'win' : 'loss'
 
       try {
         const client = getEngineClient()
@@ -146,47 +163,78 @@ export function PlayPage() {
     setGameId(newGameId())
     setHint(null)
     setSavedNote(null)
-    setShared(false)
+    setMenuOpen(false)
+    setHintsLeft(HINTS_PER_GAME)
     filedRef.current = null
     void getEngineClient().reset()
   }, [game])
 
   const onHint = useCallback(async () => {
+    if (hintsLeft <= 0) return
+    setMenuOpen(false)
     setHintBusy(true)
     try {
-      setHint(await game.hint())
+      const suggestion = await game.hint()
+      setHint(suggestion)
+      // Only spend a hint when one actually came back.
+      if (suggestion) setHintsLeft((n) => n - 1)
     } finally {
       setHintBusy(false)
     }
-  }, [game])
+  }, [game, hintsLeft])
 
   const hintSquares = useMemo(() => {
     if (!hint) return null
     const m = projection.legalMoves.find((x) => x.iccs === hint.iccs)
-    return m
-      ? { fromRow: m.fromRow, fromCol: m.fromCol, toRow: m.toRow, toCol: m.toCol }
-      : null
+    return m ? { fromRow: m.fromRow, fromCol: m.fromCol, toRow: m.toRow, toCol: m.toCol } : null
   }, [hint, projection.legalMoves])
 
   if (game.error) {
-    return (
-      <div className="banner banner--error">
-        Không khởi động được engine: {game.error}
-      </div>
-    )
+    return <div className="banner banner--error">Không khởi động được engine: {game.error}</div>
   }
 
   if (!game.ready) {
     return <p className="muted">Đang tải engine…</p>
   }
 
-  const humanControls =
-    settings.mode === 'pvp' ? null : settings.playerSide
+  const humanControls = settings.mode === 'pvp' ? null : settings.playerSide
   const boardDisabled = isOver || thinking || game.engineToMove
 
+  // Reloading is free when the game is over, has not started, or is simply
+  // waiting on the human. It is not free while the engine is mid-search.
+  const safeToUpdate = isOver || projection.movesIccs.length === 0 || (!thinking && !game.engineToMove)
+
   return (
-    <div className="play">
-      <div className="play__board">
+    <div className="stage">
+      <UpdateNotice
+        available={update_.available}
+        kind={update_.kind}
+        safeToApply={safeToUpdate}
+        onApply={update_.apply}
+      />
+      <div className="stage__bar">
+        <span className="turn">
+          <span className={`dot dot--${status.sideToMove}`} />
+          {isOver ? (
+            <strong>{describeResult(status.status, status.reason)}</strong>
+          ) : (
+            <>
+              {status.sideToMove === 'r' ? 'Đỏ' : 'Đen'} đi
+              {status.inCheck && <span className="badge badge--loss">Chiếu tướng</span>}
+            </>
+          )}
+        </span>
+        <button
+          type="button"
+          className="icon-btn icon-btn--menu"
+          onClick={() => setMenuOpen(true)}
+          aria-label="Mở bảng điều khiển"
+        >
+          <span className="icon-btn__bars" />
+        </button>
+      </div>
+
+      <div className="stage__board">
         <Board
           pieces={projection.pieces}
           legalMoves={projection.legalMoves}
@@ -204,124 +252,57 @@ export function PlayPage() {
         />
       </div>
 
-      <div className="play__side">
-        <div className="card">
-          <div className="status-line">
-            <span className={`dot dot--${status.sideToMove}`} />
-            <strong>
-              {isOver
-                ? describeResult(status.status, status.reason)
-                : `${status.sideToMove === 'r' ? 'Đỏ' : 'Đen'} đi`}
-            </strong>
-            {status.inCheck && !isOver && <span className="badge badge--loss">Chiếu tướng</span>}
-            {thinking && (
-              <span className="thinking">
-                <span className="spinner" /> Máy đang nghĩ…
-              </span>
-            )}
-          </div>
-
-          {settings.mode === 'pve' && (
-            <p className="muted" style={{ marginTop: 8, marginBottom: 0 }}>
-              Chế độ {preset.label} — {preset.blurb}
-            </p>
-          )}
-
-          {lastInfo && (
-            <>
-              <div className="evalbar" style={{ marginTop: 12 }}>
-                <div
-                  className="evalbar__fill"
-                  style={{ width: `${evalToPercent(lastInfo.score, status.sideToMove)}%` }}
-                />
-              </div>
-              <p className="muted" style={{ marginTop: 6, marginBottom: 0 }}>
-                {lastInfo.fromBook
-                  ? 'Máy đi theo sách khai cuộc.'
-                  : `Độ sâu ${lastInfo.depth} · ${formatScore(lastInfo)} · ${Math.round(
-                      lastInfo.nodes / 1000
-                    )}k nút trong ${lastInfo.timeMs}ms`}
-                {lastInfo.fromExperience && ' · đã học từ ván trước'}
-              </p>
-            </>
-          )}
-        </div>
-
-        {savedNote && <div className="banner">{savedNote}</div>}
-
-        {isOver && (
-          <div className="card">
-            <strong>{describeResult(status.status, status.reason)}</strong>
-            <div className="btn-row" style={{ marginTop: 12 }}>
-              <button type="button" className="btn btn--primary" onClick={onNewGame}>
-                Ván mới
-              </button>
-              <Link className="btn" to="/history">
-                Xem lịch sử
-              </Link>
-            </div>
-          </div>
-        )}
-
-        <div className="card">
-          <div className="btn-row">
-            <button type="button" className="btn" onClick={onNewGame}>
+      {isOver && (
+        <div className="stage__end card">
+          <strong>{describeResult(status.status, status.reason)}</strong>
+          {savedNote && <div className="muted">{savedNote}</div>}
+          <div className="btn-row" style={{ marginTop: 10 }}>
+            <button type="button" className="btn btn--primary" onClick={onNewGame}>
               Ván mới
             </button>
-            <button
-              type="button"
-              className="btn"
-              onClick={game.undo}
-              disabled={projection.movesIccs.length === 0}
-            >
-              Đi lại
-            </button>
-            <button
-              type="button"
-              className="btn"
-              onClick={onHint}
-              disabled={isOver || thinking || hintBusy}
-            >
-              {hintBusy ? 'Đang tìm…' : 'Gợi ý'}
-            </button>
-            <button
-              type="button"
-              className="btn btn--danger"
-              onClick={game.resign}
-              disabled={isOver}
-            >
-              Xin thua
-            </button>
+            <Link className="btn" to="/history">
+              Xem lịch sử
+            </Link>
           </div>
-          {hint && (
-            <p className="muted" style={{ marginTop: 10, marginBottom: 0 }}>
-              Gợi ý: <strong>{hint.text ?? hint.iccs}</strong>
-            </p>
-          )}
         </div>
+      )}
 
-        <div>
-          <h2 style={{ fontSize: '1rem', margin: '0 0 8px' }}>Biên bản</h2>
-          <MoveList moves={projection.movesText} />
-        </div>
-      </div>
+      {hint && !isOver && (
+        <p className="stage__hint muted">
+          Gợi ý: <strong>{hint.text ?? hint.iccs}</strong> · còn {hintsLeft} lượt
+        </p>
+      )}
+
+      {/* Only ever on the engine's turn, or while a hint is being fetched. */}
+      <ThinkingToast
+        visible={thinking || hintBusy}
+        progress={progress}
+        label={hintBusy ? 'Đang tìm gợi ý' : undefined}
+      />
+
+      <GameMenu
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        moves={projection.movesText}
+        pieces={projection.pieces}
+        info={lastInfo}
+        difficultyLabel={settings.mode === 'pve' ? preset.label : null}
+        canUndo={projection.movesIccs.length > 0}
+        isOver={isOver}
+        busy={thinking || hintBusy}
+        hintsLeft={hintsLeft}
+        onNewGame={onNewGame}
+        onUndo={() => {
+          game.undo()
+          setMenuOpen(false)
+        }}
+        onHint={onHint}
+        onFlip={() => update({ flipped: !settings.flipped })}
+        onResign={() => {
+          game.resign()
+          setMenuOpen(false)
+        }}
+      />
     </div>
   )
-}
-
-/** Map a centipawn score to a 0..100 bar width, from Red's point of view. */
-function evalToPercent(score: number, sideToMove: 'r' | 'b'): number {
-  const fromRed = sideToMove === 'r' ? score : -score
-  // A logistic squash keeps large material swings from pinning the bar.
-  const p = 100 / (1 + Math.exp(-fromRed / 400))
-  return Math.max(2, Math.min(98, p))
-}
-
-function formatScore(info: SearchInfo): string {
-  if (info.mateIn !== null && info.mateIn !== undefined) {
-    const moves = Math.ceil(Math.abs(info.mateIn) / 2)
-    return info.mateIn > 0 ? `chiếu hết sau ${moves} nước` : `bị chiếu hết sau ${moves} nước`
-  }
-  const pawns = info.score / 100
-  return `${pawns >= 0 ? '+' : ''}${pawns.toFixed(2)}`
 }
