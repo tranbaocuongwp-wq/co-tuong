@@ -1,0 +1,27 @@
+# Dependencies and build output
+node_modules/
+dist/
+target/
+.vite/
+
+# wasm-pack output — generated from engine-wasm/ on every build
+src/wasm/
+
+# Local databases and engine memory
+*.db
+*.db-shm
+*.db-wal
+
+# Tauri generated schemas
+src-tauri/gen/schemas/
+
+# Editor / OS
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Local secrets — never commit Cloudflare tokens
+.env
+.env.local
+.dev.vars

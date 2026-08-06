@@ -1,0 +1,34 @@
+[workspace]
+resolver = "2"
+members = ["engine", "engine-wasm", "src-tauri"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/tranbaocuongwp-wq/Co-tuong-opensource"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+# `panic = "abort"` is deliberately not set: Tauri unwinds across the command
+# boundary, and the size it would save on the .wasm is not worth diverging
+# behaviour between the two builds of the same engine.
+
+# Build scripts and proc macros get their own settings.
+#
+# `debug = true` here is load-bearing, not a convenience. Without debug info the
+# macOS 27 linker emits a `sqlx_macros` dylib whose LINKEDIT string pool is
+# mis-aligned, and dyld then refuses to load it — which fails the desktop build
+# outright with an error that points at sqlx rather than at the linker. Debug
+# info changes the segment layout enough to avoid it. Verified by bisection:
+# opt-level, codegen-units and LTO all turned out to be irrelevant; only the
+# presence of debug info decides whether the dylib loads.
+#
+# These are compile-time-only artifacts, so the extra size costs the shipped
+# binary nothing.
+[profile.release.build-override]
+opt-level = 0
+codegen-units = 16
+debug = true

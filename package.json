@@ -1,0 +1,36 @@
+{
+  "name": "co-tuong",
+  "version": "0.1.0",
+  "description": "Cờ Tướng (Xiangqi) — offline desktop & web game with a strong Rust engine",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "wasm": "wasm-pack build engine-wasm --target web --out-dir ../src/wasm --release",
+    "wasm:dev": "wasm-pack build engine-wasm --target web --out-dir ../src/wasm --dev",
+    "dev": "npm run wasm:dev && vite",
+    "typecheck": "tsc --noEmit",
+    "build": "npm run wasm && tsc --noEmit && vite build",
+    "build:web": "npm run build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "tauri:dev": "npm run wasm:dev && tauri dev",
+    "tauri:build": "npm run wasm && tauri build",
+    "test:engine": "cargo test -p xiangqi-engine --release"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/plugin-sql": "^2.4.0",
+    "dexie": "^4.4.4",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-router": "^8.3.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.11.4",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "typescript": "^5.9.0",
+    "vite": "^8.2.0"
+  }
+}

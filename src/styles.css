@@ -1,0 +1,641 @@
+/*
+ * One stylesheet, no framework. The app is small enough that a framework would
+ * cost more bytes than it saves, and every kilobyte here is downloaded by a
+ * phone on a bad connection before the first game can start.
+ */
+
+:root {
+  --bg: #f4efe6;
+  --surface: #fffdf9;
+  --surface-2: #efe7d8;
+  --border: #d9cdb6;
+  --text: #241d16;
+  --text-dim: #6d6154;
+  --accent: #a8331f;
+  --accent-soft: #f0d6cf;
+  --red-piece: #b3301c;
+  --black-piece: #1f2933;
+  --board-wood: #e8c88f;
+  --board-line: #7a5b34;
+  --ok: #2f7d4f;
+  --warn: #b8860b;
+  --shadow: 0 1px 3px rgba(36, 29, 22, 0.18), 0 6px 18px rgba(36, 29, 22, 0.08);
+  --radius: 12px;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #16120e;
+    --surface: #221b15;
+    --surface-2: #2c231b;
+    --border: #40342a;
+    --text: #f0e7db;
+    --text-dim: #a49684;
+    --accent: #e0674c;
+    --accent-soft: #452a24;
+    --red-piece: #e0674c;
+    --black-piece: #d8d3cc;
+    --board-wood: #6b5232;
+    --board-line: #cdae7f;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.5), 0 6px 20px rgba(0, 0, 0, 0.35);
+    color-scheme: dark;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans',
+    sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  /* Stop the whole page rubber-banding when a player drags on the board. */
+  overscroll-behavior: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+a {
+  color: var(--accent);
+}
+
+/* --- layout --------------------------------------------------------------- */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  /* Respect phone notches and home indicators. */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.topbar__brand {
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 1.05rem;
+}
+
+.topbar__nav {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
+.topbar__link {
+  padding: 6px 12px;
+  border-radius: 999px;
+  text-decoration: none;
+  color: var(--text-dim);
+  font-size: 0.92rem;
+}
+
+.topbar__link[aria-current='page'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.page {
+  flex: 1;
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 20px 16px 40px;
+}
+
+.page__title {
+  margin: 0 0 4px;
+  font-size: 1.5rem;
+}
+
+.page__lede {
+  margin: 0 0 24px;
+  color: var(--text-dim);
+}
+
+/* --- generic bits --------------------------------------------------------- */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 0.94rem;
+  /* Comfortable tap target on a phone. */
+  min-height: 42px;
+  transition: background 0.15s, border-color 0.15s, transform 0.05s;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.btn--primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+  background: var(--accent);
+}
+
+.btn--danger {
+  color: var(--accent);
+}
+
+.btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  cursor: pointer;
+  font-size: 0.9rem;
+  min-height: 40px;
+}
+
+.chip[aria-pressed='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.muted {
+  color: var(--text-dim);
+  font-size: 0.88rem;
+}
+
+.banner {
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  margin-bottom: 16px;
+}
+
+.banner--error {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* --- board ---------------------------------------------------------------- */
+
+.board {
+  position: relative;
+  width: 100%;
+  /* 9 points wide by 10 tall, plus the padding built into the viewBox. */
+  aspect-ratio: 9.2 / 10.2;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.board__grid {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.board__bg {
+  fill: var(--board-wood);
+}
+
+/*
+ * Stroke widths for the board live on the SVG elements as attributes, not here.
+ * A unitless CSS `stroke-width` means user units, but the CSS minifier
+ * normalises `0.035` to `0.035px` — which SVG reads as a third of a *device
+ * pixel*, and the whole grid disappears in the production build while looking
+ * fine in dev. Presentation attributes are not rewritten, so they stay correct.
+ */
+.board__frame {
+  fill: none;
+  stroke: var(--board-line);
+}
+
+.board__line {
+  stroke: var(--board-line);
+  stroke-linecap: square;
+}
+
+.board__river {
+  fill: var(--board-line);
+  font-size: 0.5px;
+  letter-spacing: 0.12px;
+  opacity: 0.75;
+  font-family: ui-serif, 'Songti SC', 'SimSun', serif;
+}
+
+.board__points,
+.board__pieces {
+  position: absolute;
+  inset: 0;
+}
+
+/*
+ * The pieces layer sits on top of the click targets and spans the whole board,
+ * so without this it swallows every tap on an empty intersection — you could
+ * select a piece but never move it. Only the discs themselves take input.
+ */
+.board__pieces {
+  pointer-events: none;
+}
+
+.piece {
+  pointer-events: auto;
+}
+
+.board__point {
+  position: absolute;
+  width: 10%;
+  height: 9%;
+  transform: translate(-50%, -50%);
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+.board__point:disabled {
+  cursor: default;
+}
+
+.marker {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.marker--target {
+  width: 26%;
+  height: 26%;
+  background: rgba(47, 125, 79, 0.75);
+}
+
+.marker--capture {
+  width: 82%;
+  height: 82%;
+  border: 3px solid rgba(168, 51, 31, 0.85);
+  background: transparent;
+}
+
+.marker--last {
+  width: 92%;
+  height: 92%;
+  background: rgba(184, 134, 11, 0.22);
+}
+
+.marker--hint {
+  width: 92%;
+  height: 92%;
+  border: 2px dashed var(--ok);
+}
+
+.marker--selected {
+  width: 96%;
+  height: 96%;
+  border: 2px solid var(--ok);
+}
+
+.piece {
+  position: absolute;
+  width: 9.6%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  background: radial-gradient(circle at 35% 30%, #fff8e8, #e5cfa4 78%, #c9ad7c);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35), inset 0 0 0 2px rgba(0, 0, 0, 0.12);
+  /* Animate between intersections rather than teleporting. */
+  transition: left 0.18s ease-out, top 0.18s ease-out;
+}
+
+.piece__glyph {
+  font-family: ui-serif, 'Songti SC', 'SimSun', 'Noto Serif CJK SC', serif;
+  font-size: clamp(0.7rem, 4.2vw, 1.7rem);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.board {
+  container-type: inline-size;
+}
+
+@container (min-width: 1px) {
+  .piece__glyph {
+    font-size: 5.2cqw;
+  }
+}
+
+.piece--red .piece__glyph {
+  color: var(--red-piece);
+}
+
+.piece--black .piece__glyph {
+  color: var(--black-piece);
+}
+
+.piece--selected {
+  box-shadow: 0 0 0 3px var(--ok), 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.piece--check {
+  animation: check-pulse 0.9s ease-in-out infinite;
+}
+
+@keyframes check-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px var(--accent), 0 2px 4px rgba(0, 0, 0, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 7px rgba(168, 51, 31, 0.28), 0 2px 4px rgba(0, 0, 0, 0.35);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .piece {
+    transition: none;
+  }
+  .piece--check {
+    animation: none;
+    box-shadow: 0 0 0 3px var(--accent);
+  }
+}
+
+/* --- play screen ---------------------------------------------------------- */
+
+.play {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+
+@media (min-width: 900px) {
+  .play {
+    grid-template-columns: minmax(320px, 1.4fr) minmax(280px, 1fr);
+  }
+}
+
+.play__board {
+  max-width: min(100%, 62vh);
+  margin: 0 auto;
+  width: 100%;
+}
+
+.play__side {
+  display: grid;
+  gap: 14px;
+}
+
+.status-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 0.95rem;
+}
+
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.dot--r {
+  background: var(--red-piece);
+}
+
+.dot--b {
+  background: var(--black-piece);
+}
+
+.thinking {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-dim);
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2.4s;
+  }
+}
+
+.movelist {
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.movelist__row {
+  display: grid;
+  grid-template-columns: 42px 1fr 1fr;
+  gap: 8px;
+  padding: 5px 10px;
+  font-size: 0.88rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.movelist__row:last-child {
+  border-bottom: 0;
+}
+
+.movelist__no {
+  color: var(--text-dim);
+}
+
+.movelist__empty {
+  padding: 14px;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+}
+
+.evalbar {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--black-piece);
+  overflow: hidden;
+}
+
+.evalbar__fill {
+  height: 100%;
+  background: var(--red-piece);
+  transition: width 0.3s ease-out;
+}
+
+/* --- history -------------------------------------------------------------- */
+
+.game-list {
+  display: grid;
+  gap: 10px;
+}
+
+.game-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.game-row__main {
+  flex: 1;
+  min-width: 180px;
+}
+
+.game-row__title {
+  font-weight: 600;
+}
+
+.badge {
+  font-size: 0.76rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.badge--win {
+  color: var(--ok);
+  border-color: currentColor;
+}
+
+.badge--loss {
+  color: var(--accent);
+  border-color: currentColor;
+}
+
+.empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--text-dim);
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.field__label {
+  font-size: 0.88rem;
+  color: var(--text-dim);
+}
+
+.switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.switch-row:last-child {
+  border-bottom: 0;
+}

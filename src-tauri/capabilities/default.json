@@ -1,0 +1,25 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Minimum permissions the app needs: its own window, and the local SQLite database holding game history.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    {
+      "identifier": "sql:allow-load",
+      "allow": [{ "path": "sqlite:cotuong.db" }]
+    },
+    {
+      "identifier": "sql:allow-execute",
+      "allow": [{ "path": "sqlite:cotuong.db" }]
+    },
+    {
+      "identifier": "sql:allow-select",
+      "allow": [{ "path": "sqlite:cotuong.db" }]
+    },
+    {
+      "identifier": "sql:allow-close",
+      "allow": [{ "path": "sqlite:cotuong.db" }]
+    }
+  ]
+}

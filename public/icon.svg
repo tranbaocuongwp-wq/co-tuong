@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Cờ Tướng">
+  <defs>
+    <radialGradient id="disc" cx="36%" cy="30%" r="78%">
+      <stop offset="0%" stop-color="#fff8e8" />
+      <stop offset="72%" stop-color="#e5cfa4" />
+      <stop offset="100%" stop-color="#c08f4e" />
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="#7a4a24" />
+  <circle cx="256" cy="256" r="188" fill="url(#disc)" />
+  <circle cx="256" cy="256" r="188" fill="none" stroke="#8a5a2b" stroke-width="10" />
+  <circle cx="256" cy="256" r="160" fill="none" stroke="#b3301c" stroke-width="9" />
+  <text
+    x="256"
+    y="256"
+    text-anchor="middle"
+    dominant-baseline="central"
+    font-family="Songti SC, SimSun, Noto Serif CJK SC, serif"
+    font-size="230"
+    font-weight="700"
+    fill="#b3301c"
+  >帥</text>
+</svg>
