@@ -28,3 +28,6 @@ src-tauri/gen/schemas/
 
 # Wrangler local dev state (miniflare caches, local R2/D1 copies)
 worker/.wrangler/
+
+# Hồ sơ Chrome tạm của scripts/store-shots.mjs
+store-shots/.chrome-profile/

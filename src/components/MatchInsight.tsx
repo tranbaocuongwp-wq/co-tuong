@@ -272,7 +272,7 @@ function MatchInsightView({ info, engineSide, pieces, moveCount }: MatchInsightP
         Đỏ {redMaterial.toFixed(1)} · Đen {blackMaterial.toFixed(1)}
       </Split>
 
-      <figure className="mt-3 mb-1 grid justify-items-center gap-1.5">
+      <figure className="mt-3 mb-1 grid max-[699px]:hidden justify-items-center gap-1.5">
         <svg
           viewBox="0 0 112 112"
           role="img"
@@ -324,7 +324,7 @@ function MatchInsightView({ info, engineSide, pieces, moveCount }: MatchInsightP
         </figcaption>
       </figure>
 
-      <ul className="mt-2 grid list-none gap-2 p-0">
+      <ul className="mt-2 grid list-none gap-2 p-0 max-[699px]:hidden">
         {axes.map((axis) => (
           <li key={axis.label} className="grid gap-1">
             <span className="flex justify-between gap-2 text-[0.82rem]">

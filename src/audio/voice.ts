@@ -84,6 +84,14 @@ const MAX_QUEUE = 3
 /** An idle remark this old has been overtaken by the game and is discarded unsaid. */
 const STALE_MS = 15_000
 
+/**
+ * How long to wait for a suspended audio context to wake up.
+ *
+ * Short: if it has not resumed by now there has been no user gesture, and the
+ * caption is a better answer than a stall.
+ */
+const RESUME_WAIT_MS = 400
+
 /** Reading pace used to hold a caption on screen when the audio could not be had. */
 const CHARS_PER_SECOND = 15
 const MIN_CAPTION_MS = 1600
@@ -358,7 +366,21 @@ async function run(): Promise<void> {
         const found = audioContext()
         if (found && found.state !== 'running') {
           try {
-            await found.resume()
+            /*
+             * Raced against a timeout, because `resume()` does not always
+             * settle.
+             *
+             * When a browser blocks autoplay it is allowed to leave the promise
+             * pending rather than reject it — and this loop awaits it, so a
+             * single unanswered resume stops the commentator for the rest of
+             * the game. Found while capturing screenshots in headless Chrome,
+             * where the caption stayed blank forever; the same thing happens to
+             * a real player who has not tapped the page yet.
+             *
+             * Losing the race costs nothing: the words still go up on screen,
+             * and the next utterance tries again.
+             */
+            await Promise.race([found.resume(), sleep(RESUME_WAIT_MS)])
           } catch {
             // Still waiting on a gesture; the caption carries this one.
           }

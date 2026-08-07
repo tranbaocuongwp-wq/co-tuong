@@ -181,6 +181,18 @@
     justify-content: center;
   }
 
+  /*
+   * On a tall screen the board plus its panel is taller than half the window,
+   * so centring the stack puts a gap above and below and it reads as a bug.
+   * Start at the top and let the slack fall to the bottom, where it looks like
+   * margin.
+   */
+  @media (min-height: 760px) {
+    .page--bare {
+      justify-content: flex-start;
+    }
+  }
+
   .page__title {
     margin: 0 0 4px;
     font-size: 1.5rem;
@@ -886,6 +898,30 @@
     .insight {
       display: grid;
     }
+  }
+
+  /*
+   * Tall phones get it too, because on them it is filling a hole rather than
+   * competing for space.
+   *
+   * The board is nine files wide and ten ranks tall, so on a 19.5:9 phone it is
+   * limited by the *width* and cannot grow to meet the height however much is
+   * left over — about four hundred pixels of nothing, which a store screenshot
+   * shows up mercilessly. The width limit keeps the chart from crowding a
+   * short screen where the board really does need everything.
+   */
+  @media (max-width: 699px) and (min-height: 760px) {
+    .insight {
+      display: grid;
+    }
+
+    /*
+     * Only the summary here — the radar and the six axes need a column of their
+     * own to be readable. They are hidden by a Tailwind variant on the elements
+     * themselves rather than by a rule here: a `display:none` in this layer
+     * loses to the `grid` utility those elements already carry, which is the
+     * layer order working exactly as intended and against us in this one spot.
+     */
   }
 
   .insight__row {
