@@ -22,7 +22,7 @@
  * position chart lives. On a phone the board needs every pixel.
  */
 
-import { useEffect, useRef } from 'react'
+import { memo, useEffect, useRef } from 'react'
 
 import { Icon } from './Icon'
 
@@ -38,7 +38,7 @@ export interface CommentaryFeedProps {
   entries: FeedEntry[]
 }
 
-export function CommentaryFeed({ entries }: CommentaryFeedProps) {
+function CommentaryFeedView({ entries }: CommentaryFeedProps) {
   const listRef = useRef<HTMLOListElement>(null)
 
   // A reader who has scrolled back to something is reading it; yanking them to
@@ -69,3 +69,11 @@ export function CommentaryFeed({ entries }: CommentaryFeedProps) {
     </section>
   )
 }
+
+/**
+ * Held steady unless its own inputs move.
+ *
+ * Re-rendering the whole list because the board moved would throw away the
+ * scroll position the reader is holding.
+ */
+export const CommentaryFeed = memo(CommentaryFeedView)

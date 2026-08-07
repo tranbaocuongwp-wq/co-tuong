@@ -17,7 +17,7 @@ import { Link } from 'react-router'
 
 import { primeSounds, setSoundEnabled } from '../audio/sfx'
 import { primeVoice, setVoiceMode, stopVoice } from '../audio/voice'
-import { LINES } from '../commentary/lines'
+import { linesOf } from '../commentary/lines'
 import { Board } from '../components/Board'
 import { CommentaryFeed, type FeedEntry } from '../components/CommentaryFeed'
 import { GameOverDialog } from '../components/GameOverDialog'
@@ -74,13 +74,16 @@ const ADVICE_AFTER_MS = 7_000
 /**
  * How long the hint search may run.
  *
- * Spent two ways now (see `rank_moves`): a quick pass over every legal move to
- * find the handful worth thinking about, then everything left on those. Four
- * seconds buys real depth on the shortlist, where two and a half spread evenly
- * across forty moves bought almost none — which is why the old suggestions were
- * so often wrong.
+ * Spent three ways now (see `rank_moves`): the engine's own search, which
+ * anchors the list; a quick pass over every legal move to find the handful worth
+ * thinking about; then everything left on those.
+ *
+ * Measured rather than guessed. Four seconds and two and a half seconds reach
+ * the same depth and pick the same move — the anchor search converges well
+ * before the budget runs out — so the extra second and a half was a second and a
+ * half of the player watching a spinner for nothing.
  */
-const HINT_MS = 4_000
+const HINT_MS = 2_500
 
 /** How many entries the commentary feed keeps. Long enough to scroll back a while. */
 const FEED_MAX = 60
@@ -146,7 +149,7 @@ export function PlayPage() {
     setVoiceMode(voiceMode)
     if (voiceMode === 'voice') {
       // The opening remark should not be the one that waits on the network.
-      primeVoice([...LINES.greeting, ...LINES.opening])
+      primeVoice([...linesOf('greeting'), ...linesOf('opening')])
     }
   }, [voiceMode])
 
@@ -492,6 +495,25 @@ export function PlayPage() {
     game.undo()
   }, [game, undosLeft, projection.movesIccs.length])
 
+  /**
+   * Stable across renders, so the board can be memoised.
+   *
+   * An inline arrow here is a new function on every render, which defeats
+   * `memo` on the board entirely — and the board is the one component in this
+   * screen expensive enough to be worth memoising.
+   */
+  const playMove = game.playMove
+  const onBoardMove = useCallback(
+    (iccs: string) => {
+      setHint(null)
+      playMove(iccs)
+    },
+    // `game` itself is a fresh object literal on every render, so depending on
+    // it would rebuild this callback every time and defeat the whole exercise.
+    // `playMove` is the stable part.
+    [playMove]
+  )
+
   const hintSquares = useMemo(() => {
     if (!hint) return null
     const m = projection.legalMoves.find((x) => x.iccs === hint.iccs)
@@ -576,10 +598,7 @@ export function PlayPage() {
           legalMoves={projection.legalMoves}
           sideToMove={status.sideToMove}
           controllable={humanControls}
-          onMove={(iccs) => {
-            setHint(null)
-            game.playMove(iccs)
-          }}
+          onMove={onBoardMove}
           lastMove={game.lastMove}
           flipped={settings.flipped}
           inCheck={status.inCheck}

@@ -11,7 +11,7 @@
  * sentence, and lines rotate without immediate repeats.
  */
 
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 
 import type { SearchInfo } from '../engine/types'
 
@@ -206,7 +206,7 @@ function muttersFor(progress: SearchInfo | null, longThink: boolean): string[] {
   return longThink ? [...base, ...MUTTERS.long] : base
 }
 
-export function ThinkingToast({ visible, progress, label }: ThinkingToastProps) {
+function ThinkingToastView({ visible, progress, label }: ThinkingToastProps) {
   const [line, setLine] = useState<{ id: string; text: string } | null>(null)
   const recentRef = useRef<string[]>([])
   /*
@@ -258,3 +258,10 @@ export function ThinkingToast({ visible, progress, label }: ThinkingToastProps) 
     </div>
   )
 }
+
+/**
+ * Held steady unless its own inputs move.
+ *
+ * It runs its own timer; nothing outside it decides when its words change.
+ */
+export const ThinkingToast = memo(ThinkingToastView)

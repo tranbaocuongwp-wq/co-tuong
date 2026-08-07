@@ -10,7 +10,7 @@
  */
 
 import type { CSSProperties } from 'react'
-import { useCallback, useMemo, useState } from 'react'
+import { memo, useCallback, useMemo, useState } from 'react'
 
 import { playSelect } from '../audio/sfx'
 import type { MoveInfo, Piece, Side } from '../engine/types'
@@ -71,7 +71,7 @@ function samePoint(a: Point | null, b: Point | null): boolean {
   return !!a && !!b && a.row === b.row && a.col === b.col
 }
 
-export function Board({
+function BoardView({
   pieces,
   legalMoves,
   sideToMove,
@@ -397,3 +397,15 @@ export function Board({
     </div>
   )
 }
+
+/**
+ * Only re-render when something about the board has actually changed.
+ *
+ * This is the most expensive thing on the screen — thirty-two pieces, ninety
+ * tap targets and a full SVG grid — and it used to be rebuilt every time
+ * *anything* in the play screen changed state. A commentary line arriving, a
+ * feed entry appearing, the thinking pill rotating its text: each of those
+ * re-rendered the board along with it, and on a phone that is what the stutter
+ * was. The board's props change once per move; now so does the board.
+ */
+export const Board = memo(BoardView)

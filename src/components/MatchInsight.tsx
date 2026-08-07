@@ -21,7 +21,7 @@
  * know, because it has found a forced mate, that is shown exactly.
  */
 
-import { useMemo } from 'react'
+import { memo, useMemo } from 'react'
 
 import type { Piece, SearchInfo, Side } from '../engine/types'
 import { Icon } from './Icon'
@@ -182,7 +182,7 @@ function polygon(values: number[]): string {
     .join(' ')
 }
 
-export function MatchInsight({ info, engineSide, pieces, moveCount }: MatchInsightProps) {
+function MatchInsightView({ info, engineSide, pieces, moveCount }: MatchInsightProps) {
   const axes = useMemo(() => axesOf(pieces), [pieces])
 
   const redMaterial = axes[0].red * FULL_ARMY
@@ -216,7 +216,7 @@ export function MatchInsight({ info, engineSide, pieces, moveCount }: MatchInsig
       <div className="insight__bar">
         <span
           className="insight__fill insight__fill--red"
-          style={{ width: `${redChance * 100}%` }}
+          style={{ transform: `scaleX(${redChance})` }}
         />
       </div>
 
@@ -229,7 +229,7 @@ export function MatchInsight({ info, engineSide, pieces, moveCount }: MatchInsig
       <div className="insight__bar">
         <span
           className="insight__fill insight__fill--red"
-          style={{ width: `${materialShare * 100}%` }}
+          style={{ transform: `scaleX(${materialShare})` }}
         />
       </div>
 
@@ -266,10 +266,13 @@ export function MatchInsight({ info, engineSide, pieces, moveCount }: MatchInsig
               </span>
             </span>
             <span className="axis__track">
-              <span className="axis__bar axis__bar--red" style={{ width: `${axis.red * 100}%` }} />
+              <span
+                className="axis__bar axis__bar--red"
+                style={{ transform: `scaleX(${axis.red})` }}
+              />
               <span
                 className="axis__bar axis__bar--black"
-                style={{ width: `${axis.black * 100}%` }}
+                style={{ transform: `scaleX(${axis.black})` }}
               />
             </span>
             <span className="axis__note">{axis.note}</span>
@@ -288,3 +291,11 @@ export function MatchInsight({ info, engineSide, pieces, moveCount }: MatchInsig
     </section>
   )
 }
+
+/**
+ * Held steady unless its own inputs move.
+ *
+ * Recomputing six readings over thirty-two pieces on every commentary line
+ * is work for a picture that only changes when the board does.
+ */
+export const MatchInsight = memo(MatchInsightView)

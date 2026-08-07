@@ -138,7 +138,7 @@ export function ProfilePage() {
           </span>
         </div>
         <div className="insight__bar">
-          <span className="insight__fill insight__fill--red" style={{ width: `${rate}%` }} />
+          <span className="insight__fill insight__fill--red" style={{ transform: `scaleX(${rate / 100})` }} />
         </div>
 
         <div className="stat-grid">
@@ -203,7 +203,7 @@ export function ProfilePage() {
                 <div className="insight__bar">
                   <span
                     className="insight__fill insight__fill--red"
-                    style={{ width: `${share}%` }}
+                    style={{ transform: `scaleX(${share / 100})` }}
                   />
                 </div>
               </div>

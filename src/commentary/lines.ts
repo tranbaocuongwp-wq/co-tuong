@@ -374,27 +374,48 @@ const TONES: Record<Situation, Tone[]> = {
   ],
 }
 
-/** Lines per situation, with their audio ids filled in. */
-export const LINES: Record<Situation, Line[]> = {
-  greeting: build('hello', GREETING, TONES.greeting),
-  opening: build('open', OPENING, TONES.opening),
-  thinking: build('think', THINKING, TONES.thinking),
-  redAhead: build('red', swap(LEADER, { a: 'Đỏ', b: 'Đen' }), TONES.redAhead),
-  blackAhead: build('black', swap(LEADER, { a: 'Đen', b: 'Đỏ' }), TONES.blackAhead),
-  balanced: build('bal', BALANCED, TONES.balanced),
-  endgame: build('end', ENDGAME, TONES.endgame),
-  repetition: build('rep', REPETITION, TONES.repetition),
-  prediction: build('pred', PREDICTION, TONES.prediction),
-  foreseeMate: build('fmate', FORESEE_MATE, TONES.foreseeMate),
-  redWin: build('rwin', swap(VICTORY, { w: 'Đỏ', l: 'Đen' }), TONES.redWin),
-  blackWin: build('bwin', swap(VICTORY, { w: 'Đen', l: 'Đỏ' }), TONES.blackWin),
-  draw: build('draw', DRAW, TONES.draw),
-  story: build('story', STORY, TONES.story),
+/** Where each situation's words come from, before they are turned into lines. */
+const SOURCE: Record<Situation, [prefix: string, texts: string[]]> = {
+  greeting: ['hello', GREETING],
+  opening: ['open', OPENING],
+  thinking: ['think', THINKING],
+  redAhead: ['red', swap(LEADER, { a: 'Đỏ', b: 'Đen' })],
+  blackAhead: ['black', swap(LEADER, { a: 'Đen', b: 'Đỏ' })],
+  balanced: ['bal', BALANCED],
+  endgame: ['end', ENDGAME],
+  repetition: ['rep', REPETITION],
+  prediction: ['pred', PREDICTION],
+  foreseeMate: ['fmate', FORESEE_MATE],
+  redWin: ['rwin', swap(VICTORY, { w: 'Đỏ', l: 'Đen' })],
+  blackWin: ['bwin', swap(VICTORY, { w: 'Đen', l: 'Đỏ' })],
+  draw: ['draw', DRAW],
+  story: ['story', STORY],
+}
+
+const CACHE: Partial<Record<Situation, Line[]>> = {}
+
+/**
+ * The lines for one situation, built the first time they are wanted.
+ *
+ * Turning a situation's words into lines means composing each one's spoken form
+ * and hashing it into an id. Building all fourteen situations up front put that
+ * on the page-load path — and a game only ever reaches about half of them, so
+ * most of the work was for lines nobody would hear. A game that ends in
+ * checkmate never needs the draw pool; a game with the commentary off needs
+ * none of it.
+ */
+export function linesOf(situation: Situation): Line[] {
+  const cached = CACHE[situation]
+  if (cached) return cached
+  const [prefix, texts] = SOURCE[situation]
+  const made = build(prefix, texts, TONES[situation])
+  CACHE[situation] = made
+  return made
 }
 
 /** Every reaction line. Facts live in `facts.ts` and are collected separately. */
 export function allLines(): Line[] {
-  return Object.values(LINES).flat()
+  return (Object.keys(SOURCE) as Situation[]).flatMap(linesOf)
 }
 
 /**
@@ -404,7 +425,7 @@ export function allLines(): Line[] {
  * recently used lines are excluded until the pool would otherwise run dry.
  */
 export function pickLine(situation: Situation, recent: readonly string[]): Line | null {
-  const pool = LINES[situation]
+  const pool = linesOf(situation)
   if (!pool || pool.length === 0) return null
   const fresh = pool.filter((l) => !recent.includes(l.id))
   const from = fresh.length > 0 ? fresh : pool

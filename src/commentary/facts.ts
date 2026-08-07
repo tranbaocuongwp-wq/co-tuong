@@ -435,8 +435,27 @@ const CHECKS: Record<string, Line> = {}
 const THREATS: Record<string, Line> = {}
 const RIVER: Record<string, Line> = {}
 const PALACE: Record<string, Line> = {}
+const FORMATION: Record<string, Line[]> = {}
 
-for (const side of SIDES) {
+/**
+ * Built on first use, not on import.
+ *
+ * There are 390 of these, and building one means composing its spoken form and
+ * hashing that into an id. Done at import time it all lands on the critical
+ * path — before the board has painted, in a game where the first line is not
+ * needed until somebody has moved, and in a game with the commentary switched
+ * off it is not needed at all.
+ *
+ * The guard is a plain boolean rather than anything cleverer because this is
+ * single-threaded and the work is idempotent: the worst a double call could do
+ * is rebuild identical tables.
+ */
+let built = false
+function build(): void {
+  if (built) return
+  built = true
+
+  for (const side of SIDES) {
   for (const mover of ALL) {
     for (const action of ACTIONS) {
       MOVES[`${side}-${mover}-${action}`] = MOVE_TEXT[mover][action].map((template, i) => {
@@ -491,6 +510,10 @@ for (const side of SIDES) {
       twoTone(palace, '[hào hùng]', '[căng thẳng]')
     )
   }
+
+  buildFormations()
+}
+
 }
 
 /**
@@ -547,18 +570,19 @@ const FORMATION_TEXT: Record<FormationName, string[]> = {
   ],
 }
 
-const FORMATION: Record<string, Line[]> = {}
-
-for (const side of SIDES) {
-  for (const name of Object.keys(FORMATION_TEXT) as FormationName[]) {
-    FORMATION[`${side}-${name}`] = FORMATION_TEXT[name].map((template, i) => {
-      const text = fill(template, side)
-      return make(`frm-${side}-${name}-${i}`, text, twoTone(text, '[hào hùng]', '[nhấn mạnh]'))
-    })
+function buildFormations(): void {
+  for (const side of SIDES) {
+    for (const name of Object.keys(FORMATION_TEXT) as FormationName[]) {
+      FORMATION[`${side}-${name}`] = FORMATION_TEXT[name].map((template, i) => {
+        const text = fill(template, side)
+        return make(`frm-${side}-${name}-${i}`, text, twoTone(text, '[hào hùng]', '[nhấn mạnh]'))
+      })
+    }
   }
 }
 
 export function formationLine(side: SideLetter, name: FormationName): Line | null {
+  build()
   const pool = FORMATION[`${side}-${name}`]
   if (!pool || pool.length === 0) return null
   return pool[Math.floor(Math.random() * pool.length)]
@@ -578,31 +602,38 @@ export function kindOfNotation(notation: string): Kind | null {
 
 /** How the move itself is described. Four phrasings, so a repeat is a rarity. */
 export function moveLines(side: SideLetter, mover: Kind, action: Action): Line[] {
+  build()
   return MOVES[`${side}-${mover}-${action}`] ?? []
 }
 
 export function captureLine(side: SideLetter, mover: Kind, victim: Kind): Line | null {
+  build()
   return CAPTURES[`${side}-${mover}-${victim}`] ?? null
 }
 
 export function threatLine(side: SideLetter, mover: Kind, victim: Kind): Line | null {
+  build()
   return THREATS[`${side}-${mover}-${victim}`] ?? null
 }
 
 export function checkLine(side: SideLetter, mover: Kind): Line | null {
+  build()
   return CHECKS[`${side}-${mover}`] ?? null
 }
 
 export function riverLine(side: SideLetter, mover: Kind): Line | null {
+  build()
   return RIVER[`${side}-${mover}`] ?? null
 }
 
 export function palaceLine(side: SideLetter, mover: Kind): Line | null {
+  build()
   return PALACE[`${side}-${mover}`] ?? null
 }
 
 /** Every line describing a move, for pre-generating the audio. */
 export function allFactLines(): Line[] {
+  build()
   return [
     ...Object.values(MOVES).flat(),
     ...Object.values(CAPTURES),
