@@ -13,6 +13,7 @@
 
 import { useEffect, useState } from 'react'
 
+import { VersionPanel } from '../components/VersionPanel'
 import { engineVersion, loadEngineWasm } from '../engine/wasm'
 
 export function AboutPage() {
@@ -68,12 +69,11 @@ export function AboutPage() {
         </p>
       </div>
 
-      <div className="card">
-        <h2 style={{ fontSize: '1rem', marginTop: 0 }}>Bản này</h2>
-        <p className="muted" style={{ marginTop: 0, marginBottom: 0 }}>
-          Phiên bản {version} · Trần Bảo Cường
-        </p>
-      </div>
+      <VersionPanel release={version} />
+
+      <p className="muted" style={{ marginTop: 14 }}>
+        Trần Bảo Cường
+      </p>
     </>
   )
 }

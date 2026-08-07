@@ -92,7 +92,16 @@ function basename(value: string): string {
   return clean.slice(clean.lastIndexOf('/') + 1) || clean
 }
 
-function runningVersion(): { app: string; core: string } {
+/**
+ * What this tab is *actually* running, as opposed to what the server offers.
+ *
+ * Exported because it is the first thing worth knowing when something is wrong.
+ * "Cập nhật rồi mà vẫn lỗi" is nearly always a client still holding the old
+ * assets, and no amount of describing the newest deploy helps — what settles it
+ * is the pair of identities this returns, read off the very bundle and the very
+ * .wasm this page loaded.
+ */
+export function runningVersion(): { app: string; core: string } {
   const app = typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'dev'
   const core = basename(wasmUrl)
   const version = { app, core }
@@ -105,7 +114,8 @@ function runningVersion(): { app: string; core: string } {
   return version
 }
 
-async function fetchManifest(): Promise<VersionManifest | null> {
+/** What the server currently offers. Null when offline, which is normal here. */
+export async function fetchManifest(): Promise<VersionManifest | null> {
   try {
     // `no-store` matters twice over: the HTTP cache and the service worker must
     // both be bypassed, or the check would keep reading the version it shipped
@@ -193,4 +203,25 @@ export function useAppUpdate(): UpdateState {
   }, [])
 
   return { available, kind, canAutoApply: !alreadyTried(), apply }
+}
+
+/** How this copy is being run. Changes what an update even means. */
+export type Platform = 'desktop' | 'pwa' | 'browser'
+
+/**
+ * Whether this is the installed app, an installed web app, or a browser tab.
+ *
+ * Worth showing because the three update differently: the desktop build ships
+ * its own installer, an installed PWA holds assets in a service worker cache
+ * that can lag a deploy, and a plain tab picks up whatever the network gives it.
+ * A player reporting a problem cannot be expected to know which they are on.
+ */
+export function platform(): Platform {
+  if (typeof window === 'undefined') return 'browser'
+  if ('__TAURI_INTERNALS__' in window) return 'desktop'
+  const standalone =
+    window.matchMedia?.('(display-mode: standalone)').matches ||
+    // iOS Safari predates the media query and still uses this.
+    (window.navigator as unknown as { standalone?: boolean }).standalone === true
+  return standalone ? 'pwa' : 'browser'
 }
