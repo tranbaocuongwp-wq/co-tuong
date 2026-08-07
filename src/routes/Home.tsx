@@ -92,6 +92,34 @@ export function HomePage() {
         </div>
       </header>
 
+      {/*
+        A hero strip, at 2.5:1 rather than the 16:9 the promo images use.
+
+        Shape is the whole decision here. The same artwork at 16:9 stands 252px
+        tall at this column width and shoves the Start button most of a phone
+        screen down the page — which is exactly the mistake the launcher was
+        rewritten to undo. Wide and short, it reads as a banner and costs about
+        70px of fold.
+
+        Eager, not lazy: it is the first thing on screen, and a lazy image at
+        the top of a page just means the player watches it pop in.
+
+        It still disappears below 760px of viewport height, and that number is
+        measured rather than chosen. On a 375x667 phone the banner costs 153px
+        and puts Start 28px under the fold — 84px under it if there is a game to
+        resume. A picture is worth less than the button, every time, so on a
+        short screen the picture is what goes.
+      */}
+      <img
+        src="./banner/trang-chu.webp"
+        alt="Mười hai triệu thế cờ cho mỗi nước bạn đi — ở ngay mức dễ nhất."
+        width={1280}
+        height={512}
+        decoding="async"
+        className="w-full rounded-xl [@media(max-height:759px)]:hidden"
+        style={{ aspectRatio: '2.5' }}
+      />
+
       {canResume && (
         <Link
           to="/play"
