@@ -31,3 +31,4 @@ worker/.wrangler/
 
 # Hồ sơ Chrome tạm của scripts/store-shots.mjs
 store-shots/.chrome-profile/
+store-shots/*.zip
