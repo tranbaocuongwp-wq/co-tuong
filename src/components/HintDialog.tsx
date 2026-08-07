@@ -25,6 +25,7 @@ import { Check, Crosshair, Eye, Lightbulb, Shield, Swords, X } from 'lucide-reac
 
 import type { HintInfo, PieceKind } from '../engine/types'
 import { cn } from '../lib/utils'
+import { sheetPanel } from './ui/sheet'
 import { PIECE_NAME } from './PieceIcon'
 import { Button } from './ui/button'
 
@@ -105,13 +106,20 @@ export function HintDialog({
         />
         <Dialog.Content
           className={cn(
-            'fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-[85dvh] w-full max-w-[560px] flex-col',
-            'rounded-t-3xl border border-border bg-surface pb-[calc(env(safe-area-inset-bottom)+var(--browser-chrome))]',
-            'shadow-[0_-8px_40px_rgba(0,0,0,0.35)] transition-transform duration-200',
-            previewing && 'translate-y-[calc(100%-11rem)]'
+            sheetPanel,
+            'transition-transform duration-200',
+            // Getting out of the way while a move is previewed, in whichever
+            // form the panel currently has: the sheet slides down until only its
+            // header shows, and the dialog drops out of the centre to sit on the
+            // bottom edge at the same height. Sliding a centred dialog by its own
+            // height would have left it half off the screen, because its resting
+            // position is already a translate.
+            previewing && 'translate-y-[calc(100%-11rem)]',
+            previewing &&
+              'min-[700px]:top-auto min-[700px]:bottom-4 min-[700px]:max-h-44 min-[700px]:translate-y-0'
           )}
         >
-          <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-border" />
+          <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-border min-[700px]:hidden" />
 
           <div className="flex shrink-0 items-center justify-between px-4 pt-3 pb-1">
             <Dialog.Title className="flex items-center gap-2 text-base font-semibold">

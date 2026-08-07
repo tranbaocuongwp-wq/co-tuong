@@ -2,7 +2,19 @@
 <html lang="vi">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!--
+      Pinch-zoom off, on purpose.
+
+      A board game is a fixed layout that already fits the screen, so zoom here
+      is never something a player wanted — it is a two-finger drag near a piece,
+      or a double tap that was meant to be two taps, and it leaves the board
+      hanging half off-screen mid-game with no obvious way back. `maximum-scale`
+      alone is ignored by iOS Safari; both are needed.
+    -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
     <meta name="theme-color" content="#962a15" />
     <meta
       name="description"

@@ -113,6 +113,7 @@ export function GameMenu({
 
   return (
     <Sheet
+      side="right"
       open={open}
       onOpenChange={(next) => !next && onClose()}
       title="Ván đấu"

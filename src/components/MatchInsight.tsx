@@ -21,10 +21,10 @@
  * know, because it has found a forced mate, that is shown exactly.
  */
 
-import { memo, useMemo, type ReactNode } from 'react'
+import { memo, useEffect, useMemo, useState, type ReactNode } from 'react'
 
 import type { Piece, SearchInfo, Side } from '../engine/types'
-import { Swords } from 'lucide-react'
+import { ChevronDown, Swords } from 'lucide-react'
 
 export interface MatchInsightProps {
   /** The engine's last assessment, from its own side's point of view. */
@@ -237,8 +237,26 @@ function Key({ colour, children }: { colour: string; children: ReactNode }) {
   )
 }
 
+const OPEN_KEY = 'insight.open'
+
 function MatchInsightView({ info, engineSide, pieces, moveCount }: MatchInsightProps) {
   const axes = useMemo(() => axesOf(pieces), [pieces])
+  // Read once, not on every render — this component redraws on every move.
+  const [open, setOpen] = useState(() => {
+    try {
+      return localStorage.getItem(OPEN_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(OPEN_KEY, open ? '1' : '0')
+    } catch {
+      // A browser refusing storage is not a reason to break the panel.
+    }
+  }, [open])
 
   const redMaterial = axes[0].red * FULL_ARMY
   const blackMaterial = axes[0].black * FULL_ARMY
@@ -261,8 +279,29 @@ function MatchInsightView({ info, engineSide, pieces, moveCount }: MatchInsightP
       className="insight rounded-2xl border border-border bg-surface p-3"
       aria-label="Nhận định thế cờ"
     >
-      <h2 className="mb-2 flex items-center gap-1.5 text-xs font-medium tracking-wide text-ink-dim uppercase">
-        <Swords size={14} /> Cục diện
+      {/*
+        Collapsed to two lines by default, and it remembers.
+
+        Held sideways this panel is the whole sidebar, and expanded it ran to a
+        radar chart plus six labelled readings plus a note under each — more
+        than a screen of analysis beside a game someone is in the middle of
+        playing. The two bars answer "who is winning"; everything under them is
+        for after the move, so it waits to be asked for.
+      */}
+      <h2 className="mb-2 text-xs font-medium tracking-wide text-ink-dim uppercase">
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          aria-expanded={open}
+          className="flex w-full cursor-pointer items-center gap-1.5 bg-transparent p-0 text-inherit"
+        >
+          <Swords size={14} /> Cục diện
+          <ChevronDown
+            size={14}
+            className={open ? 'ml-auto rotate-180' : 'ml-auto'}
+            aria-hidden="true"
+          />
+        </button>
       </h2>
 
       <Split label="Khả năng thắng" share={redChance}>
@@ -272,12 +311,15 @@ function MatchInsightView({ info, engineSide, pieces, moveCount }: MatchInsightP
         Đỏ {redMaterial.toFixed(1)} · Đen {blackMaterial.toFixed(1)}
       </Split>
 
-      <figure className="mt-3 mb-1 grid max-[699px]:hidden justify-items-center gap-1.5">
+      {open && (
+        <>
+
+      <figure className="mt-2 mb-1 grid max-[699px]:hidden justify-items-center gap-1">
         <svg
           viewBox="0 0 112 112"
           role="img"
           aria-label="Biểu đồ sáu mặt của thế cờ"
-          className="h-auto w-full max-w-[190px]"
+          className="h-auto w-full max-w-[140px]"
         >
           {/* Rings at a quarter, a half, three quarters and full. */}
           {[0.25, 0.5, 0.75, 1].map((step) => (
@@ -324,10 +366,15 @@ function MatchInsightView({ info, engineSide, pieces, moveCount }: MatchInsightP
         </figcaption>
       </figure>
 
-      <ul className="mt-2 grid list-none gap-2 p-0 max-[699px]:hidden">
+      {/*
+        The explanation of each reading moved into a tooltip. Six of them stacked
+        under six charts is a paragraph of small print in a sidebar, and it was
+        being scrolled past rather than read.
+      */}
+      <ul className="mt-2 grid list-none gap-1.5 p-0 max-[699px]:hidden">
         {axes.map((axis) => (
-          <li key={axis.label} className="grid gap-1">
-            <span className="flex justify-between gap-2 text-[0.82rem]">
+          <li key={axis.label} className="grid gap-0.5" title={axis.note}>
+            <span className="flex justify-between gap-2 text-[0.78rem]">
               <span>{axis.label}</span>
               <span className="text-ink-dim tabular-nums">
                 {Math.round(axis.red * 100)} · {Math.round(axis.black * 100)}
@@ -337,7 +384,6 @@ function MatchInsightView({ info, engineSide, pieces, moveCount }: MatchInsightP
               <Bar share={axis.red} colour="bg-accent" />
               <Bar share={axis.black} colour="bg-ink-dim" />
             </span>
-            <span className="text-[0.72rem] text-ink-dim">{axis.note}</span>
           </li>
         ))}
       </ul>
@@ -350,6 +396,8 @@ function MatchInsightView({ info, engineSide, pieces, moveCount }: MatchInsightP
           <span>Máy nhìn trước {seen} nước</span>
         ) : null}
       </div>
+        </>
+      )}
     </section>
   )
 }
