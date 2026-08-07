@@ -19,13 +19,38 @@
  */
 
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router'
 import { HardDrive, Heart, Shield, Swords, Volume2 } from 'lucide-react'
 
 import { Author } from '../components/Author'
 import { PieceIcon, PIECE_ORDER } from '../components/PieceIcon'
-import { VersionPanel } from '../components/VersionPanel'
 import { Card, CardTitle } from '../components/ui/card'
 import { engineVersion, loadEngineWasm } from '../engine/wasm'
+
+/**
+ * Three of the promotional banners, reused as card headers.
+ *
+ * They already say — in one picture each — what the paragraph underneath spends
+ * three sentences on, and a page of nothing but text cards is a page nobody
+ * scrolls to the end of. WebP at 960px wide is about 20 KB apiece, which is
+ * cheap enough that they can be part of the page rather than something the page
+ * waits for.
+ *
+ * `loading="lazy"` because none of them is above the fold, and a fixed
+ * `aspect-ratio` so the card does not jump when one arrives.
+ */
+function Banner({ src, alt, ratio }: { src: string; alt: string; ratio: string }) {
+  return (
+    <img
+      src={src}
+      alt={alt}
+      loading="lazy"
+      decoding="async"
+      className="mb-3 w-full rounded-xl object-cover"
+      style={{ aspectRatio: ratio }}
+    />
+  )
+}
 
 const RULES = [
   'Cản mã, chân tượng, ngòi pháo, tốt qua sông mới đi ngang.',
@@ -60,6 +85,11 @@ export function AboutPage() {
       </div>
 
       <Card>
+        <Banner
+          src="./banner/vi-sao.webp"
+          alt="Bàn cờ nghìn năm tuổi, đối thủ của ngày mai"
+          ratio="16 / 9"
+        />
         <CardTitle>
           <Heart size={15} /> Vì sao có ứng dụng này
         </CardTitle>
@@ -81,6 +111,11 @@ export function AboutPage() {
       </Card>
 
       <Card>
+        <Banner
+          src="./banner/may-choi-co.webp"
+          alt="Mỗi nước đi, máy cân nhắc hơn mười hai triệu thế cờ"
+          ratio="16 / 9"
+        />
         <CardTitle>
           <Swords size={15} /> Máy chơi cờ
         </CardTitle>
@@ -109,6 +144,11 @@ export function AboutPage() {
       </Card>
 
       <Card>
+        <Banner
+          src="./banner/binh-luan-vien.webp"
+          alt="Có người ngồi cạnh, bình từng nước cho bạn nghe"
+          ratio="4 / 3"
+        />
         <CardTitle>
           <Volume2 size={15} /> Bình luận viên
         </CardTitle>
@@ -129,11 +169,20 @@ export function AboutPage() {
         </p>
       </Card>
 
-      <VersionPanel release={version} />
-
-      <footer className="flex flex-col items-center gap-1 py-3 text-sm text-ink-dim">
+      {/*
+        The build details moved to Settings.
+        
+        Which version is running, and whether a newer one exists, is a thing you
+        go and *do* something about — check, update — and Settings is where the
+        doing lives. This page is for reading. All that is left here is the
+        release number, which is the one part a player might quote to someone.
+      */}
+      <footer className="flex flex-col items-center gap-1.5 py-3 text-sm text-ink-dim">
         <span>Làm bởi</span>
         <Author className="text-base font-medium text-ink" />
+        <Link to="/settings" className="mt-1 text-sm text-ink-dim no-underline hover:text-ink">
+          Phiên bản {version} · chi tiết trong Cài đặt
+        </Link>
       </footer>
     </div>
   )

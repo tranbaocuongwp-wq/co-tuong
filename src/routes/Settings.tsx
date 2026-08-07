@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Download, HardDrive, Save, Trash2, Upload } from 'lucide-react'
 
+import { VersionPanel } from '../components/VersionPanel'
 import { VoicePack } from '../components/VoicePack'
 import { Button } from '../components/ui/button'
 import { Card, CardTitle } from '../components/ui/card'
@@ -22,7 +23,7 @@ import { Segmented } from '../components/ui/segmented'
 import { Switch } from '../components/ui/switch'
 import { getEngineClient } from '../engine/client'
 import { DIFFICULTY_ORDER, DIFFICULTY_PRESETS } from '../engine/types'
-import { engineVersion } from '../engine/wasm'
+import { engineVersion, loadEngineWasm } from '../engine/wasm'
 import { useSettings } from '../settings'
 import {
   deserializeGames,
@@ -50,6 +51,7 @@ const SWITCHES: {
 export function SettingsPage() {
   const { settings, update } = useSettings()
 
+  const [release, setRelease] = useState('…')
   const [storeKind, setStoreKind] = useState('…')
   const [experienceSize, setExperienceSize] = useState<number | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -60,6 +62,8 @@ export function SettingsPage() {
     void getHistoryStore().then((s) =>
       setStoreKind(s.kind === 'sqlite' ? 'trong ứng dụng' : 'trong trình duyệt')
     )
+    // The version comes from the engine binary, so it has to load first.
+    void loadEngineWasm().then(() => setRelease(engineVersion()))
   }, [])
 
   const refreshExperience = useCallback(async () => {
@@ -175,6 +179,8 @@ export function SettingsPage() {
           }}
         />
       </Card>
+
+      <VersionPanel release={release} />
 
       <Card>
         <CardTitle>
