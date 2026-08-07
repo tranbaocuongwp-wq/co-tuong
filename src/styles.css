@@ -184,25 +184,26 @@
     min-height: 100dvh;
   }
 
+  /*
+   * The playing screen starts at the top and stays there.
+   *
+   * It used to centre itself vertically on anything under 760px tall, and a
+   * centred column moves whenever anything in it changes height — a longer line
+   * of commentary, the readings panel opening, the result card appearing. Each
+   * of those slid the board up or down under the player's finger mid-game.
+   *
+   * Anchored to the top, the board is at the same place on the screen for the
+   * whole game and the slack falls to the bottom, where it reads as margin. The
+   * board is bounded by the window height now (see `.stage__board`), so it never
+   * runs off the end of a short screen either.
+   */
   .page--bare {
     padding: 10px 10px 24px;
     max-width: none;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-  }
-
-  /*
-   * On a tall screen the board plus its panel is taller than half the window,
-   * so centring the stack puts a gap above and below and it reads as a bug.
-   * Start at the top and let the slack fall to the bottom, where it looks like
-   * margin.
-   */
-  @media (min-height: 760px) {
-    .page--bare {
-      justify-content: flex-start;
-    }
+    justify-content: flex-start;
   }
 
   .page__title {
