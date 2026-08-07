@@ -13,8 +13,11 @@
  *
  * Two details for real phones:
  *
- * * `pb-[env(safe-area-inset-bottom)]` keeps the last row clear of the home
- *   indicator, which otherwise sits on top of it.
+ * * The bottom padding clears both the home indicator and whatever browser
+ *   toolbar is currently sitting on the bottom of the window — see
+ *   `--browser-chrome` in `styles.css`. Without the second part, iOS Safari
+ *   hides the last row of the sheet behind its own address bar, and the last
+ *   row of a bottom sheet is where the confirm button lives.
  * * `max-h-[85dvh]` with its own scroll, so a long menu scrolls inside the
  *   sheet instead of growing past the top of the screen. `dvh` rather than `vh`
  *   because a mobile browser's toolbar disappears and `vh` does not notice.
@@ -51,7 +54,7 @@ export function Sheet({
         <Dialog.Content
           className={cn(
             'fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-[85dvh] w-full max-w-[560px] flex-col',
-            'rounded-t-3xl border border-border bg-surface pb-[env(safe-area-inset-bottom)]',
+            'rounded-t-3xl border border-border bg-surface pb-[calc(env(safe-area-inset-bottom)+var(--browser-chrome))]',
             'shadow-[0_-8px_40px_rgba(0,0,0,0.35)]',
             className
           )}

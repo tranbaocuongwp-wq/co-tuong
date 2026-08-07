@@ -9,12 +9,20 @@
  * Unfinished games are excluded from the win rate and counted separately.
  * Folding an abandoned game into "losses" would flatter nobody and mislead
  * everybody.
+ *
+ * The record reads as one number and one bar. A grid of four equal tiles —
+ * thắng, thua, hoà, bỏ dở — gives all four the same weight, and they do not
+ * have the same weight: the question is "am I winning", and everything else is
+ * the working.
  */
 
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
+import { Clock, History, Lightbulb, Swords, Timer, TrendingUp } from 'lucide-react'
 
-import { Icon } from '../components/Icon'
+import { ResultBadge } from '../components/ResultBadge'
+import { Button } from '../components/ui/button'
+import { Card, CardTitle } from '../components/ui/card'
 import { DIFFICULTY_PRESETS } from '../engine/types'
 import type { Difficulty } from '../engine/types'
 import { getHistoryStore } from '../storage'
@@ -82,10 +90,28 @@ function tally(games: GameRecord[]): Tally {
 /** Hours and minutes, because "8460000 ms" is not an amount of time to anyone. */
 function duration(ms: number): string {
   const minutes = Math.round(ms / 60000)
-  if (minutes < 60) return `${minutes} phút`
+  if (minutes < 60) return `${minutes}p`
   const hours = Math.floor(minutes / 60)
   const rest = minutes % 60
-  return rest === 0 ? `${hours} giờ` : `${hours} giờ ${rest} phút`
+  return rest === 0 ? `${hours}g` : `${hours}g${rest}`
+}
+
+function Stat({
+  icon: Glyph,
+  value,
+  label,
+}: {
+  icon: typeof Clock
+  value: string | number
+  label: string
+}) {
+  return (
+    <div className="rounded-xl bg-surface-2/60 px-1 py-2.5 text-center">
+      <Glyph size={15} className="mx-auto mb-1 text-ink-dim" aria-hidden="true" />
+      <div className="text-sm leading-tight font-semibold tabular-nums">{value}</div>
+      <div className="text-[0.68rem] text-ink-dim">{label}</div>
+    </div>
+  )
 }
 
 export function ProfilePage() {
@@ -109,112 +135,100 @@ export function ProfilePage() {
       .filter((row) => row.stats.played > 0)
   }, [games])
 
-  if (games === null) return <p className="muted">Đang xem lại lịch sử…</p>
+  if (games === null) return <p className="text-sm text-ink-dim">Đang xem lại lịch sử…</p>
 
   if (all.played === 0 && all.unfinished === 0) {
     return (
-      <>
-        <h1 className="page__title">Hồ sơ</h1>
-        <p className="page__lede">Chưa có ván nào để tổng kết.</p>
-        <Link className="btn btn--primary" to="/">
-          Chơi một ván
-        </Link>
-      </>
+      <div className="mx-auto flex w-full max-w-md flex-col gap-3">
+        <h1 className="pt-1 text-xl font-bold">Hồ sơ</h1>
+        <p className="text-sm text-ink-dim">Chưa có ván nào để tổng kết.</p>
+        <Button asChild variant="primary" size="lg" className="w-full">
+          <Link to="/">Chơi một ván</Link>
+        </Button>
+      </div>
     )
   }
 
   const rate = all.played > 0 ? Math.round((all.won / all.played) * 100) : 0
+  const of = (n: number) => `${(n / (all.played || 1)) * 100}%`
 
   return (
-    <>
-      <h1 className="page__title">Hồ sơ</h1>
-      <p className="page__lede">Tất cả tính từ những ván đã lưu trên máy này.</p>
+    <div className="mx-auto flex w-full max-w-md flex-col gap-3">
+      <h1 className="pt-1 text-xl font-bold">Hồ sơ</h1>
 
-      <div className="card" style={{ marginBottom: 18 }}>
-        <div className="insight__row">
-          <span className="insight__label">Tỷ lệ thắng</span>
-          <span className="insight__value">
-            {rate}% · {all.won} thắng / {all.played} ván
-          </span>
-        </div>
-        <div className="insight__bar">
-          <span className="insight__fill insight__fill--red" style={{ transform: `scaleX(${rate / 100})` }} />
+      <Card>
+        <div className="mb-3 flex items-end justify-between gap-3">
+          <div>
+            <div className="text-4xl leading-none font-bold tabular-nums">{rate}%</div>
+            <div className="mt-1 text-sm text-ink-dim">tỷ lệ thắng · {all.played} ván</div>
+          </div>
+          <ResultBadge outcome={rate >= 50 ? 'win' : 'loss'} />
         </div>
 
-        <div className="stat-grid">
-          <div className="stat">
-            <span className="stat__value">{all.won}</span>
-            <span className="stat__label">Thắng</span>
-          </div>
-          <div className="stat">
-            <span className="stat__value">{all.lost}</span>
-            <span className="stat__label">Thua</span>
-          </div>
-          <div className="stat">
-            <span className="stat__value">{all.drawn}</span>
-            <span className="stat__label">Hoà</span>
-          </div>
-          <div className="stat">
-            <span className="stat__value">{all.unfinished}</span>
-            <span className="stat__label">Bỏ dở</span>
-          </div>
+        {/* One bar in three parts: the whole record on a single line. */}
+        <div className="flex h-2.5 overflow-hidden rounded-full bg-surface-2">
+          <span className="bg-ok" style={{ width: of(all.won) }} />
+          <span className="bg-[color:var(--danger,#b3261e)]" style={{ width: of(all.lost) }} />
+          <span className="bg-ink-dim" style={{ width: of(all.drawn) }} />
         </div>
-      </div>
+        <div className="mt-2 flex flex-wrap justify-between gap-x-3 text-xs">
+          <span className="text-ok">{all.won} thắng</span>
+          <span className="text-[color:var(--danger,#b3261e)]">{all.lost} thua</span>
+          <span className="text-ink-dim">{all.drawn} hoà</span>
+          {all.unfinished > 0 && <span className="text-ink-dim">{all.unfinished} bỏ dở</span>}
+        </div>
+      </Card>
 
-      <div className="card" style={{ marginBottom: 18 }}>
-        <h2 style={{ fontSize: '1rem', marginTop: 0 }}>Thời gian bên bàn cờ</h2>
-        <div className="stat-grid">
-          <div className="stat">
-            <span className="stat__value">{duration(all.totalMs)}</span>
-            <span className="stat__label">Tổng cộng</span>
-          </div>
-          <div className="stat">
-            <span className="stat__value">{all.moves}</span>
-            <span className="stat__label">Nước đã đi</span>
-          </div>
-          <div className="stat">
-            <span className="stat__value">
-              {all.fastestWinMs === null ? '—' : duration(all.fastestWinMs)}
-            </span>
-            <span className="stat__label">Thắng nhanh nhất</span>
-          </div>
-          <div className="stat">
-            <span className="stat__value">
-              {all.hints} · {all.undos}
-            </span>
-            <span className="stat__label">Gợi ý · Đi lại</span>
-          </div>
+      <Card>
+        <CardTitle>
+          <Clock size={15} /> Bên bàn cờ
+        </CardTitle>
+        <div className="grid grid-cols-4 gap-2">
+          <Stat icon={Clock} value={duration(all.totalMs)} label="Tổng" />
+          <Stat icon={Swords} value={all.moves} label="Nước đi" />
+          <Stat
+            icon={Timer}
+            value={all.fastestWinMs === null ? '—' : duration(all.fastestWinMs)}
+            label="Kỷ lục"
+          />
+          <Stat icon={Lightbulb} value={`${all.hints}·${all.undos}`} label="Gợi ý·Lại" />
         </div>
-      </div>
+      </Card>
 
       {byDifficulty.length > 0 && (
-        <div className="card" style={{ marginBottom: 18 }}>
-          <h2 style={{ fontSize: '1rem', marginTop: 0 }}>Theo mức khó</h2>
-          {byDifficulty.map(({ level, stats }) => {
-            const share = stats.played > 0 ? Math.round((stats.won / stats.played) * 100) : 0
-            return (
-              <div key={level}>
-                <div className="insight__row">
-                  <span className="insight__label">{DIFFICULTY_PRESETS[level].label}</span>
-                  <span className="insight__value">
-                    {share}% · {stats.won}/{stats.played}
-                  </span>
+        <Card>
+          <CardTitle>
+            <TrendingUp size={15} /> Theo mức khó
+          </CardTitle>
+          <div className="grid gap-2.5">
+            {byDifficulty.map(({ level, stats }) => {
+              const share = stats.played > 0 ? Math.round((stats.won / stats.played) * 100) : 0
+              return (
+                <div key={level}>
+                  <div className="mb-1 flex justify-between text-[0.85rem]">
+                    <span>{DIFFICULTY_PRESETS[level].label}</span>
+                    <span className="text-ink-dim tabular-nums">
+                      {share}% · {stats.won}/{stats.played}
+                    </span>
+                  </div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-surface-2">
+                    <div
+                      className="h-full w-full origin-left rounded-full bg-accent transition-transform duration-500"
+                      style={{ transform: `scaleX(${share / 100})` }}
+                    />
+                  </div>
                 </div>
-                <div className="insight__bar">
-                  <span
-                    className="insight__fill insight__fill--red"
-                    style={{ transform: `scaleX(${share / 100})` }}
-                  />
-                </div>
-              </div>
-            )
-          })}
-        </div>
+              )
+            })}
+          </div>
+        </Card>
       )}
 
-      <Link className="btn" to="/history">
-        <Icon name="history" /> Xem từng ván
-      </Link>
-    </>
+      <Button asChild className="w-full">
+        <Link to="/history">
+          <History size={17} /> Xem từng ván
+        </Link>
+      </Button>
+    </div>
   )
 }

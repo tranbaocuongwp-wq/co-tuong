@@ -10,10 +10,11 @@
  * questions somebody actually has at that moment, in that order: what happened,
  * can I take that back, and can I look at it again.
  *
- * The take-back is the important one. Losing to a single blunder and being
- * offered nothing but "Ván mới" is what makes people put a chess app down — the
- * game they wanted was the one they were already playing. So if they still have
- * take-backs in hand, the button is right there, and it is the primary action.
+ * The take-back matters, and it is offered on exactly one of those three
+ * outcomes. Losing to a single blunder and being handed nothing but "Ván mới"
+ * is what makes people put a chess app down — the game they wanted was the one
+ * they were already playing — so on a loss it is right there and it is the
+ * primary action. On a win it is absurd, and it used to be shown there too.
  */
 
 import * as Dialog from '@radix-ui/react-dialog'
@@ -56,7 +57,7 @@ const LOOK: Record<
   },
   loss: {
     title: 'Bạn thua ván này',
-    note: 'Còn lượt đi lại thì vẫn gỡ được.',
+    note: 'Còn lượt đi lại thì vẫn gỡ được — ván cờ chưa hẳn đã hết.',
     icon: ListRestart,
     ring: 'border-t-[color:var(--danger,#b3261e)]',
     tint: 'bg-[color:var(--danger,#b3261e)]/15 text-[color:var(--danger,#b3261e)]',
@@ -83,7 +84,17 @@ export function GameOverDialog({
 }: GameOverDialogProps) {
   const look = LOOK[outcome ?? 'draw']
   const Badge = look.icon
-  const offerUndo = canUndo && undosLeft > 0
+  /*
+   * Only ever offered on a loss.
+   *
+   * It used to appear on any finished game, so winning produced a panel that
+   * said "Bạn thắng rồi!" and then put "Đi lại nước vừa rồi" under it as the
+   * brightest thing on the screen — offering to undo the move that just won.
+   * The button exists for one situation, losing to a single blunder, and
+   * showing it anywhere else makes it read as noise at best and as a taunt at
+   * worst.
+   */
+  const offerUndo = outcome === 'loss' && canUndo && undosLeft > 0
 
   return (
     <Dialog.Root open={open} onOpenChange={(next) => !next && onClose()}>

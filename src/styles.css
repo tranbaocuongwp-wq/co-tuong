@@ -75,6 +75,23 @@
      * for anywhere that does not set it. Mirrors MOVE_MS in usePieceLayout.ts.
      */
     --move-ms: 520ms;
+
+    /*
+     * How much of the bottom of the window the browser is sitting on.
+     *
+     * iOS Safari lays `position: fixed` out against the *layout* viewport,
+     * which runs behind its own toolbar. So a sheet anchored to `bottom: 0`
+     * has its last row hidden underneath the address bar — which is exactly
+     * where the confirm button of a bottom sheet lives. Reported with a
+     * screenshot of "Đi nước này" cut in half by the URL field.
+     *
+     * `lvh` is the window with the toolbars hidden, `dvh` is the window right
+     * now, so the difference is however much toolbar is currently showing. It
+     * updates as the toolbar slides away, and it is zero everywhere that has no
+     * toolbar — desktop, an installed PWA, the Tauri build — so the fix costs
+     * those nothing.
+     */
+    --browser-chrome: max(0px, calc(100lvh - 100dvh));
     color-scheme: light;
   }
 

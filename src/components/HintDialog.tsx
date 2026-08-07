@@ -106,7 +106,7 @@ export function HintDialog({
         <Dialog.Content
           className={cn(
             'fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-[85dvh] w-full max-w-[560px] flex-col',
-            'rounded-t-3xl border border-border bg-surface pb-[env(safe-area-inset-bottom)]',
+            'rounded-t-3xl border border-border bg-surface pb-[calc(env(safe-area-inset-bottom)+var(--browser-chrome))]',
             'shadow-[0_-8px_40px_rgba(0,0,0,0.35)] transition-transform duration-200',
             previewing && 'translate-y-[calc(100%-11rem)]'
           )}
