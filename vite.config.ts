@@ -2,6 +2,7 @@ import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig, type Plugin } from 'vite'
 
@@ -63,7 +64,7 @@ function versionManifest(): Plugin {
 // static bundle on Cloudflare Pages. Both need relative asset URLs, so `base`
 // stays './' and routing is hash-based (see src/router.tsx).
 export default defineConfig({
-  plugins: [react(), versionManifest()],
+  plugins: [react(), tailwindcss(), versionManifest()],
   base: './',
   define: {
     __BUILD_ID__: JSON.stringify(BUILD_ID),

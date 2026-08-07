@@ -1,6 +1,6 @@
 {
   "name": "co-tuong",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Cờ Tướng (Xiangqi) — offline desktop & web game with a strong Rust engine",
   "type": "module",
   "license": "MIT",
@@ -9,7 +9,7 @@
     "wasm:dev": "wasm-pack build engine-wasm --target web --out-dir ../src/wasm --dev",
     "dev": "npm run wasm:dev && vite",
     "typecheck": "tsc --noEmit && node scripts/check-ui.mjs",
-    "build": "npm run wasm && tsc --noEmit && node scripts/check-ui.mjs && vite build",
+    "build": "npm run wasm && tsc --noEmit && vite build && node scripts/check-ui.mjs",
     "build:web": "npm run build",
     "preview": "vite preview",
     "tauri": "tauri",
@@ -22,18 +22,26 @@
     "worker:deploy": "cd worker && npx wrangler deploy"
   },
   "dependencies": {
+    "@radix-ui/react-dialog": "^1.1.23",
+    "@radix-ui/react-slot": "^1.3.3",
     "@tauri-apps/api": "^2.11.1",
     "@tauri-apps/plugin-sql": "^2.4.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "dexie": "^4.4.4",
+    "lucide-react": "^1.30.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-router": "^8.3.0"
+    "react-router": "^8.3.0",
+    "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
     "@tauri-apps/cli": "^2.11.4",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^5.0.0",
+    "tailwindcss": "^4.3.3",
     "typescript": "^5.9.0",
     "vite": "^8.2.0"
   }

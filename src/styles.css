@@ -1,2604 +1,2654 @@
 /*
- * One stylesheet, no framework. The app is small enough that a framework would
- * cost more bytes than it saves, and every kilobyte here is downloaded by a
- * phone on a bad connection before the first game can start.
+ * Two layers, one palette.
+ *
+ * The board and the play screen keep their bespoke rules below: they do things
+ * utilities are bad at — sizing the board off `dvh` so it always fits, named
+ * grid areas that rearrange between portrait and landscape, container queries
+ * for the piece glyphs. Rewriting those as utility strings would make them
+ * shorter to type and much harder to read.
+ *
+ * Everything else — the launcher, the menus, the settings and history pages —
+ * is ordinary interface, and that is what Tailwind is good at.
+ *
+ * The one rule that matters when two styling systems share a codebase: **they
+ * must not have two palettes.** So the tokens below stay the single source of
+ * truth, and `@theme inline` hands the same variables to Tailwind. `bg-surface`
+ * in a class string and `background: var(--surface)` in a rule resolve to the
+ * same colour, and dark mode keeps working for both because it is still just
+ * the media query below reassigning the variables.
  */
+@import 'tailwindcss';
 
-:root {
-  --bg: #f4efe6;
-  --surface: #fffdf9;
-  --surface-2: #efe7d8;
-  --border: #d9cdb6;
-  --text: #241d16;
-  --text-dim: #6d6154;
-  --accent: #a8331f;
-  --accent-soft: #f0d6cf;
-  --red-piece: #b3301c;
-  --black-piece: #1f2933;
-  --board-wood: #e8c88f;
-  --board-line: #7a5b34;
-  --ok: #2f7d4f;
-  --warn: #b8860b;
-  --shadow: 0 1px 3px rgba(36, 29, 22, 0.18), 0 6px 18px rgba(36, 29, 22, 0.08);
-  --radius: 12px;
-  /*
-   * Duration of a piece moving. The board overrides this per move, faster for
-   * the player's own moves and slower for the computer's; this is the fallback
-   * for anywhere that does not set it. Mirrors MOVE_MS in usePieceLayout.ts.
-   */
-  --move-ms: 520ms;
-  color-scheme: light;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #16120e;
-    --surface: #221b15;
-    --surface-2: #2c231b;
-    --border: #40342a;
-    --text: #f0e7db;
-    --text-dim: #a49684;
-    --accent: #e0674c;
-    --accent-soft: #452a24;
-    --red-piece: #e0674c;
-    --black-piece: #d8d3cc;
-    --board-wood: #6b5232;
-    --board-line: #cdae7f;
-    --shadow: 0 1px 3px rgba(0, 0, 0, 0.5), 0 6px 20px rgba(0, 0, 0, 0.35);
-    color-scheme: dark;
-  }
-}
-
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
-
-html,
-body,
-#root {
-  height: 100%;
-}
-
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--text);
-  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans',
-    sans-serif;
-  font-size: 16px;
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
-  /* Stop the whole page rubber-banding when a player drags on the board. */
-  overscroll-behavior: none;
-}
-
-button {
-  font: inherit;
-  color: inherit;
-}
-
-a {
-  color: var(--accent);
-}
-
-/* --- layout --------------------------------------------------------------- */
-
-.app {
-  display: flex;
-  flex-direction: column;
-  min-height: 100%;
-  /* Respect phone notches and home indicators. */
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
-    env(safe-area-inset-left);
-}
-
-.topbar {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 16px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-
-.topbar__brand {
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  color: var(--accent);
-  text-decoration: none;
-  font-size: 1.05rem;
-}
-
-.topbar__nav {
-  display: flex;
-  gap: 4px;
-  margin-left: auto;
-  flex-wrap: wrap;
-}
-
-.topbar__link {
-  padding: 6px 12px;
-  border-radius: 999px;
-  text-decoration: none;
-  color: var(--text-dim);
-  font-size: 0.92rem;
-}
-
-.topbar__link[aria-current='page'] {
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-weight: 600;
-}
-
-.page {
-  flex: 1;
-  width: 100%;
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 20px 16px 40px;
-}
-
-/* The playing screen: no site chrome, minimal padding, board-first. */
-.app--bare {
-  min-height: 100dvh;
-}
-
-.page--bare {
-  padding: 10px 10px 24px;
-  max-width: none;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-ink: var(--text);
+  --color-ink-dim: var(--text-dim);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-red-piece: var(--red-piece);
+  --color-black-piece: var(--black-piece);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --radius-card: var(--radius);
 }
 
 /*
- * A compact top bar once the window gets narrow.
+ * Everything below is in the `components` layer, and that is load-bearing.
  *
- * The nav scrolls sideways in a single row rather than wrapping onto a second
- * line: wrapping pushed the brand into two lines and cost a third of the screen
- * before any content appeared.
+ * Tailwind puts its utilities in `@layer utilities`. CSS ranks *unlayered*
+ * rules above every layered one, whatever the selectors say — so while this
+ * stylesheet sat outside any layer, a two-word rule here quietly beat every
+ * utility in the app. `button { color: inherit }` was enough to make
+ * `text-white` do nothing, and the symptom was a black play arrow on a red
+ * button with no obvious cause.
+ *
+ * Putting the bespoke rules in `components` restores the order everyone
+ * expects: a utility in a class string overrides the stylesheet, which is the
+ * entire reason for reaching for a utility in the first place. Relative order
+ * *within* this file is untouched, so nothing here changes meaning.
  */
-@media (max-width: 620px) {
+@layer components {
+
+  :root {
+    --bg: #f4efe6;
+    --surface: #fffdf9;
+    --surface-2: #efe7d8;
+    --border: #d9cdb6;
+    --text: #241d16;
+    --text-dim: #6d6154;
+    --accent: #a8331f;
+    --accent-soft: #f0d6cf;
+    --red-piece: #b3301c;
+    --black-piece: #1f2933;
+    --board-wood: #e8c88f;
+    --board-line: #7a5b34;
+    --ok: #2f7d4f;
+    --warn: #b8860b;
+    --shadow: 0 1px 3px rgba(36, 29, 22, 0.18), 0 6px 18px rgba(36, 29, 22, 0.08);
+    --radius: 12px;
+    /*
+     * Duration of a piece moving. The board overrides this per move, faster for
+     * the player's own moves and slower for the computer's; this is the fallback
+     * for anywhere that does not set it. Mirrors MOVE_MS in usePieceLayout.ts.
+     */
+    --move-ms: 520ms;
+    color-scheme: light;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16120e;
+      --surface: #221b15;
+      --surface-2: #2c231b;
+      --border: #40342a;
+      --text: #f0e7db;
+      --text-dim: #a49684;
+      --accent: #e0674c;
+      --accent-soft: #452a24;
+      --red-piece: #e0674c;
+      --black-piece: #d8d3cc;
+      --board-wood: #6b5232;
+      --board-line: #cdae7f;
+      --shadow: 0 1px 3px rgba(0, 0, 0, 0.5), 0 6px 20px rgba(0, 0, 0, 0.35);
+      color-scheme: dark;
+    }
+  }
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Noto Sans',
+      sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    /* Stop the whole page rubber-banding when a player drags on the board. */
+    overscroll-behavior: none;
+  }
+
+  button {
+    font: inherit;
+    color: inherit;
+  }
+
+  a {
+    color: var(--accent);
+  }
+
+  /* --- layout --------------------------------------------------------------- */
+
+  .app {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+    /* Respect phone notches and home indicators. */
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+      env(safe-area-inset-left);
+  }
+
   .topbar {
-    padding: 8px 10px;
-    gap: 8px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 10;
   }
 
   .topbar__brand {
-    font-size: 0.9rem;
-    white-space: nowrap;
-    flex: none;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--accent);
+    text-decoration: none;
+    font-size: 1.05rem;
   }
 
   .topbar__nav {
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    gap: 2px;
-    /* Hide the scrollbar; the row is short and obviously swipeable. */
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-  }
-
-  .topbar__nav::-webkit-scrollbar {
-    display: none;
+    display: flex;
+    gap: 4px;
+    margin-left: auto;
+    flex-wrap: wrap;
   }
 
   .topbar__link {
-    padding: 5px 9px;
-    font-size: 0.84rem;
-    white-space: nowrap;
-  }
-}
-
-.page__title {
-  margin: 0 0 4px;
-  font-size: 1.5rem;
-}
-
-.page__lede {
-  margin: 0 0 24px;
-  color: var(--text-dim);
-}
-
-/* --- generic bits --------------------------------------------------------- */
-
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px;
-  box-shadow: var(--shadow);
-}
-
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 9px 16px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  cursor: pointer;
-  font-size: 0.94rem;
-  /* Comfortable tap target on a phone. */
-  min-height: 42px;
-  transition: background 0.15s, border-color 0.15s, transform 0.05s;
-}
-
-.btn:hover:not(:disabled) {
-  background: var(--surface-2);
-}
-
-.btn:active:not(:disabled) {
-  transform: translateY(1px);
-}
-
-.btn:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.btn--primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-  font-weight: 600;
-}
-
-.btn--primary:hover:not(:disabled) {
-  filter: brightness(1.08);
-  background: var(--accent);
-}
-
-.btn--danger {
-  color: var(--accent);
-}
-
-.icon {
-  flex: none;
-  display: block;
-}
-
-.btn .icon {
-  margin-right: -2px;
-}
-
-.btn-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.chip {
-  padding: 8px 14px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  cursor: pointer;
-  font-size: 0.9rem;
-  min-height: 40px;
-}
-
-.chip[aria-pressed='true'] {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-  font-weight: 600;
-}
-
-.muted {
-  color: var(--text-dim);
-  font-size: 0.88rem;
-}
-
-.banner {
-  padding: 12px 14px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: var(--surface-2);
-  margin-bottom: 16px;
-}
-
-.banner--error {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
-/* --- launcher (home) ------------------------------------------------------ */
-
-/*
- * A game's front door should look like a game. The choices are cards you can
- * read at a glance rather than rows of grey pills, and an unfinished game gets
- * the top of the screen — that is what someone returning came back for.
- */
-.launcher {
-  display: grid;
-  gap: 22px;
-  max-width: 640px;
-  margin: 0 auto;
-}
-
-.launcher__hero {
-  text-align: center;
-  display: grid;
-  justify-items: center;
-  gap: 6px;
-  padding: 8px 0 2px;
-}
-
-/* A single piece as the crest, in the same style as the board's discs. */
-.launcher__crest {
-  width: 66px;
-  height: 66px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  font-family: ui-serif, 'Songti SC', 'SimSun', serif;
-  font-size: 2.1rem;
-  font-weight: 700;
-  color: var(--red-piece);
-  background: radial-gradient(circle at 35% 30%, #fff8e8, #e5cfa4 78%, #c9ad7c);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3), inset 0 0 0 2px rgba(0, 0, 0, 0.12);
-}
-
-.launcher__title {
-  margin: 4px 0 0;
-  font-size: 1.7rem;
-  letter-spacing: 0.01em;
-}
-
-.launcher__tagline {
-  margin: 0;
-  color: var(--text-dim);
-  font-size: 0.95rem;
-}
-
-.launcher__section {
-  display: grid;
-  gap: 9px;
-}
-
-.launcher__label {
-  margin: 0;
-  font-size: 0.78rem;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--text-dim);
-}
-
-.launcher__start {
-  width: 100%;
-  min-height: 54px;
-  font-size: 1.05rem;
-}
-
-/* -- resume card -- */
-
-.resume {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 14px 16px;
-  border-radius: var(--radius);
-  border: 1px solid var(--accent);
-  background: var(--accent-soft);
-  text-decoration: none;
-  color: var(--text);
-}
-
-.resume:hover {
-  filter: brightness(0.98);
-}
-
-.resume__icon {
-  display: grid;
-  place-items: center;
-  width: 42px;
-  height: 42px;
-  border-radius: 50%;
-  background: var(--accent);
-  color: #fff;
-  flex: none;
-}
-
-.resume__body {
-  display: grid;
-  gap: 1px;
-}
-
-.resume__title {
-  color: var(--accent);
-}
-
-.resume__meta {
-  font-size: 0.86rem;
-  color: var(--text-dim);
-}
-
-/* -- choice cards -- */
-
-.pickers {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-@media (min-width: 560px) {
-  .pickers--grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
-
-.picker {
-  display: grid;
-  justify-items: start;
-  gap: 3px;
-  padding: 13px 14px;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  background: var(--surface);
-  cursor: pointer;
-  text-align: left;
-  transition: border-color 0.15s, background 0.15s;
-}
-
-.picker:hover {
-  background: var(--surface-2);
-}
-
-.picker[aria-pressed='true'] {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-}
-
-.picker__icon {
-  color: var(--accent);
-  margin-bottom: 2px;
-}
-
-.picker__label {
-  font-weight: 600;
-  font-size: 0.97rem;
-}
-
-.picker__blurb {
-  font-size: 0.82rem;
-  color: var(--text-dim);
-  line-height: 1.35;
-}
-
-/* The side chooser shows the actual piece rather than describing it. */
-.picker__piece {
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  margin-bottom: 4px;
-  border-radius: 50%;
-  font-family: ui-serif, 'Songti SC', 'SimSun', serif;
-  font-size: 1.15rem;
-  font-weight: 700;
-  background: radial-gradient(circle at 35% 30%, #fff8e8, #e5cfa4 78%, #c9ad7c);
-  box-shadow: inset 0 0 0 1.5px rgba(0, 0, 0, 0.14);
-}
-
-.picker__piece--red {
-  color: var(--red-piece);
-}
-
-.picker__piece--black {
-  color: #1f2933;
-}
-
-/* -- secondary destinations -- */
-
-.tiles {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.tile {
-  display: grid;
-  justify-items: center;
-  gap: 5px;
-  padding: 12px 6px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text-dim);
-  text-decoration: none;
-  font-size: 0.8rem;
-  text-align: center;
-}
-
-.tile:hover {
-  background: var(--surface-2);
-  color: var(--text);
-}
-
-/* --- board ---------------------------------------------------------------- */
-
-.board {
-  position: relative;
-  width: 100%;
-  /* 9 points wide by 10 tall, plus the padding built into the viewBox. */
-  aspect-ratio: 9.2 / 10.2;
-  user-select: none;
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
-}
-
-.board__grid {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-}
-
-.board__bg {
-  fill: var(--board-wood);
-}
-
-/*
- * Stroke widths for the board live on the SVG elements as attributes, not here.
- * A unitless CSS `stroke-width` means user units, but the CSS minifier
- * normalises `0.035` to `0.035px` — which SVG reads as a third of a *device
- * pixel*, and the whole grid disappears in the production build while looking
- * fine in dev. Presentation attributes are not rewritten, so they stay correct.
- */
-.board__frame {
-  fill: none;
-  stroke: var(--board-line);
-}
-
-.board__line {
-  stroke: var(--board-line);
-  stroke-linecap: square;
-}
-
-.board__river {
-  fill: var(--board-line);
-  /* Sized in board units like the grid, so it scales with the board. */
-  font-size: 0.42px;
-  letter-spacing: 0.06px;
-  opacity: 0.62;
-  font-weight: 700;
-  font-family: ui-serif, Georgia, 'Times New Roman', serif;
-}
-
-/*
- * An arrow from where the last move started to where it ended.
- *
- * The two faint dots were not enough on a crowded board — especially for the
- * computer's move, which the player is not watching as it happens. Drawn inside
- * the board's own SVG so it scales with everything else and needs no pixel
- * maths.
- */
-.board__arrow {
-  stroke: var(--accent);
-  stroke-opacity: 0.55;
-  stroke-linecap: round;
-  fill: none;
-  animation: arrow-in 0.28s ease-out;
-}
-
-.board__arrowhead {
-  fill: var(--accent);
-  fill-opacity: 0.55;
-  animation: arrow-in 0.28s ease-out;
-}
-
-@keyframes arrow-in {
-  from {
-    opacity: 0;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .board__arrow,
-  .board__arrowhead {
-    animation: none;
-  }
-}
-
-.board__points,
-.board__pieces {
-  position: absolute;
-  inset: 0;
-}
-
-/*
- * The pieces layer sits on top of the click targets and spans the whole board,
- * so without this it swallows every tap on an empty intersection — you could
- * select a piece but never move it. Only the discs themselves take input.
- */
-.board__pieces {
-  pointer-events: none;
-}
-
-.piece {
-  pointer-events: auto;
-}
-
-.board__point {
-  position: absolute;
-  width: 10%;
-  height: 9%;
-  transform: translate(-50%, -50%);
-  padding: 0;
-  margin: 0;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  display: grid;
-  place-items: center;
-}
-
-.board__point:disabled {
-  cursor: default;
-}
-
-.marker {
-  position: absolute;
-  border-radius: 50%;
-  pointer-events: none;
-}
-
-.marker--target {
-  width: 26%;
-  height: 26%;
-  background: rgba(47, 125, 79, 0.75);
-}
-
-.marker--capture {
-  width: 82%;
-  height: 82%;
-  border: 3px solid rgba(168, 51, 31, 0.85);
-  background: transparent;
-}
-
-.marker--last {
-  width: 92%;
-  height: 92%;
-  background: rgba(184, 134, 11, 0.22);
-}
-
-.marker--hint {
-  width: 92%;
-  height: 92%;
-  border: 2px dashed var(--ok);
-}
-
-.marker--selected {
-  width: 96%;
-  height: 96%;
-  border: 2px solid var(--ok);
-}
-
-.piece {
-  position: absolute;
-  width: 9.6%;
-  aspect-ratio: 1;
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  background: radial-gradient(circle at 35% 30%, #fff8e8, #e5cfa4 78%, #c9ad7c);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35), inset 0 0 0 2px rgba(0, 0, 0, 0.12);
-  /*
-   * A move should read as a hand lifting a piece and setting it down, so the
-   * curve eases at both ends and hurries through the middle. At the old 180ms
-   * the eye never caught the path at all — the piece simply appeared elsewhere.
-   */
-  transition:
-    left var(--move-ms) cubic-bezier(0.32, 0.08, 0.24, 1),
-    top var(--move-ms) cubic-bezier(0.32, 0.08, 0.24, 1),
-    transform 0.18s ease-out,
-    box-shadow var(--move-ms) ease-out;
-}
-
-/*
- * The piece that just moved rides above the others and casts a longer shadow,
- * which is what sells "lifted" rather than "slid along the board".
- */
-.piece--moving {
-  z-index: 3;
-  transform: translate(-50%, -50%) scale(1.07);
-  box-shadow: 0 8px 14px rgba(0, 0, 0, 0.4), inset 0 0 0 2px rgba(0, 0, 0, 0.12);
-}
-
-.piece__glyph {
-  font-family: ui-serif, 'Songti SC', 'SimSun', 'Noto Serif CJK SC', serif;
-  font-size: clamp(0.7rem, 4.2vw, 1.7rem);
-  font-weight: 700;
-  line-height: 1;
-}
-
-.board {
-  container-type: inline-size;
-}
-
-@container (min-width: 1px) {
-  .piece__glyph {
-    font-size: 5.2cqw;
-  }
-}
-
-.piece--red .piece__glyph {
-  color: var(--red-piece);
-}
-
-.piece--black .piece__glyph {
-  color: var(--black-piece);
-}
-
-.piece--selected {
-  box-shadow: 0 0 0 3px var(--ok), 0 2px 6px rgba(0, 0, 0, 0.4);
-}
-
-.piece--check {
-  animation: check-pulse 0.9s ease-in-out infinite;
-}
-
-/*
- * Capture. The taken piece stays mounted for one beat (see usePieceLayout) so
- * it can be seen leaving rather than blinking out — the moment a piece is lost
- * is the most important thing that happens in a move, and it deserves to
- * register. The ring expands past the disc to draw the eye to the square.
- */
-.piece--taken {
-  animation: piece-taken 0.42s cubic-bezier(0.4, 0, 0.6, 1) forwards;
-  pointer-events: none;
-  z-index: 0;
-}
-
-@keyframes piece-taken {
-  0% {
-    transform: translate(-50%, -50%) scale(1) rotate(0deg);
-    opacity: 1;
-  }
-  35% {
-    transform: translate(-50%, -50%) scale(1.14) rotate(-7deg);
-    opacity: 0.95;
-  }
-  100% {
-    transform: translate(-50%, -50%) scale(0.35) rotate(14deg);
-    opacity: 0;
-  }
-}
-
-.piece__burst {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  border: 2px solid var(--accent);
-  animation: piece-burst 0.42s ease-out forwards;
-}
-
-@keyframes piece-burst {
-  0% {
-    transform: scale(0.7);
-    opacity: 0.9;
-  }
-  100% {
-    transform: scale(2.3);
-    opacity: 0;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  /* Still show that something was taken, just without the flourish. */
-  .piece--taken {
-    animation: piece-taken-quiet 0.3s linear forwards;
-  }
-  .piece__burst {
-    animation: none;
-    opacity: 0;
-  }
-}
-
-@keyframes piece-taken-quiet {
-  to {
-    opacity: 0;
-  }
-}
-
-@keyframes check-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 2px var(--accent), 0 2px 4px rgba(0, 0, 0, 0.35);
-  }
-  50% {
-    box-shadow: 0 0 0 7px rgba(168, 51, 31, 0.28), 0 2px 4px rgba(0, 0, 0, 0.35);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .piece,
-  .piece--moving {
-    transition: none;
-    transform: translate(-50%, -50%);
-  }
-  .piece--check {
-    animation: none;
-    box-shadow: 0 0 0 3px var(--accent);
-  }
-}
-
-/* --- play screen ---------------------------------------------------------- */
-
-/*
- * The board is the screen. Everything else is either one line above it or
- * inside the drawer, so on a phone the board gets the full width and on a
- * desktop it gets the full height.
- */
-/*
- * Named areas rather than source order, because the same children have to form
- * a column on a phone and two columns on anything held sideways — and the
- * alternative, duplicating the markup per layout, is how the two versions drift
- * apart.
- */
-.stage {
-  display: grid;
-  gap: 12px;
-  grid-template-areas:
-    'update'
-    'bar'
-    'board'
-    'caption'
-    'insight'
-    'feed'
-    'end'
-    'hint';
-  /*
-   * The width limit lives on the stage, not on each child. Putting it on the
-   * children left them free to sit wherever the flex container placed them,
-   * which is how the board ended up off-centre on a wide window.
-   *
-   * The board is taller than it is wide, so on anything but a phone its size is
-   * governed by the window's *height* — minus the bar and caption above and
-   * below it, which is the part an earlier version forgot and why the board
-   * overflowed the bottom of short windows. `dvh` rather than `vh` so a mobile
-   * browser's disappearing toolbar does not count twice.
-   */
-  width: 100%;
-  max-width: min(100%, max(300px, calc((100dvh - 150px) * 0.9)));
-  margin-inline: auto;
-}
-
-.update {
-  grid-area: update;
-}
-
-/*
- * Held sideways, a portrait board leaves two empty columns beside it. Put the
- * status, the commentary and the result in one of them instead: the board can
- * then take the full height rather than being squeezed by everything stacked
- * above and below it.
- *
- * The breakpoint is low enough to catch a phone in landscape (812x375), where
- * stacking is worst — there the board would otherwise be about 200px tall.
- */
-@media (min-width: 700px) and (orientation: landscape) {
-  .stage {
-    max-width: min(100%, 1200px);
-    /*
-     * The board column is sized here rather than by its contents. Asking for
-     * `min-content` and then giving the board a percentage width is circular —
-     * the column waits on the board, the board waits on the column, and the
-     * board collapses to nothing. 9.2 wide by 10.2 tall means height times 0.9.
-     *
-     * Only the page's own padding is subtracted: unlike the stacked layout,
-     * nothing sits above or below the board here — the bar and the caption have
-     * moved into the column beside it.
-     */
-    grid-template-columns:
-      minmax(0, calc((100dvh - 44px) * 0.9))
-      minmax(240px, 340px);
-    grid-template-areas:
-      'board update'
-      'board bar'
-      'board caption'
-      'board insight'
-      'board feed'
-      'board end'
-      'board hint'
-      'board .';
-    /*
-     * The board spans every row, so without a row that takes the slack the
-     * others share the leftover height and the panel floats in the middle of
-     * the column. The last row absorbs it and everything sits at the top.
-     */
-    grid-template-rows: auto auto auto auto auto auto auto 1fr;
-    align-content: start;
-    justify-content: center;
-    gap: 12px 20px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    text-decoration: none;
+    color: var(--text-dim);
+    font-size: 0.92rem;
   }
 
-  .stage__board {
+  .topbar__link[aria-current='page'] {
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .page {
+    flex: 1;
     width: 100%;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 20px 16px 40px;
   }
 
-  /* Room to read, now that it is not stealing height from the board. */
-  .commentary__text {
-    -webkit-line-clamp: 6;
-    line-clamp: 6;
-  }
-}
-
-.stage__bar {
-  grid-area: bar;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-}
-
-.turn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.98rem;
-  /* Takes the slack so the two buttons stay pinned to the ends of the bar. */
-  flex: 1;
-}
-
-.stage__board {
-  grid-area: board;
-  position: relative;
-  width: 100%;
-}
-
-.stage__end {
-  grid-area: end;
-  width: 100%;
-  text-align: center;
-}
-
-.stage__hint {
-  grid-area: hint;
-  margin: 0;
-}
-
-.icon-btn {
-  margin-left: auto;
-  display: grid;
-  place-items: center;
-  width: 42px;
-  height: 42px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  cursor: pointer;
-  flex: none;
-}
-
-.icon-btn:hover {
-  background: var(--surface-2);
-}
-
-/* Pushed to the far end of the bar, away from the turn indicator. */
-.icon-btn--menu {
-  margin-left: auto;
-}
-
-/* Three bars drawn with borders, so no icon font or SVG is needed. */
-.icon-btn__bars,
-.icon-btn__bars::before,
-.icon-btn__bars::after {
-  display: block;
-  width: 17px;
-  height: 2px;
-  border-radius: 2px;
-  background: currentColor;
-}
-
-.icon-btn__bars {
-  position: relative;
-}
-
-.icon-btn__bars::before,
-.icon-btn__bars::after {
-  content: '';
-  position: absolute;
-  left: 0;
-}
-
-.icon-btn__bars::before {
-  top: -6px;
-}
-
-.icon-btn__bars::after {
-  top: 6px;
-}
-
-/* --- commentator caption --------------------------------------------------- */
-
-/*
- * What the commentator is saying, right now.
- *
- * It sits *under* the board, in the flow, not floating over it. An earlier
- * version fixed it above the bottom of the screen, where a three-line remark
- * covered the pieces it was talking about — commentary that hides the game is
- * worse than no commentary.
- *
- * The box keeps its height whether or not anything is being said, so the board
- * does not jump every time he opens his mouth. Two lines is the ceiling: the
- * script is written short, and this is the backstop if a line ever is not.
- *
- * Text is the fallback as much as the accompaniment — with no network there is
- * no voice, and this line is the whole of the commentary.
- */
-.commentary {
-  grid-area: caption;
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  width: min(100%, 560px);
-  margin: 10px auto 0;
-  min-height: 2.6em;
-  padding: 8px 12px;
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--surface) 70%, transparent);
-  color: var(--muted);
-  font-size: 0.85rem;
-  line-height: 1.4;
-}
-
-.commentary svg {
-  flex: none;
-  margin-top: 2px;
-  color: var(--accent);
-  opacity: 0.75;
-}
-
-.commentary__text {
-  font-style: italic;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  overflow: hidden;
-}
-
-/* --- profile stats --------------------------------------------------------- */
-
-.stat-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 12px;
-  margin-top: 14px;
-}
-
-.stat {
-  display: grid;
-  gap: 2px;
-}
-
-.stat__value {
-  font-size: 1.3rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.stat__label {
-  color: var(--muted);
-  font-size: 0.78rem;
-}
-
-/* --- match insight --------------------------------------------------------- */
-
-/*
- * Who is winning, drawn as bars.
- *
- * Only shown where there is room beside the board. On a phone held upright the
- * board already fills the screen, and pushing it up to make space for a chart
- * would trade the thing being played for a picture of it.
- */
-.insight {
-  grid-area: insight;
-  display: none;
-  gap: 6px;
-  padding: 12px 14px;
-  border-radius: 14px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-}
-
-/*
- * Held sideways the chart sits in the empty column; held upright on a tablet it
- * goes under the board, where there is still plenty of height. Only a phone
- * genuinely has nowhere to put it.
- */
-@media (min-width: 700px) {
-  .insight {
-    display: grid;
-  }
-}
-
-.insight__title {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  margin: 0 0 4px;
-  font-size: 0.9rem;
-}
-
-.insight__row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: 4px;
-}
-
-.insight__label {
-  color: var(--muted);
-  font-size: 0.78rem;
-}
-
-.insight__value {
-  font-size: 0.78rem;
-  font-variant-numeric: tabular-nums;
-}
-
-/* Red fills from the left, Black is whatever is left over. */
-.insight__bar {
-  height: 8px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--text) 22%, transparent);
-  overflow: hidden;
-}
-
-/*
- * Sized by transform, not by width.
- *
- * A `width` transition is a layout animation: the browser re-runs layout for
- * every frame, and there are fourteen of these bars updating after every single
- * move. `scaleX` on a full-width element is the same picture and costs the
- * compositor alone.
- */
-.insight__fill {
-  display: block;
-  width: 100%;
-  height: 100%;
-  border-radius: 999px;
-  transform-origin: left center;
-  transition: transform 0.45s ease-out;
-  will-change: transform;
-}
-
-.insight__fill--red {
-  background: var(--red-piece, #a8342a);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .insight__fill {
-    transition: none;
-  }
-}
-
-/* The track has to clip, now that the fill is always full width. */
-.axis__track {
-  overflow: hidden;
-}
-
-.insight__notes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 12px;
-  margin-top: 8px;
-  color: var(--muted);
-  font-size: 0.76rem;
-}
-
-/* --- thinking toast ------------------------------------------------------- */
-
-/*
- * The thinking pill sits on the river, in the middle of the board.
- *
- * It used to be fixed to the bottom of the window, which put it under the board
- * on a phone, beside it when held sideways, and halfway down an empty page on a
- * desktop — three different places for the same thing. Anchored to the board it
- * is always in the one spot the player is already looking at, and the river is
- * the only band of the board with no pieces on it.
- */
-.toast-layer {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  display: flex;
-  justify-content: center;
-  pointer-events: none;
-  z-index: 40;
-}
-
-.toast {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  padding: 10px 22px 10px 28px;
-  border-radius: 999px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow);
-  font-size: 0.92rem;
-  overflow: hidden;
-  animation: toast-in 0.22s ease-out;
-}
-
-@keyframes toast-in {
-  from {
-    opacity: 0;
-    transform: translateY(10px) scale(0.96);
-  }
-}
-
-/*
- * The travelling sheen that marks "still working". It is a conic gradient
- * rotating behind a slightly inset background, so only a rim of it shows —
- * the same trick that makes a glowing border without an extra element per edge.
- */
-.toast__glow {
-  position: absolute;
-  inset: -150%;
-  opacity: 0;
-  background: conic-gradient(
-    from 0deg,
-    transparent 0deg,
-    var(--accent) 60deg,
-    #d9a441 120deg,
-    transparent 200deg,
-    transparent 360deg
-  );
-  transition: opacity 0.3s;
-}
-
-.toast--busy .toast__glow {
-  opacity: 0.85;
-  animation: toast-spin 1.6s linear infinite;
-}
-
-.toast::after {
-  /* Masks the centre of the sheen, leaving it visible only as a rim. */
-  content: '';
-  position: absolute;
-  inset: 1.5px;
-  border-radius: inherit;
-  background: var(--surface);
-}
-
-.toast__body {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  /* The commentary is a sentence, not a status: let it wrap on a phone. */
-  max-width: min(78vw, 460px);
-}
-
-/* Three pulsing dots, so the pill reads as "still working" even mid-sentence. */
-.toast__dot {
-  position: relative;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--accent);
-  flex: none;
-  animation: toast-dot 1.2s ease-in-out infinite;
-}
-
-.toast__dot::before,
-.toast__dot::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: inherit;
-  animation: toast-dot 1.2s ease-in-out infinite;
-}
-
-.toast__dot::before {
-  left: -8px;
-  animation-delay: -0.24s;
-}
-
-.toast__dot::after {
-  left: 8px;
-  animation-delay: 0.24s;
-}
-
-@keyframes toast-dot {
-  0%,
-  100% {
-    opacity: 0.25;
-    transform: scale(0.8);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.1);
-  }
-}
-
-.toast__text {
-  font-weight: 500;
-  line-height: 1.35;
-  /* Keyed by line id in the component, so each new line fades in. */
-  animation: toast-line 0.32s ease-out;
-}
-
-@keyframes toast-line {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-}
-
-@media (max-width: 420px) {
-  .toast {
-    padding: 9px 16px;
-    font-size: 0.86rem;
+  /* The playing screen: no site chrome, minimal padding, board-first. */
+  .app--bare {
+    min-height: 100dvh;
   }
 
-  .toast__body {
-    gap: 8px;
-    max-width: 74vw;
+  .page--bare {
+    padding: 10px 10px 24px;
+    max-width: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
   }
-}
 
-@keyframes toast-spin {
-  to {
-    transform: rotate(1turn);
-  }
-}
-
-/* Animated ellipsis, so the pill itself never changes width. */
-.toast__dots::after {
-  content: '';
-  animation: toast-dots 1.4s steps(4, end) infinite;
-}
-
-@keyframes toast-dots {
-  0% {
-    content: '';
-  }
-  25% {
-    content: '.';
-  }
-  50% {
-    content: '..';
-  }
-  75% {
-    content: '...';
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .toast--busy .toast__glow {
-    animation: none;
-    opacity: 0.5;
-  }
-  .toast,
-  .toast__text,
-  .toast__dot,
-  .toast__dot::before,
-  .toast__dot::after {
-    animation: none;
-  }
-}
-
-/* --- drawer --------------------------------------------------------------- */
-
-.scrim {
-  position: fixed;
-  inset: 0;
-  background: rgba(20, 14, 10, 0.45);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.22s;
-  z-index: 50;
-}
-
-.scrim--open {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.drawer {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: min(400px, 88vw);
-  background: var(--surface);
-  border-left: 1px solid var(--border);
-  box-shadow: -8px 0 30px rgba(0, 0, 0, 0.22);
-  transform: translateX(100%);
-  transition: transform 0.26s cubic-bezier(0.32, 0.72, 0, 1);
-  /* Promote to its own layer so the slide is composited rather than repainted;
-     without it the close animation stutters on a phone. */
-  will-change: transform;
-  z-index: 51;
-  display: flex;
-  flex-direction: column;
-  padding-top: env(safe-area-inset-top);
-  padding-bottom: env(safe-area-inset-bottom);
-}
-
-.drawer--open {
-  transform: translateX(0);
-}
-
-/* Keep the closed drawer out of the tab order and off screen readers. */
-.drawer[aria-hidden='true'] {
-  visibility: hidden;
-  transition: transform 0.26s cubic-bezier(0.32, 0.72, 0, 1), visibility 0s linear 0.26s;
-}
-
-.drawer__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--border);
-}
-
-.drawer__head .icon-btn {
-  margin-left: 0;
-  width: 36px;
-  height: 36px;
-  font-size: 1rem;
-}
-
-.drawer__body {
-  flex: 1;
   /*
-   * `min-height: 0` is load-bearing. A flex child defaults to `min-height:
-   * auto`, which refuses to shrink below its content — so this panel grew to
-   * the full height of the move list instead of scrolling, and the sections
-   * below it spilled out of the drawer and printed over each other.
+   * A compact top bar once the window gets narrow.
+   *
+   * The nav scrolls sideways in a single row rather than wrapping onto a second
+   * line: wrapping pushed the brand into two lines and cost a third of the screen
+   * before any content appeared.
    */
-  min-height: 0;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
+  @media (max-width: 620px) {
+    .topbar {
+      padding: 8px 10px;
+      gap: 8px;
+    }
 
-.drawer__actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  flex: none;
-}
+    .topbar__brand {
+      font-size: 0.9rem;
+      white-space: nowrap;
+      flex: none;
+    }
 
-.drawer__actions .btn:first-child {
-  grid-column: 1 / -1;
-}
+    .topbar__nav {
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      gap: 2px;
+      /* Hide the scrollbar; the row is short and obviously swipeable. */
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
 
-.drawer__section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  flex: none;
-}
+    .topbar__nav::-webkit-scrollbar {
+      display: none;
+    }
 
-.drawer__title {
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-dim);
-}
-
-.drawer__credit {
-  margin: 0;
-  padding-top: 4px;
-  font-size: 0.8rem;
-  color: var(--text-dim);
-  text-align: center;
-  flex: none;
-}
-
-/* While the drawer is open the page behind it must not scroll. */
-body.drawer-open {
-  overflow: hidden;
-}
-
-.drawer__section .muted {
-  margin: 0;
-}
-
-.tray {
-  display: grid;
-  gap: 6px;
-}
-
-.tray__row {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-}
-
-.tray__label {
-  font-size: 0.84rem;
-  color: var(--text-dim);
-  flex: none;
-  width: 68px;
-}
-
-.tray__pieces {
-  font-family: ui-serif, 'Songti SC', 'SimSun', serif;
-  font-size: 1.15rem;
-  letter-spacing: 0.14em;
-  line-height: 1.4;
-}
-
-.tray__pieces--red {
-  color: var(--red-piece);
-}
-
-.tray__pieces--black {
-  color: var(--black-piece);
-}
-
-/* Small count badge, e.g. hints remaining. */
-.pill {
-  display: inline-grid;
-  place-items: center;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 5px;
-  border-radius: 999px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  font-size: 0.76rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.btn:disabled .pill {
-  opacity: 0.7;
-}
-
-.drawer__nav {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px;
-  flex: none;
-  border-top: 1px solid var(--border);
-  padding-top: 12px;
-}
-
-.drawer__nav a {
-  padding: 10px;
-  border-radius: 8px;
-  text-decoration: none;
-  color: var(--text);
-  font-size: 0.9rem;
-  text-align: center;
-  border: 1px solid transparent;
-}
-
-.drawer__nav a:hover {
-  background: var(--surface-2);
-}
-
-/* --- update notice -------------------------------------------------------- */
-
-.update {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  width: 100%;
-  padding: 10px 14px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: var(--surface-2);
-  font-size: 0.88rem;
-}
-
-.update__dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--ok);
-  flex: none;
-  animation: update-pulse 1.8s ease-in-out infinite;
-}
-
-@keyframes update-pulse {
-  50% {
-    opacity: 0.3;
-  }
-}
-
-.update__text {
-  flex: 1;
-  min-width: 160px;
-}
-
-.update__btn {
-  min-height: 34px;
-  padding: 5px 12px;
-  font-size: 0.85rem;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .update__dot {
-    animation: none;
-  }
-}
-
-.drawer__nav a[aria-current='page'] {
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-weight: 600;
-}
-
-/*
- * On a phone the drawer is the screen. The header stays pinned so "close" is
- * always reachable with a thumb, the buttons grow to a comfortable target, and
- * the scrolling body clears the home indicator.
- */
-@media (max-width: 560px) {
-  .drawer {
-    width: 100vw;
-    border-left: 0;
+    .topbar__link {
+      padding: 5px 9px;
+      font-size: 0.84rem;
+      white-space: nowrap;
+    }
   }
 
-  .drawer__head {
-    padding: 14px;
+  .page__title {
+    margin: 0 0 4px;
+    font-size: 1.5rem;
   }
 
-  .drawer__body {
-    padding: 14px 14px calc(24px + env(safe-area-inset-bottom));
-    gap: 16px;
+  .page__lede {
+    margin: 0 0 24px;
+    color: var(--text-dim);
   }
 
-  .drawer__actions {
+  /* --- generic bits --------------------------------------------------------- */
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    box-shadow: var(--shadow);
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 9px 16px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    cursor: pointer;
+    font-size: 0.94rem;
+    /* Comfortable tap target on a phone. */
+    min-height: 42px;
+    transition: background 0.15s, border-color 0.15s, transform 0.05s;
+  }
+
+  .btn:hover:not(:disabled) {
+    background: var(--surface-2);
+  }
+
+  .btn:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+
+  .btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .btn--primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    font-weight: 600;
+  }
+
+  .btn--primary:hover:not(:disabled) {
+    filter: brightness(1.08);
+    background: var(--accent);
+  }
+
+  .btn--danger {
+    color: var(--accent);
+  }
+
+  .icon {
+    flex: none;
+    display: block;
+  }
+
+  .btn .icon {
+    margin-right: -2px;
+  }
+
+  .btn-row {
+    display: flex;
+    flex-wrap: wrap;
     gap: 8px;
   }
 
-  .drawer__actions .btn {
-    min-height: 50px;
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .chip {
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    cursor: pointer;
+    font-size: 0.9rem;
+    min-height: 40px;
+  }
+
+  .chip[aria-pressed='true'] {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    font-weight: 600;
+  }
+
+  .muted {
+    color: var(--text-dim);
+    font-size: 0.88rem;
+  }
+
+  .banner {
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    margin-bottom: 16px;
+  }
+
+  .banner--error {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+
+  /* --- launcher (home) ------------------------------------------------------ */
+
+  /*
+   * A game's front door should look like a game. The choices are cards you can
+   * read at a glance rather than rows of grey pills, and an unfinished game gets
+   * the top of the screen — that is what someone returning came back for.
+   */
+  .launcher {
+    display: grid;
+    gap: 22px;
+    max-width: 640px;
+    margin: 0 auto;
+  }
+
+  .launcher__hero {
+    text-align: center;
+    display: grid;
+    justify-items: center;
+    gap: 6px;
+    padding: 8px 0 2px;
+  }
+
+  /* A single piece as the crest, in the same style as the board's discs. */
+  .launcher__crest {
+    width: 66px;
+    height: 66px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    font-family: ui-serif, 'Songti SC', 'SimSun', serif;
+    font-size: 2.1rem;
+    font-weight: 700;
+    color: var(--red-piece);
+    background: radial-gradient(circle at 35% 30%, #fff8e8, #e5cfa4 78%, #c9ad7c);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3), inset 0 0 0 2px rgba(0, 0, 0, 0.12);
+  }
+
+  .launcher__title {
+    margin: 4px 0 0;
+    font-size: 1.7rem;
+    letter-spacing: 0.01em;
+  }
+
+  .launcher__tagline {
+    margin: 0;
+    color: var(--text-dim);
     font-size: 0.95rem;
   }
 
-  .movelist {
-    max-height: 220px;
+  .launcher__section {
+    display: grid;
+    gap: 9px;
+  }
+
+  .launcher__label {
+    margin: 0;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--text-dim);
+  }
+
+  .launcher__start {
+    width: 100%;
+    min-height: 54px;
+    font-size: 1.05rem;
+  }
+
+  /* -- resume card -- */
+
+  .resume {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    border-radius: var(--radius);
+    border: 1px solid var(--accent);
+    background: var(--accent-soft);
+    text-decoration: none;
+    color: var(--text);
+  }
+
+  .resume:hover {
+    filter: brightness(0.98);
+  }
+
+  .resume__icon {
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    flex: none;
+  }
+
+  .resume__body {
+    display: grid;
+    gap: 1px;
+  }
+
+  .resume__title {
+    color: var(--accent);
+  }
+
+  .resume__meta {
+    font-size: 0.86rem;
+    color: var(--text-dim);
+  }
+
+  /* -- choice cards -- */
+
+  .pickers {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  @media (min-width: 560px) {
+    .pickers--grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+
+  .picker {
+    display: grid;
+    justify-items: start;
+    gap: 3px;
+    padding: 13px 14px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    cursor: pointer;
+    text-align: left;
+    transition: border-color 0.15s, background 0.15s;
+  }
+
+  .picker:hover {
+    background: var(--surface-2);
+  }
+
+  .picker[aria-pressed='true'] {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+
+  .picker__icon {
+    color: var(--accent);
+    margin-bottom: 2px;
+  }
+
+  .picker__label {
+    font-weight: 600;
+    font-size: 0.97rem;
+  }
+
+  .picker__blurb {
+    font-size: 0.82rem;
+    color: var(--text-dim);
+    line-height: 1.35;
+  }
+
+  /* The side chooser shows the actual piece rather than describing it. */
+  .picker__piece {
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    margin-bottom: 4px;
+    border-radius: 50%;
+    font-family: ui-serif, 'Songti SC', 'SimSun', serif;
+    font-size: 1.15rem;
+    font-weight: 700;
+    background: radial-gradient(circle at 35% 30%, #fff8e8, #e5cfa4 78%, #c9ad7c);
+    box-shadow: inset 0 0 0 1.5px rgba(0, 0, 0, 0.14);
+  }
+
+  .picker__piece--red {
+    color: var(--red-piece);
+  }
+
+  .picker__piece--black {
+    color: #1f2933;
+  }
+
+  /* -- secondary destinations -- */
+
+  .tiles {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .tile {
+    display: grid;
+    justify-items: center;
+    gap: 5px;
+    padding: 12px 6px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 0.8rem;
+    text-align: center;
+  }
+
+  .tile:hover {
+    background: var(--surface-2);
+    color: var(--text);
+  }
+
+  /* --- board ---------------------------------------------------------------- */
+
+  .board {
+    position: relative;
+    width: 100%;
+    /* 9 points wide by 10 tall, plus the padding built into the viewBox. */
+    aspect-ratio: 9.2 / 10.2;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  .board__grid {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+  }
+
+  .board__bg {
+    fill: var(--board-wood);
+  }
+
+  /*
+   * Stroke widths for the board live on the SVG elements as attributes, not here.
+   * A unitless CSS `stroke-width` means user units, but the CSS minifier
+   * normalises `0.035` to `0.035px` — which SVG reads as a third of a *device
+   * pixel*, and the whole grid disappears in the production build while looking
+   * fine in dev. Presentation attributes are not rewritten, so they stay correct.
+   */
+  .board__frame {
+    fill: none;
+    stroke: var(--board-line);
+  }
+
+  .board__line {
+    stroke: var(--board-line);
+    stroke-linecap: square;
+  }
+
+  .board__river {
+    fill: var(--board-line);
+    /* Sized in board units like the grid, so it scales with the board. */
+    font-size: 0.42px;
+    letter-spacing: 0.06px;
+    opacity: 0.62;
+    font-weight: 700;
+    font-family: ui-serif, Georgia, 'Times New Roman', serif;
+  }
+
+  /*
+   * An arrow from where the last move started to where it ended.
+   *
+   * The two faint dots were not enough on a crowded board — especially for the
+   * computer's move, which the player is not watching as it happens. Drawn inside
+   * the board's own SVG so it scales with everything else and needs no pixel
+   * maths.
+   */
+  .board__arrow {
+    stroke: var(--accent);
+    stroke-opacity: 0.55;
+    stroke-linecap: round;
+    fill: none;
+    animation: arrow-in 0.28s ease-out;
+  }
+
+  .board__arrowhead {
+    fill: var(--accent);
+    fill-opacity: 0.55;
+    animation: arrow-in 0.28s ease-out;
+  }
+
+  @keyframes arrow-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .board__arrow,
+    .board__arrowhead {
+      animation: none;
+    }
+  }
+
+  .board__points,
+  .board__pieces {
+    position: absolute;
+    inset: 0;
+  }
+
+  /*
+   * The pieces layer sits on top of the click targets and spans the whole board,
+   * so without this it swallows every tap on an empty intersection — you could
+   * select a piece but never move it. Only the discs themselves take input.
+   */
+  .board__pieces {
+    pointer-events: none;
+  }
+
+  .piece {
+    pointer-events: auto;
+  }
+
+  .board__point {
+    position: absolute;
+    width: 10%;
+    height: 9%;
+    transform: translate(-50%, -50%);
+    padding: 0;
+    margin: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+  }
+
+  .board__point:disabled {
+    cursor: default;
+  }
+
+  .marker {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+  }
+
+  .marker--target {
+    width: 26%;
+    height: 26%;
+    background: rgba(47, 125, 79, 0.75);
+  }
+
+  .marker--capture {
+    width: 82%;
+    height: 82%;
+    border: 3px solid rgba(168, 51, 31, 0.85);
+    background: transparent;
+  }
+
+  .marker--last {
+    width: 92%;
+    height: 92%;
+    background: rgba(184, 134, 11, 0.22);
+  }
+
+  .marker--hint {
+    width: 92%;
+    height: 92%;
+    border: 2px dashed var(--ok);
+  }
+
+  .marker--selected {
+    width: 96%;
+    height: 96%;
+    border: 2px solid var(--ok);
+  }
+
+  .piece {
+    position: absolute;
+    width: 9.6%;
+    aspect-ratio: 1;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    cursor: pointer;
+    background: radial-gradient(circle at 35% 30%, #fff8e8, #e5cfa4 78%, #c9ad7c);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35), inset 0 0 0 2px rgba(0, 0, 0, 0.12);
+    /*
+     * A move should read as a hand lifting a piece and setting it down, so the
+     * curve eases at both ends and hurries through the middle. At the old 180ms
+     * the eye never caught the path at all — the piece simply appeared elsewhere.
+     */
+    transition:
+      left var(--move-ms) cubic-bezier(0.32, 0.08, 0.24, 1),
+      top var(--move-ms) cubic-bezier(0.32, 0.08, 0.24, 1),
+      transform 0.18s ease-out,
+      box-shadow var(--move-ms) ease-out;
+  }
+
+  /*
+   * The piece that just moved rides above the others and casts a longer shadow,
+   * which is what sells "lifted" rather than "slid along the board".
+   */
+  .piece--moving {
+    z-index: 3;
+    transform: translate(-50%, -50%) scale(1.07);
+    box-shadow: 0 8px 14px rgba(0, 0, 0, 0.4), inset 0 0 0 2px rgba(0, 0, 0, 0.12);
+  }
+
+  .piece__glyph {
+    font-family: ui-serif, 'Songti SC', 'SimSun', 'Noto Serif CJK SC', serif;
+    font-size: clamp(0.7rem, 4.2vw, 1.7rem);
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .board {
+    container-type: inline-size;
+  }
+
+  @container (min-width: 1px) {
+    .piece__glyph {
+      font-size: 5.2cqw;
+    }
+  }
+
+  .piece--red .piece__glyph {
+    color: var(--red-piece);
+  }
+
+  .piece--black .piece__glyph {
+    color: var(--black-piece);
+  }
+
+  .piece--selected {
+    box-shadow: 0 0 0 3px var(--ok), 0 2px 6px rgba(0, 0, 0, 0.4);
+  }
+
+  .piece--check {
+    animation: check-pulse 0.9s ease-in-out infinite;
+  }
+
+  /*
+   * Capture. The taken piece stays mounted for one beat (see usePieceLayout) so
+   * it can be seen leaving rather than blinking out — the moment a piece is lost
+   * is the most important thing that happens in a move, and it deserves to
+   * register. The ring expands past the disc to draw the eye to the square.
+   */
+  .piece--taken {
+    animation: piece-taken 0.42s cubic-bezier(0.4, 0, 0.6, 1) forwards;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  @keyframes piece-taken {
+    0% {
+      transform: translate(-50%, -50%) scale(1) rotate(0deg);
+      opacity: 1;
+    }
+    35% {
+      transform: translate(-50%, -50%) scale(1.14) rotate(-7deg);
+      opacity: 0.95;
+    }
+    100% {
+      transform: translate(-50%, -50%) scale(0.35) rotate(14deg);
+      opacity: 0;
+    }
+  }
+
+  .piece__burst {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 2px solid var(--accent);
+    animation: piece-burst 0.42s ease-out forwards;
+  }
+
+  @keyframes piece-burst {
+    0% {
+      transform: scale(0.7);
+      opacity: 0.9;
+    }
+    100% {
+      transform: scale(2.3);
+      opacity: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    /* Still show that something was taken, just without the flourish. */
+    .piece--taken {
+      animation: piece-taken-quiet 0.3s linear forwards;
+    }
+    .piece__burst {
+      animation: none;
+      opacity: 0;
+    }
+  }
+
+  @keyframes piece-taken-quiet {
+    to {
+      opacity: 0;
+    }
+  }
+
+  @keyframes check-pulse {
+    0%,
+    100% {
+      box-shadow: 0 0 0 2px var(--accent), 0 2px 4px rgba(0, 0, 0, 0.35);
+    }
+    50% {
+      box-shadow: 0 0 0 7px rgba(168, 51, 31, 0.28), 0 2px 4px rgba(0, 0, 0, 0.35);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .piece,
+    .piece--moving {
+      transition: none;
+      transform: translate(-50%, -50%);
+    }
+    .piece--check {
+      animation: none;
+      box-shadow: 0 0 0 3px var(--accent);
+    }
+  }
+
+  /* --- play screen ---------------------------------------------------------- */
+
+  /*
+   * The board is the screen. Everything else is either one line above it or
+   * inside the drawer, so on a phone the board gets the full width and on a
+   * desktop it gets the full height.
+   */
+  /*
+   * Named areas rather than source order, because the same children have to form
+   * a column on a phone and two columns on anything held sideways — and the
+   * alternative, duplicating the markup per layout, is how the two versions drift
+   * apart.
+   */
+  .stage {
+    display: grid;
+    gap: 12px;
+    grid-template-areas:
+      'update'
+      'bar'
+      'board'
+      'caption'
+      'insight'
+      'feed'
+      'end'
+      'hint';
+    /*
+     * The width limit lives on the stage, not on each child. Putting it on the
+     * children left them free to sit wherever the flex container placed them,
+     * which is how the board ended up off-centre on a wide window.
+     *
+     * The board is taller than it is wide, so on anything but a phone its size is
+     * governed by the window's *height* — minus the bar and caption above and
+     * below it, which is the part an earlier version forgot and why the board
+     * overflowed the bottom of short windows. `dvh` rather than `vh` so a mobile
+     * browser's disappearing toolbar does not count twice.
+     */
+    width: 100%;
+    max-width: min(100%, max(300px, calc((100dvh - 150px) * 0.9)));
+    margin-inline: auto;
+  }
+
+  .update {
+    grid-area: update;
+  }
+
+  /*
+   * Held sideways, a portrait board leaves two empty columns beside it. Put the
+   * status, the commentary and the result in one of them instead: the board can
+   * then take the full height rather than being squeezed by everything stacked
+   * above and below it.
+   *
+   * The breakpoint is low enough to catch a phone in landscape (812x375), where
+   * stacking is worst — there the board would otherwise be about 200px tall.
+   */
+  @media (min-width: 700px) and (orientation: landscape) {
+    .stage {
+      max-width: min(100%, 1200px);
+      /*
+       * The board column is sized here rather than by its contents. Asking for
+       * `min-content` and then giving the board a percentage width is circular —
+       * the column waits on the board, the board waits on the column, and the
+       * board collapses to nothing. 9.2 wide by 10.2 tall means height times 0.9.
+       *
+       * Only the page's own padding is subtracted: unlike the stacked layout,
+       * nothing sits above or below the board here — the bar and the caption have
+       * moved into the column beside it.
+       */
+      grid-template-columns:
+        minmax(0, calc((100dvh - 44px) * 0.9))
+        minmax(240px, 340px);
+      grid-template-areas:
+        'board update'
+        'board bar'
+        'board caption'
+        'board insight'
+        'board feed'
+        'board end'
+        'board hint'
+        'board .';
+      /*
+       * The board spans every row, so without a row that takes the slack the
+       * others share the leftover height and the panel floats in the middle of
+       * the column. The last row absorbs it and everything sits at the top.
+       */
+      grid-template-rows: auto auto auto auto auto auto auto 1fr;
+      align-content: start;
+      justify-content: center;
+      gap: 12px 20px;
+    }
+
+    .stage__board {
+      width: 100%;
+    }
+
+    /* Room to read, now that it is not stealing height from the board. */
+    .commentary__text {
+      -webkit-line-clamp: 6;
+      line-clamp: 6;
+    }
+  }
+
+  .stage__bar {
+    grid-area: bar;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+  }
+
+  .turn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.98rem;
+    /* Takes the slack so the two buttons stay pinned to the ends of the bar. */
+    flex: 1;
+  }
+
+  .stage__board {
+    grid-area: board;
+    position: relative;
+    width: 100%;
+  }
+
+  .stage__end {
+    grid-area: end;
+    width: 100%;
+    text-align: center;
+  }
+
+  .stage__hint {
+    grid-area: hint;
+    margin: 0;
+  }
+
+  .icon-btn {
+    margin-left: auto;
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    cursor: pointer;
+    flex: none;
+  }
+
+  .icon-btn:hover {
+    background: var(--surface-2);
+  }
+
+  /* Pushed to the far end of the bar, away from the turn indicator. */
+  .icon-btn--menu {
+    margin-left: auto;
+  }
+
+  /* Three bars drawn with borders, so no icon font or SVG is needed. */
+  .icon-btn__bars,
+  .icon-btn__bars::before,
+  .icon-btn__bars::after {
+    display: block;
+    width: 17px;
+    height: 2px;
+    border-radius: 2px;
+    background: currentColor;
+  }
+
+  .icon-btn__bars {
+    position: relative;
+  }
+
+  .icon-btn__bars::before,
+  .icon-btn__bars::after {
+    content: '';
+    position: absolute;
+    left: 0;
+  }
+
+  .icon-btn__bars::before {
+    top: -6px;
+  }
+
+  .icon-btn__bars::after {
+    top: 6px;
+  }
+
+  /* --- commentator caption --------------------------------------------------- */
+
+  /*
+   * What the commentator is saying, right now.
+   *
+   * It sits *under* the board, in the flow, not floating over it. An earlier
+   * version fixed it above the bottom of the screen, where a three-line remark
+   * covered the pieces it was talking about — commentary that hides the game is
+   * worse than no commentary.
+   *
+   * The box keeps its height whether or not anything is being said, so the board
+   * does not jump every time he opens his mouth. Two lines is the ceiling: the
+   * script is written short, and this is the backstop if a line ever is not.
+   *
+   * Text is the fallback as much as the accompaniment — with no network there is
+   * no voice, and this line is the whole of the commentary.
+   */
+  .commentary {
+    grid-area: caption;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    width: min(100%, 560px);
+    margin: 10px auto 0;
+    min-height: 2.6em;
+    padding: 8px 12px;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--surface) 70%, transparent);
+    color: var(--muted);
+    font-size: 0.85rem;
+    line-height: 1.4;
+  }
+
+  .commentary svg {
+    flex: none;
+    margin-top: 2px;
+    color: var(--accent);
+    opacity: 0.75;
+  }
+
+  .commentary__text {
+    font-style: italic;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow: hidden;
+  }
+
+  /* --- profile stats --------------------------------------------------------- */
+
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 12px;
+    margin-top: 14px;
+  }
+
+  .stat {
+    display: grid;
+    gap: 2px;
+  }
+
+  .stat__value {
+    font-size: 1.3rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stat__label {
+    color: var(--muted);
+    font-size: 0.78rem;
+  }
+
+  /* --- match insight --------------------------------------------------------- */
+
+  /*
+   * Who is winning, drawn as bars.
+   *
+   * Only shown where there is room beside the board. On a phone held upright the
+   * board already fills the screen, and pushing it up to make space for a chart
+   * would trade the thing being played for a picture of it.
+   */
+  .insight {
+    grid-area: insight;
+    display: none;
+    gap: 6px;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+  }
+
+  /*
+   * Held sideways the chart sits in the empty column; held upright on a tablet it
+   * goes under the board, where there is still plenty of height. Only a phone
+   * genuinely has nowhere to put it.
+   */
+  @media (min-width: 700px) {
+    .insight {
+      display: grid;
+    }
+  }
+
+  .insight__title {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin: 0 0 4px;
+    font-size: 0.9rem;
+  }
+
+  .insight__row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  .insight__label {
+    color: var(--muted);
+    font-size: 0.78rem;
+  }
+
+  .insight__value {
+    font-size: 0.78rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Red fills from the left, Black is whatever is left over. */
+  .insight__bar {
+    height: 8px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--text) 22%, transparent);
+    overflow: hidden;
+  }
+
+  /*
+   * Sized by transform, not by width.
+   *
+   * A `width` transition is a layout animation: the browser re-runs layout for
+   * every frame, and there are fourteen of these bars updating after every single
+   * move. `scaleX` on a full-width element is the same picture and costs the
+   * compositor alone.
+   */
+  .insight__fill {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: 999px;
+    transform-origin: left center;
+    transition: transform 0.45s ease-out;
+    will-change: transform;
+  }
+
+  .insight__fill--red {
+    background: var(--red-piece, #a8342a);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .insight__fill {
+      transition: none;
+    }
+  }
+
+  /* The track has to clip, now that the fill is always full width. */
+  .axis__track {
+    overflow: hidden;
+  }
+
+  .insight__notes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    margin-top: 8px;
+    color: var(--muted);
+    font-size: 0.76rem;
+  }
+
+  /* --- thinking toast ------------------------------------------------------- */
+
+  /*
+   * The thinking pill sits on the river, in the middle of the board.
+   *
+   * It used to be fixed to the bottom of the window, which put it under the board
+   * on a phone, beside it when held sideways, and halfway down an empty page on a
+   * desktop — three different places for the same thing. Anchored to the board it
+   * is always in the one spot the player is already looking at, and the river is
+   * the only band of the board with no pieces on it.
+   */
+  .toast-layer {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 40;
+  }
+
+  .toast {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    padding: 10px 22px 10px 28px;
+    border-radius: 999px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    font-size: 0.92rem;
+    overflow: hidden;
+    animation: toast-in 0.22s ease-out;
+  }
+
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.96);
+    }
+  }
+
+  /*
+   * The travelling sheen that marks "still working". It is a conic gradient
+   * rotating behind a slightly inset background, so only a rim of it shows —
+   * the same trick that makes a glowing border without an extra element per edge.
+   */
+  .toast__glow {
+    position: absolute;
+    inset: -150%;
+    opacity: 0;
+    background: conic-gradient(
+      from 0deg,
+      transparent 0deg,
+      var(--accent) 60deg,
+      #d9a441 120deg,
+      transparent 200deg,
+      transparent 360deg
+    );
+    transition: opacity 0.3s;
+  }
+
+  .toast--busy .toast__glow {
+    opacity: 0.85;
+    animation: toast-spin 1.6s linear infinite;
+  }
+
+  .toast::after {
+    /* Masks the centre of the sheen, leaving it visible only as a rim. */
+    content: '';
+    position: absolute;
+    inset: 1.5px;
+    border-radius: inherit;
+    background: var(--surface);
+  }
+
+  .toast__body {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    /* The commentary is a sentence, not a status: let it wrap on a phone. */
+    max-width: min(78vw, 460px);
+  }
+
+  /* Three pulsing dots, so the pill reads as "still working" even mid-sentence. */
+  .toast__dot {
+    position: relative;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--accent);
+    flex: none;
+    animation: toast-dot 1.2s ease-in-out infinite;
+  }
+
+  .toast__dot::before,
+  .toast__dot::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: inherit;
+    animation: toast-dot 1.2s ease-in-out infinite;
+  }
+
+  .toast__dot::before {
+    left: -8px;
+    animation-delay: -0.24s;
+  }
+
+  .toast__dot::after {
+    left: 8px;
+    animation-delay: 0.24s;
+  }
+
+  @keyframes toast-dot {
+    0%,
+    100% {
+      opacity: 0.25;
+      transform: scale(0.8);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.1);
+    }
+  }
+
+  .toast__text {
+    font-weight: 500;
+    line-height: 1.35;
+    /* Keyed by line id in the component, so each new line fades in. */
+    animation: toast-line 0.32s ease-out;
+  }
+
+  @keyframes toast-line {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+  }
+
+  @media (max-width: 420px) {
+    .toast {
+      padding: 9px 16px;
+      font-size: 0.86rem;
+    }
+
+    .toast__body {
+      gap: 8px;
+      max-width: 74vw;
+    }
+  }
+
+  @keyframes toast-spin {
+    to {
+      transform: rotate(1turn);
+    }
+  }
+
+  /* Animated ellipsis, so the pill itself never changes width. */
+  .toast__dots::after {
+    content: '';
+    animation: toast-dots 1.4s steps(4, end) infinite;
+  }
+
+  @keyframes toast-dots {
+    0% {
+      content: '';
+    }
+    25% {
+      content: '.';
+    }
+    50% {
+      content: '..';
+    }
+    75% {
+      content: '...';
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .toast--busy .toast__glow {
+      animation: none;
+      opacity: 0.5;
+    }
+    .toast,
+    .toast__text,
+    .toast__dot,
+    .toast__dot::before,
+    .toast__dot::after {
+      animation: none;
+    }
+  }
+
+  /* --- drawer --------------------------------------------------------------- */
+
+  .scrim {
+    position: fixed;
+    inset: 0;
+    background: rgba(20, 14, 10, 0.45);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.22s;
+    z-index: 50;
+  }
+
+  .scrim--open {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(400px, 88vw);
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    box-shadow: -8px 0 30px rgba(0, 0, 0, 0.22);
+    transform: translateX(100%);
+    transition: transform 0.26s cubic-bezier(0.32, 0.72, 0, 1);
+    /* Promote to its own layer so the slide is composited rather than repainted;
+       without it the close animation stutters on a phone. */
+    will-change: transform;
+    z-index: 51;
+    display: flex;
+    flex-direction: column;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .drawer--open {
+    transform: translateX(0);
+  }
+
+  /* Keep the closed drawer out of the tab order and off screen readers. */
+  .drawer[aria-hidden='true'] {
+    visibility: hidden;
+    transition: transform 0.26s cubic-bezier(0.32, 0.72, 0, 1), visibility 0s linear 0.26s;
+  }
+
+  .drawer__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .drawer__head .icon-btn {
+    margin-left: 0;
+    width: 36px;
+    height: 36px;
+    font-size: 1rem;
+  }
+
+  .drawer__body {
+    flex: 1;
+    /*
+     * `min-height: 0` is load-bearing. A flex child defaults to `min-height:
+     * auto`, which refuses to shrink below its content — so this panel grew to
+     * the full height of the move list instead of scrolling, and the sections
+     * below it spilled out of the drawer and printed over each other.
+     */
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .drawer__actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    flex: none;
+  }
+
+  .drawer__actions .btn:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .drawer__section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: none;
+  }
+
+  .drawer__title {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-dim);
+  }
+
+  .drawer__credit {
+    margin: 0;
+    padding-top: 4px;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    text-align: center;
+    flex: none;
+  }
+
+  /* While the drawer is open the page behind it must not scroll. */
+  body.drawer-open {
+    overflow: hidden;
+  }
+
+  .drawer__section .muted {
+    margin: 0;
+  }
+
+  .tray {
+    display: grid;
+    gap: 6px;
+  }
+
+  .tray__row {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+
+  .tray__label {
+    font-size: 0.84rem;
+    color: var(--text-dim);
+    flex: none;
+    width: 68px;
   }
 
   .tray__pieces {
-    font-size: 1.3rem;
+    font-family: ui-serif, 'Songti SC', 'SimSun', serif;
+    font-size: 1.15rem;
+    letter-spacing: 0.14em;
+    line-height: 1.4;
   }
-}
 
-/* --- score sheet ---------------------------------------------------------- */
-
-/*
- * These rules were lost once already: a rewrite of the play-screen section
- * replaced everything between two comment markers, and the move list happened
- * to live inside that range. Nothing failed — the app built, type-checked and
- * rendered, just with the moves running together as one line of text.
- * `scripts/check-ui.mjs` now fails the build if any class loses its rule.
- */
-.movelist {
-  /* Bounded and scrolling in its own right, so a long game cannot push the
-     rest of the drawer off the screen. */
-  max-height: 240px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  flex: none;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface);
-}
-
-.movelist__row {
-  display: grid;
-  /* `minmax(0, …)` on the move columns: without it a long notation string sets
-     the column's minimum width and the two moves collide. */
-  grid-template-columns: 2.4rem minmax(0, 1fr) minmax(0, 1fr);
-  gap: 10px;
-  align-items: baseline;
-  padding: 6px 10px;
-  font-size: 0.88rem;
-  border-bottom: 1px solid var(--border);
-}
-
-.movelist__row > * {
-  min-width: 0;
-}
-
-.movelist__row:last-child {
-  border-bottom: 0;
-}
-
-.movelist__no {
-  color: var(--text-dim);
-  font-variant-numeric: tabular-nums;
-}
-
-.movelist__empty {
-  padding: 14px;
-  color: var(--text-dim);
-  font-size: 0.9rem;
-}
-
-.movelist__more {
-  display: block;
-  width: 100%;
-  padding: 8px;
-  border: 0;
-  border-top: 1px solid var(--border);
-  background: var(--surface-2);
-  color: var(--accent);
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-
-.movelist__more:hover {
-  filter: brightness(0.97);
-}
-
-/* --- review screen -------------------------------------------------------- */
-
-/*
- * Two columns on a wide window, stacked on a phone. The review screen keeps
- * this layout rather than the playing screen's bare stage: here the score sheet
- * and the controls are the point, not an interruption.
- */
-.play {
-  display: grid;
-  gap: 20px;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: start;
-}
-
-@media (min-width: 900px) {
-  .play {
-    grid-template-columns: minmax(320px, 1.4fr) minmax(280px, 1fr);
+  .tray__pieces--red {
+    color: var(--red-piece);
   }
-}
 
-.play__board {
-  width: 100%;
-  max-width: min(100%, 62vh);
-  margin: 0 auto;
-}
+  .tray__pieces--black {
+    color: var(--black-piece);
+  }
 
-.play__side {
-  display: grid;
-  gap: 14px;
-  min-width: 0;
-}
+  /* Small count badge, e.g. hints remaining. */
+  .pill {
+    display: inline-grid;
+    place-items: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    font-size: 0.76rem;
+    font-variant-numeric: tabular-nums;
+  }
 
-.status-line {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  font-size: 0.95rem;
-}
+  .btn:disabled .pill {
+    opacity: 0.7;
+  }
 
+  .drawer__nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+    flex: none;
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+  }
 
-/* --- hint sheet ------------------------------------------------------------ */
+  .drawer__nav a {
+    padding: 10px;
+    border-radius: 8px;
+    text-decoration: none;
+    color: var(--text);
+    font-size: 0.9rem;
+    text-align: center;
+    border: 1px solid transparent;
+  }
 
-/*
- * The three options, over the board.
- *
- * A sheet rather than the drawer: this is a question being asked, and it should
- * be answered and gone. It rises from the bottom on a phone, where the thumb
- * is, and centres on anything larger.
- */
-.sheet {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-}
+  .drawer__nav a:hover {
+    background: var(--surface-2);
+  }
 
-.sheet__scrim {
-  position: absolute;
-  inset: 0;
-  background: rgba(20, 14, 10, 0.42);
-}
+  /* --- update notice -------------------------------------------------------- */
 
-.sheet__panel {
-  position: relative;
-  width: min(100%, 460px);
-  max-height: 88dvh;
-  overflow-y: auto;
-  display: grid;
-  gap: 10px;
-  padding: 16px 16px calc(18px + env(safe-area-inset-bottom));
-  border-radius: 18px 18px 0 0;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow);
-  animation: sheet-in 0.2s ease-out;
-}
-
-@media (min-width: 560px) {
-  .sheet {
+  .update {
+    display: flex;
     align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    width: 100%;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    font-size: 0.88rem;
+  }
+
+  .update__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--ok);
+    flex: none;
+    animation: update-pulse 1.8s ease-in-out infinite;
+  }
+
+  @keyframes update-pulse {
+    50% {
+      opacity: 0.3;
+    }
+  }
+
+  .update__text {
+    flex: 1;
+    min-width: 160px;
+  }
+
+  .update__btn {
+    min-height: 34px;
+    padding: 5px 12px;
+    font-size: 0.85rem;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .update__dot {
+      animation: none;
+    }
+  }
+
+  .drawer__nav a[aria-current='page'] {
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  /*
+   * On a phone the drawer is the screen. The header stays pinned so "close" is
+   * always reachable with a thumb, the buttons grow to a comfortable target, and
+   * the scrolling body clears the home indicator.
+   */
+  @media (max-width: 560px) {
+    .drawer {
+      width: 100vw;
+      border-left: 0;
+    }
+
+    .drawer__head {
+      padding: 14px;
+    }
+
+    .drawer__body {
+      padding: 14px 14px calc(24px + env(safe-area-inset-bottom));
+      gap: 16px;
+    }
+
+    .drawer__actions {
+      gap: 8px;
+    }
+
+    .drawer__actions .btn {
+      min-height: 50px;
+      font-size: 0.95rem;
+    }
+
+    .movelist {
+      max-height: 220px;
+    }
+
+    .tray__pieces {
+      font-size: 1.3rem;
+    }
+  }
+
+  /* --- score sheet ---------------------------------------------------------- */
+
+  /*
+   * These rules were lost once already: a rewrite of the play-screen section
+   * replaced everything between two comment markers, and the move list happened
+   * to live inside that range. Nothing failed — the app built, type-checked and
+   * rendered, just with the moves running together as one line of text.
+   * `scripts/check-ui.mjs` now fails the build if any class loses its rule.
+   */
+  .movelist {
+    /* Bounded and scrolling in its own right, so a long game cannot push the
+       rest of the drawer off the screen. */
+    max-height: 240px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    flex: none;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+  }
+
+  .movelist__row {
+    display: grid;
+    /* `minmax(0, …)` on the move columns: without it a long notation string sets
+       the column's minimum width and the two moves collide. */
+    grid-template-columns: 2.4rem minmax(0, 1fr) minmax(0, 1fr);
+    gap: 10px;
+    align-items: baseline;
+    padding: 6px 10px;
+    font-size: 0.88rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .movelist__row > * {
+    min-width: 0;
+  }
+
+  .movelist__row:last-child {
+    border-bottom: 0;
+  }
+
+  .movelist__no {
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .movelist__empty {
+    padding: 14px;
+    color: var(--text-dim);
+    font-size: 0.9rem;
+  }
+
+  .movelist__more {
+    display: block;
+    width: 100%;
+    padding: 8px;
+    border: 0;
+    border-top: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--accent);
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+
+  .movelist__more:hover {
+    filter: brightness(0.97);
+  }
+
+  /* --- review screen -------------------------------------------------------- */
+
+  /*
+   * Two columns on a wide window, stacked on a phone. The review screen keeps
+   * this layout rather than the playing screen's bare stage: here the score sheet
+   * and the controls are the point, not an interruption.
+   */
+  .play {
+    display: grid;
+    gap: 20px;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+
+  @media (min-width: 900px) {
+    .play {
+      grid-template-columns: minmax(320px, 1.4fr) minmax(280px, 1fr);
+    }
+  }
+
+  .play__board {
+    width: 100%;
+    max-width: min(100%, 62vh);
+    margin: 0 auto;
+  }
+
+  .play__side {
+    display: grid;
+    gap: 14px;
+    min-width: 0;
+  }
+
+  .status-line {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    font-size: 0.95rem;
+  }
+
+
+  /* --- hint sheet ------------------------------------------------------------ */
+
+  /*
+   * The three options, over the board.
+   *
+   * A sheet rather than the drawer: this is a question being asked, and it should
+   * be answered and gone. It rises from the bottom on a phone, where the thumb
+   * is, and centres on anything larger.
+   */
+  .sheet {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+  }
+
+  .sheet__scrim {
+    position: absolute;
+    inset: 0;
+    background: rgba(20, 14, 10, 0.42);
   }
 
   .sheet__panel {
-    border-radius: 18px;
-    padding-bottom: 18px;
+    position: relative;
+    width: min(100%, 460px);
+    max-height: 88dvh;
+    overflow-y: auto;
+    display: grid;
+    gap: 10px;
+    padding: 16px 16px calc(18px + env(safe-area-inset-bottom));
+    border-radius: 18px 18px 0 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    animation: sheet-in 0.2s ease-out;
   }
-}
 
-@keyframes sheet-in {
-  from {
-    opacity: 0;
-    transform: translateY(16px);
+  @media (min-width: 560px) {
+    .sheet {
+      align-items: center;
+    }
+
+    .sheet__panel {
+      border-radius: 18px;
+      padding-bottom: 18px;
+    }
   }
-}
 
-@media (prefers-reduced-motion: reduce) {
-  .sheet__panel {
-    animation: none;
+  @keyframes sheet-in {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
   }
-}
 
-.sheet__head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.sheet__title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0;
-  flex: 1;
-  font-size: 1.02rem;
-}
-
-.sheet__note {
-  margin: 0;
-  font-size: 0.9rem;
-}
-
-/* The honest warning when nothing on offer actually saves the position. */
-.sheet__warn {
-  margin: 0;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--loss, #b4534a) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--loss, #b4534a) 35%, transparent);
-  font-size: 0.88rem;
-  line-height: 1.45;
-}
-
-.hint-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 12px;
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  background: var(--surface-2);
-  text-align: left;
-  cursor: pointer;
-  font: inherit;
-  color: inherit;
-}
-
-.hint-card:hover {
-  border-color: var(--accent);
-}
-
-/* The engine's own first choice, marked so the ordering is not just implied. */
-.hint-card--best {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface-2));
-}
-
-.hint-card__rank {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  font-size: 0.82rem;
-  font-weight: 600;
-}
-
-.hint-card__body {
-  display: grid;
-  gap: 2px;
-  flex: 1;
-  min-width: 0;
-}
-
-.hint-card__move {
-  font-weight: 600;
-  font-size: 0.98rem;
-}
-
-.hint-card__why {
-  color: var(--muted);
-  font-size: 0.82rem;
-  line-height: 1.4;
-}
-
-.hint-card__verdict {
-  flex: none;
-  color: var(--muted);
-  font-size: 0.78rem;
-  white-space: nowrap;
-}
-
-/* --- history -------------------------------------------------------------- */
-
-.game-list {
-  display: grid;
-  gap: 10px;
-}
-
-.game-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface);
-}
-
-.game-row__main {
-  flex: 1;
-  min-width: 180px;
-}
-
-.game-row__title {
-  font-weight: 600;
-}
-
-.badge {
-  font-size: 0.76rem;
-  padding: 2px 8px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--surface-2);
-  color: var(--text-dim);
-  white-space: nowrap;
-}
-
-.badge--win {
-  color: var(--ok);
-  border-color: currentColor;
-}
-
-.badge--loss {
-  color: var(--accent);
-  border-color: currentColor;
-}
-
-.empty {
-  padding: 32px 16px;
-  text-align: center;
-  color: var(--text-dim);
-}
-
-.field {
-  display: grid;
-  gap: 6px;
-  margin-bottom: 14px;
-}
-
-.field__label {
-  font-size: 0.88rem;
-  color: var(--text-dim);
-}
-
-.switch-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.switch-row:last-child {
-  border-bottom: 0;
-}
-
-/* --- check, said loudly ---------------------------------------------------- */
-
-/*
- * Being in check used to be a small grey badge in the status line. It was
- * technically an announcement and practically invisible: a player looking at the
- * board never saw it, and losing to a check nobody told you about feels like the
- * app cheated. So it is now said three times over — on the board's own frame, as
- * a band across the board, and in the status line — because this is the one
- * piece of information a player must not miss.
- */
-.board--check {
-  box-shadow: 0 0 0 3px var(--danger, #b3261e), 0 0 26px rgba(179, 38, 30, 0.45);
-  border-radius: 6px;
-}
-
-/*
- * The pulse is a separate layer, not a filter on the board.
- *
- * `filter` on the container was the obvious way to write this and it was a
- * mistake: a filter forces the browser to re-rasterise everything underneath it
- * — the grid, all thirty-two pieces, the arrows — on every frame of the
- * animation, for as long as the check lasts. On a phone that is exactly the
- * stutter it looked like.
- *
- * An overlay animating nothing but `opacity` is handled by the compositor: no
- * layout, no paint, no involvement from the pieces at all.
- */
-.stage__board--check::after {
-  content: '';
-  position: absolute;
-  inset: -6px;
-  border-radius: 10px;
-  pointer-events: none;
-  box-shadow: inset 0 0 0 3px var(--danger, #b3261e);
-  animation: alarm 1.4s ease-in-out infinite;
-  will-change: opacity;
-}
-
-@keyframes alarm {
-  0%,
-  100% {
-    opacity: 0.25;
+  @media (prefers-reduced-motion: reduce) {
+    .sheet__panel {
+      animation: none;
+    }
   }
-  50% {
+
+  .sheet__head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .sheet__title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    flex: 1;
+    font-size: 1.02rem;
+  }
+
+  .sheet__note {
+    margin: 0;
+    font-size: 0.9rem;
+  }
+
+  /* The honest warning when nothing on offer actually saves the position. */
+  .sheet__warn {
+    margin: 0;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--loss, #b4534a) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--loss, #b4534a) 35%, transparent);
+    font-size: 0.88rem;
+    line-height: 1.45;
+  }
+
+  .hint-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 12px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    text-align: left;
+    cursor: pointer;
+    font: inherit;
+    color: inherit;
+  }
+
+  .hint-card:hover {
+    border-color: var(--accent);
+  }
+
+  /* The engine's own first choice, marked so the ordering is not just implied. */
+  .hint-card--best {
+    border-color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 10%, var(--surface-2));
+  }
+
+  .hint-card__rank {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    font-size: 0.82rem;
+    font-weight: 600;
+  }
+
+  .hint-card__body {
+    display: grid;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .hint-card__move {
+    font-weight: 600;
+    font-size: 0.98rem;
+  }
+
+  .hint-card__why {
+    color: var(--muted);
+    font-size: 0.82rem;
+    line-height: 1.4;
+  }
+
+  .hint-card__verdict {
+    flex: none;
+    color: var(--muted);
+    font-size: 0.78rem;
+    white-space: nowrap;
+  }
+
+  /* --- history -------------------------------------------------------------- */
+
+  .game-list {
+    display: grid;
+    gap: 10px;
+  }
+
+  .game-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+  }
+
+  .game-row__main {
+    flex: 1;
+    min-width: 180px;
+  }
+
+  .game-row__title {
+    font-weight: 600;
+  }
+
+  .badge {
+    font-size: 0.76rem;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text-dim);
+    white-space: nowrap;
+  }
+
+  .badge--win {
+    color: var(--ok);
+    border-color: currentColor;
+  }
+
+  .badge--loss {
+    color: var(--accent);
+    border-color: currentColor;
+  }
+
+  .empty {
+    padding: 32px 16px;
+    text-align: center;
+    color: var(--text-dim);
+  }
+
+  .field {
+    display: grid;
+    gap: 6px;
+    margin-bottom: 14px;
+  }
+
+  .field__label {
+    font-size: 0.88rem;
+    color: var(--text-dim);
+  }
+
+  .switch-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .switch-row:last-child {
+    border-bottom: 0;
+  }
+
+  /* --- check, said loudly ---------------------------------------------------- */
+
+  /*
+   * Being in check used to be a small grey badge in the status line. It was
+   * technically an announcement and practically invisible: a player looking at the
+   * board never saw it, and losing to a check nobody told you about feels like the
+   * app cheated. So it is now said three times over — on the board's own frame, as
+   * a band across the board, and in the status line — because this is the one
+   * piece of information a player must not miss.
+   */
+  .board--check {
+    box-shadow: 0 0 0 3px var(--danger, #b3261e), 0 0 26px rgba(179, 38, 30, 0.45);
+    border-radius: 6px;
+  }
+
+  /*
+   * The pulse is a separate layer, not a filter on the board.
+   *
+   * `filter` on the container was the obvious way to write this and it was a
+   * mistake: a filter forces the browser to re-rasterise everything underneath it
+   * — the grid, all thirty-two pieces, the arrows — on every frame of the
+   * animation, for as long as the check lasts. On a phone that is exactly the
+   * stutter it looked like.
+   *
+   * An overlay animating nothing but `opacity` is handled by the compositor: no
+   * layout, no paint, no involvement from the pieces at all.
+   */
+  .stage__board--check::after {
+    content: '';
+    position: absolute;
+    inset: -6px;
+    border-radius: 10px;
+    pointer-events: none;
+    box-shadow: inset 0 0 0 3px var(--danger, #b3261e);
+    animation: alarm 1.4s ease-in-out infinite;
+    will-change: opacity;
+  }
+
+  @keyframes alarm {
+    0%,
+    100% {
+      opacity: 0.25;
+    }
+    50% {
+      opacity: 0.9;
+    }
+  }
+
+  .flare {
+    position: absolute;
+    left: 50%;
+    top: 4%;
+    transform: translateX(-50%);
+    pointer-events: none;
+    z-index: 5;
+  }
+
+  .flare__text {
+    display: inline-block;
+    padding: 5px 14px;
+    border-radius: 999px;
+    background: var(--danger, #b3261e);
+    color: #fff;
+    font-weight: 700;
+    font-size: 0.86rem;
+    letter-spacing: 0.02em;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    animation: flare-in 0.35s ease-out;
+  }
+
+  @keyframes flare-in {
+    from {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+  }
+
+  .badge--alarm {
+    margin-left: 8px;
+    padding: 2px 9px;
+    border-radius: 999px;
+    background: var(--danger, #b3261e);
+    color: #fff;
+    font-size: 0.78rem;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .stage__board--check::after,
+    .flare__text {
+      animation: none;
+    }
+    .stage__board--check::after {
+      opacity: 0.8;
+    }
+  }
+
+  /* --- previewing a suggested move ------------------------------------------ */
+
+  /*
+   * Dashed, and in a different colour from the last-move arrow, because the two
+   * mean opposite things: one is what happened, the other is what has not happened
+   * and might not. A preview drawn the same way as history would be a lie about
+   * the state of the game.
+   */
+  .board__arrow--preview {
+    stroke: var(--ok);
+    stroke-dasharray: 0.22 0.16;
     opacity: 0.9;
   }
-}
 
-.flare {
-  position: absolute;
-  left: 50%;
-  top: 4%;
-  transform: translateX(-50%);
-  pointer-events: none;
-  z-index: 5;
-}
-
-.flare__text {
-  display: inline-block;
-  padding: 5px 14px;
-  border-radius: 999px;
-  background: var(--danger, #b3261e);
-  color: #fff;
-  font-weight: 700;
-  font-size: 0.86rem;
-  letter-spacing: 0.02em;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
-  animation: flare-in 0.35s ease-out;
-}
-
-@keyframes flare-in {
-  from {
-    opacity: 0;
-    transform: translateY(-6px);
+  .board__arrowhead--preview {
+    fill: var(--ok);
+    opacity: 0.9;
   }
-}
 
-.badge--alarm {
-  margin-left: 8px;
-  padding: 2px 9px;
-  border-radius: 999px;
-  background: var(--danger, #b3261e);
-  color: #fff;
-  font-size: 0.78rem;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .stage__board--check::after,
-  .flare__text {
-    animation: none;
-  }
-  .stage__board--check::after {
-    opacity: 0.8;
-  }
-}
-
-/* --- previewing a suggested move ------------------------------------------ */
-
-/*
- * Dashed, and in a different colour from the last-move arrow, because the two
- * mean opposite things: one is what happened, the other is what has not happened
- * and might not. A preview drawn the same way as history would be a lie about
- * the state of the game.
- */
-.board__arrow--preview {
-  stroke: var(--ok);
-  stroke-dasharray: 0.22 0.16;
-  opacity: 0.9;
-}
-
-.board__arrowhead--preview {
-  fill: var(--ok);
-  opacity: 0.9;
-}
-
-/** The square the move would take. */
-.marker--claim {
-  width: 78%;
-  height: 78%;
-  border-radius: 50%;
-  border: 2px dashed var(--ok);
-  animation: claim-pulse 1.5s ease-in-out infinite;
-}
-
-/** An enemy piece that move would then be attacking. */
-.marker--menaced {
-  width: 96%;
-  height: 96%;
-  border-radius: 50%;
-  border: 2px solid var(--accent);
-  box-shadow: 0 0 12px rgba(168, 51, 31, 0.5);
-}
-
-@keyframes claim-pulse {
-  0%,
-  100% {
-    opacity: 0.55;
-    transform: scale(0.92);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.04);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
+  /** The square the move would take. */
   .marker--claim {
-    animation: none;
-    opacity: 0.85;
+    width: 78%;
+    height: 78%;
+    border-radius: 50%;
+    border: 2px dashed var(--ok);
+    animation: claim-pulse 1.5s ease-in-out infinite;
   }
-}
 
-/*
- * While a move is being shown, the sheet gets out of the way rather than
- * closing. Closing would lose the comparison; staying put would hide the very
- * thing it is asking the player to look at.
- */
-.sheet--peek .sheet__panel {
-  transform: translateY(calc(100% - 190px));
-}
+  /** An enemy piece that move would then be attacking. */
+  .marker--menaced {
+    width: 96%;
+    height: 96%;
+    border-radius: 50%;
+    border: 2px solid var(--accent);
+    box-shadow: 0 0 12px rgba(168, 51, 31, 0.5);
+  }
 
-.sheet--peek .sheet__scrim {
-  opacity: 0;
-  pointer-events: none;
-}
+  @keyframes claim-pulse {
+    0%,
+    100% {
+      opacity: 0.55;
+      transform: scale(0.92);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.04);
+    }
+  }
 
-.hint-card {
-  display: grid;
-  gap: 8px;
-}
+  @media (prefers-reduced-motion: reduce) {
+    .marker--claim {
+      animation: none;
+      opacity: 0.85;
+    }
+  }
 
-.hint-card__pick {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  text-align: left;
-  background: none;
-  border: 0;
-  padding: 0;
-  color: inherit;
-  cursor: pointer;
-  font: inherit;
-}
+  /*
+   * While a move is being shown, the sheet gets out of the way rather than
+   * closing. Closing would lose the comparison; staying put would hide the very
+   * thing it is asking the player to look at.
+   */
+  .sheet--peek .sheet__panel {
+    transform: translateY(calc(100% - 190px));
+  }
 
-.hint-card--shown {
-  border-color: var(--ok);
-  box-shadow: 0 0 0 1px var(--ok);
-}
-
-.hint-card__go {
-  width: 100%;
-}
-
-/* --- the result, over the board -------------------------------------------- */
-
-.over {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  display: grid;
-  place-items: center;
-  padding: 20px;
-}
-
-.over__scrim {
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.55);
-}
-
-.over__panel {
-  position: relative;
-  width: min(100%, 380px);
-  padding: 22px 20px;
-  border-radius: 16px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
-  text-align: center;
-  animation: over-in 0.28s cubic-bezier(0.2, 0.9, 0.3, 1);
-}
-
-/* A stripe rather than a colour wash: readable in both themes, and it does not
-   turn a loss into a red screen the player wants to close unread. */
-.over__panel--win {
-  border-top: 4px solid var(--ok);
-}
-
-.over__panel--loss {
-  border-top: 4px solid var(--danger, #b3261e);
-}
-
-.over__panel--draw {
-  border-top: 4px solid var(--text-dim);
-}
-
-@keyframes over-in {
-  from {
+  .sheet--peek .sheet__scrim {
     opacity: 0;
-    transform: translateY(14px) scale(0.97);
+    pointer-events: none;
   }
-}
 
-.over__title {
-  margin: 0 0 4px;
-  font-size: 1.35rem;
-}
+  .hint-card {
+    display: grid;
+    gap: 8px;
+  }
 
-.over__reason {
-  margin: 0 0 10px;
-  color: var(--text-dim);
-  font-size: 0.94rem;
-}
+  .hint-card__pick {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: 0;
+    padding: 0;
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+  }
 
-.over__note {
-  margin: 0 0 16px;
-  font-size: 0.9rem;
-}
+  .hint-card--shown {
+    border-color: var(--ok);
+    box-shadow: 0 0 0 1px var(--ok);
+  }
 
-.over__actions {
-  display: grid;
-  gap: 8px;
-}
+  .hint-card__go {
+    width: 100%;
+  }
 
-.over__action {
-  width: 100%;
-  justify-content: center;
-}
+  /* --- the result, over the board -------------------------------------------- */
 
-.over__saving {
-  font-size: 0.86rem;
-}
+  .over {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+  }
 
-@media (prefers-reduced-motion: reduce) {
+  .over__scrim {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+  }
+
   .over__panel {
-    animation: none;
+    position: relative;
+    width: min(100%, 380px);
+    padding: 22px 20px;
+    border-radius: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+    text-align: center;
+    animation: over-in 0.28s cubic-bezier(0.2, 0.9, 0.3, 1);
   }
-}
 
-/* --- commentary as a feed --------------------------------------------------- */
-
-.feed {
-  grid-area: feed;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--surface);
-  padding: 12px 14px;
-  min-width: 0;
-}
-
-.feed__title {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  margin: 0 0 8px;
-  font-size: 0.92rem;
-  color: var(--text-dim);
-}
-
-.feed__empty {
-  margin: 0;
-  font-size: 0.88rem;
-}
-
-/*
- * Newest at the top and scrolled from the top, which is how a live chat reads.
- * A transcript runs the other way, but a transcript is for afterwards — during
- * the game the line you want is the one that just arrived.
- */
-.feed__list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  max-height: 260px;
-  overflow-y: auto;
-  display: grid;
-  gap: 8px;
-}
-
-.feed__item {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 8px;
-  align-items: start;
-  font-size: 0.88rem;
-  line-height: 1.45;
-  animation: feed-in 0.3s ease-out;
-}
-
-.feed__ply {
-  min-width: 22px;
-  padding: 1px 5px;
-  border-radius: 5px;
-  background: var(--surface-2);
-  color: var(--text-dim);
-  font-size: 0.74rem;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-}
-
-.feed__text {
-  min-width: 0;
-}
-
-@keyframes feed-in {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
+  /* A stripe rather than a colour wash: readable in both themes, and it does not
+     turn a loss into a red screen the player wants to close unread. */
+  .over__panel--win {
+    border-top: 4px solid var(--ok);
   }
-}
 
-@media (prefers-reduced-motion: reduce) {
+  .over__panel--loss {
+    border-top: 4px solid var(--danger, #b3261e);
+  }
+
+  .over__panel--draw {
+    border-top: 4px solid var(--text-dim);
+  }
+
+  @keyframes over-in {
+    from {
+      opacity: 0;
+      transform: translateY(14px) scale(0.97);
+    }
+  }
+
+  .over__title {
+    margin: 0 0 4px;
+    font-size: 1.35rem;
+  }
+
+  .over__reason {
+    margin: 0 0 10px;
+    color: var(--text-dim);
+    font-size: 0.94rem;
+  }
+
+  .over__note {
+    margin: 0 0 16px;
+    font-size: 0.9rem;
+  }
+
+  .over__actions {
+    display: grid;
+    gap: 8px;
+  }
+
+  .over__action {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .over__saving {
+    font-size: 0.86rem;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .over__panel {
+      animation: none;
+    }
+  }
+
+  /* --- commentary as a feed --------------------------------------------------- */
+
+  .feed {
+    grid-area: feed;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--surface);
+    padding: 12px 14px;
+    min-width: 0;
+  }
+
+  .feed__title {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin: 0 0 8px;
+    font-size: 0.92rem;
+    color: var(--text-dim);
+  }
+
+  .feed__empty {
+    margin: 0;
+    font-size: 0.88rem;
+  }
+
+  /*
+   * Newest at the top and scrolled from the top, which is how a live chat reads.
+   * A transcript runs the other way, but a transcript is for afterwards — during
+   * the game the line you want is the one that just arrived.
+   */
+  .feed__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 260px;
+    overflow-y: auto;
+    display: grid;
+    gap: 8px;
+  }
+
   .feed__item {
-    animation: none;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 8px;
+    align-items: start;
+    font-size: 0.88rem;
+    line-height: 1.45;
+    animation: feed-in 0.3s ease-out;
   }
-}
 
-/* --- the position, as six readings ------------------------------------------ */
+  .feed__ply {
+    min-width: 22px;
+    padding: 1px 5px;
+    border-radius: 5px;
+    background: var(--surface-2);
+    color: var(--text-dim);
+    font-size: 0.74rem;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
 
-.radar {
-  margin: 14px 0 4px;
-  display: grid;
-  justify-items: center;
-  gap: 6px;
-}
+  .feed__text {
+    min-width: 0;
+  }
 
-.radar svg {
-  width: 100%;
-  max-width: 210px;
-  height: auto;
-}
+  @keyframes feed-in {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+  }
 
-.radar__ring {
-  fill: none;
-  stroke: var(--border);
-  stroke-width: 0.5;
-}
+  @media (prefers-reduced-motion: reduce) {
+    .feed__item {
+      animation: none;
+    }
+  }
 
-.radar__spoke {
-  stroke: var(--border);
-  stroke-width: 0.4;
-}
+  /* --- the position, as six readings ------------------------------------------ */
 
-.radar__area {
-  stroke-width: 1.2;
-  fill-opacity: 0.22;
-}
+  .radar {
+    margin: 14px 0 4px;
+    display: grid;
+    justify-items: center;
+    gap: 6px;
+  }
 
-.radar__area--red {
-  fill: var(--accent);
-  stroke: var(--accent);
-}
+  .radar svg {
+    width: 100%;
+    max-width: 210px;
+    height: auto;
+  }
 
-.radar__area--black {
-  fill: var(--text-dim);
-  stroke: var(--text-dim);
-}
+  .radar__ring {
+    fill: none;
+    stroke: var(--border);
+    stroke-width: 0.5;
+  }
 
-.radar__legend {
-  display: flex;
-  gap: 14px;
-  font-size: 0.78rem;
-  color: var(--text-dim);
-}
+  .radar__spoke {
+    stroke: var(--border);
+    stroke-width: 0.4;
+  }
 
-.radar__key {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
+  .radar__area {
+    stroke-width: 1.2;
+    fill-opacity: 0.22;
+  }
 
-.radar__key::before {
-  content: '';
-  width: 9px;
-  height: 9px;
-  border-radius: 2px;
-}
+  .radar__area--red {
+    fill: var(--accent);
+    stroke: var(--accent);
+  }
 
-.radar__key--red::before {
-  background: var(--accent);
-}
+  .radar__area--black {
+    fill: var(--text-dim);
+    stroke: var(--text-dim);
+  }
 
-.radar__key--black::before {
-  background: var(--text-dim);
-}
+  .radar__legend {
+    display: flex;
+    gap: 14px;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+  }
 
-/*
- * Each axis is repeated as a labelled bar under the chart. The radar shows the
- * shape at a glance and is hopeless for reading an exact value off; the bars are
- * the opposite. Neither replaces the other, and the note under each says what it
- * counts, because an axis nobody can define is decoration.
- */
-.axis-list {
-  list-style: none;
-  margin: 10px 0 0;
-  padding: 0;
-  display: grid;
-  gap: 9px;
-}
+  .radar__key {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
 
-.axis {
-  display: grid;
-  gap: 3px;
-}
+  .radar__key::before {
+    content: '';
+    width: 9px;
+    height: 9px;
+    border-radius: 2px;
+  }
 
-.axis__head {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  font-size: 0.84rem;
-}
+  .radar__key--red::before {
+    background: var(--accent);
+  }
 
-.axis__label {
-  color: var(--text);
-}
+  .radar__key--black::before {
+    background: var(--text-dim);
+  }
 
-.axis__value {
-  color: var(--text-dim);
-  font-variant-numeric: tabular-nums;
-}
+  /*
+   * Each axis is repeated as a labelled bar under the chart. The radar shows the
+   * shape at a glance and is hopeless for reading an exact value off; the bars are
+   * the opposite. Neither replaces the other, and the note under each says what it
+   * counts, because an axis nobody can define is decoration.
+   */
+  .axis-list {
+    list-style: none;
+    margin: 10px 0 0;
+    padding: 0;
+    display: grid;
+    gap: 9px;
+  }
 
-.axis__track {
-  display: grid;
-  gap: 2px;
-}
+  .axis {
+    display: grid;
+    gap: 3px;
+  }
 
-.axis__bar {
-  display: block;
-  width: 100%;
-  height: 5px;
-  border-radius: 3px;
-  transform-origin: left center;
-  transition: transform 0.35s ease;
-  will-change: transform;
-}
+  .axis__head {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 0.84rem;
+  }
 
-.axis__bar--red {
-  background: var(--accent);
-}
+  .axis__label {
+    color: var(--text);
+  }
 
-.axis__bar--black {
-  background: var(--text-dim);
-}
+  .axis__value {
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+  }
 
-.axis__note {
-  font-size: 0.74rem;
-  color: var(--text-dim);
-}
+  .axis__track {
+    display: grid;
+    gap: 2px;
+  }
 
-@media (prefers-reduced-motion: reduce) {
   .axis__bar {
-    transition: none;
+    display: block;
+    width: 100%;
+    height: 5px;
+    border-radius: 3px;
+    transform-origin: left center;
+    transition: transform 0.35s ease;
+    will-change: transform;
   }
-}
 
-/* --- which build is running -------------------------------------------------- */
+  .axis__bar--red {
+    background: var(--accent);
+  }
 
-/*
- * A definition list rather than a table: these are labelled facts, not rows of
- * data, and a table would have to invent a header nobody needs.
- */
-.ver {
-  margin: 0;
-  display: grid;
-  gap: 7px;
-}
+  .axis__bar--black {
+    background: var(--text-dim);
+  }
 
-.ver__row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
-}
+  .axis__note {
+    font-size: 0.74rem;
+    color: var(--text-dim);
+  }
 
-.ver__label {
-  color: var(--text-dim);
-  font-size: 0.88rem;
-  flex: none;
-}
+  @media (prefers-reduced-motion: reduce) {
+    .axis__bar {
+      transition: none;
+    }
+  }
 
-.ver__value {
-  margin: 0;
-  text-align: right;
-  min-width: 0;
-  /* Build ids are long and have no spaces; without this they push the card wide. */
-  overflow-wrap: anywhere;
-}
+  /* --- which build is running -------------------------------------------------- */
 
-/* Build identities are strings to compare character by character, not to read. */
-.ver__mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.82rem;
-}
+  /*
+   * A definition list rather than a table: these are labelled facts, not rows of
+   * data, and a table would have to invent a header nobody needs.
+   */
+  .ver {
+    margin: 0;
+    display: grid;
+    gap: 7px;
+  }
 
-.ver__newer {
-  color: var(--ok);
-}
+  .ver__row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
 
-.ver__note {
-  margin: 10px 0 0;
-  font-size: 0.84rem;
-}
+  .ver__label {
+    color: var(--text-dim);
+    font-size: 0.88rem;
+    flex: none;
+  }
 
-.ver__state {
-  margin: 10px 0 12px;
-  padding: 8px 11px;
-  border-radius: 9px;
-  background: var(--surface-2);
-  font-size: 0.88rem;
-}
+  .ver__value {
+    margin: 0;
+    text-align: right;
+    min-width: 0;
+    /* Build ids are long and have no spaces; without this they push the card wide. */
+    overflow-wrap: anywhere;
+  }
 
-.ver__state--stale {
-  background: color-mix(in srgb, var(--ok) 16%, transparent);
-  border: 1px solid color-mix(in srgb, var(--ok) 45%, transparent);
+  /* Build identities are strings to compare character by character, not to read. */
+  .ver__mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.82rem;
+  }
+
+  .ver__newer {
+    color: var(--ok);
+  }
+
+  .ver__note {
+    margin: 10px 0 0;
+    font-size: 0.84rem;
+  }
+
+  .ver__state {
+    margin: 10px 0 12px;
+    padding: 8px 11px;
+    border-radius: 9px;
+    background: var(--surface-2);
+    font-size: 0.88rem;
+  }
+
+  .ver__state--stale {
+    background: color-mix(in srgb, var(--ok) 16%, transparent);
+    border: 1px solid color-mix(in srgb, var(--ok) 45%, transparent);
+  }
+
 }

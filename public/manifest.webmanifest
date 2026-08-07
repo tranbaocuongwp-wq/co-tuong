@@ -1,20 +1,31 @@
 {
+  "id": "/co-tuong/",
   "name": "Đệ Nhất Cờ Tướng",
-  "short_name": "Đệ Nhất Cờ Tướng",
+  "short_name": "Cờ Tướng",
   "description": "Cờ Tướng offline với engine mạnh — chơi trên máy tính và điện thoại, không cần mạng.",
   "lang": "vi",
   "dir": "ltr",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
   "orientation": "any",
   "background_color": "#1b1410",
-  "theme_color": "#1b1410",
-  "categories": [
-    "games",
-    "entertainment"
-  ],
+  "theme_color": "#962a15",
+  "categories": ["games", "entertainment", "education"],
   "icons": [
+    {
+      "src": "./favicon-32.png",
+      "sizes": "32x32",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-180.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
     {
       "src": "./icon-192.png",
       "sizes": "192x192",
@@ -43,11 +54,21 @@
   "shortcuts": [
     {
       "name": "Chơi ngay",
-      "url": "./#/play"
+      "short_name": "Chơi",
+      "url": "./#/play",
+      "icons": [{ "src": "./icon-192.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
       "name": "Lịch sử ván đấu",
-      "url": "./#/history"
+      "short_name": "Lịch sử",
+      "url": "./#/history",
+      "icons": [{ "src": "./icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Hồ sơ",
+      "short_name": "Hồ sơ",
+      "url": "./#/profile",
+      "icons": [{ "src": "./icon-192.png", "sizes": "192x192", "type": "image/png" }]
     }
   ]
 }

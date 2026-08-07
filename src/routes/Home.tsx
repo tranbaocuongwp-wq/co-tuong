@@ -1,17 +1,36 @@
 /**
  * The launcher.
  *
- * A game's front door should look like a game, not like a settings form. The
- * previous version was three rows of grey pills; this one puts the choices on
- * cards you can read at a glance, and gives an unfinished game the top of the
- * screen — that is what someone returning actually came for.
+ * The version before this one explained itself: every option carried a sentence
+ * of description, so starting a game meant reading a paragraph first — "Bốn
+ * mức, từ dễ tới siêu khó", "Cùng chơi trên một máy", "Đi trước". None of that
+ * tells anyone anything they did not already know from the label, and all of it
+ * pushed the actual Start button below the fold on a phone.
+ *
+ * So: three rows of choices, one button, and nothing to read. The whole screen
+ * fits above the fold on the smallest phone worth supporting, and the thing
+ * someone opening the app came to do is the biggest thing on it.
+ *
+ * A game already in progress takes the top, because a returning player did not
+ * come here to configure anything.
  */
 
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
+import {
+  BookOpen,
+  Bot,
+  History,
+  Info,
+  Play,
+  Settings,
+  UserRound,
+  Users,
+} from 'lucide-react'
 
-import { Icon } from '../components/Icon'
-import type { IconName } from '../components/Icon'
+import { Author } from '../components/Author'
+import { Button } from '../components/ui/button'
+import { Segmented } from '../components/ui/segmented'
 import type { Difficulty, Side } from '../engine/types'
 import { DIFFICULTY_ORDER, DIFFICULTY_PRESETS } from '../engine/types'
 import type { GameMode } from '../game/useGame'
@@ -19,20 +38,29 @@ import { useSettings } from '../settings'
 import { getHistoryStore } from '../storage'
 import type { GameRecord } from '../storage/types'
 
-const MODES: { value: GameMode; label: string; blurb: string; icon: IconName }[] = [
-  { value: 'pve', label: 'Đấu với máy', blurb: 'Bốn mức, từ dễ tới siêu khó', icon: 'board' },
-  { value: 'pvp', label: 'Hai người', blurb: 'Cùng chơi trên một máy', icon: 'people' },
+const MODES = [
+  { value: 'pve' as GameMode, label: 'Máy', icon: Bot },
+  { value: 'pvp' as GameMode, label: 'Hai người', icon: Users },
 ]
 
-const SIDES: { value: Side; label: string; blurb: string; glyph: string }[] = [
-  { value: 'r', label: 'Quân Đỏ', blurb: 'Đi trước', glyph: '帥' },
-  { value: 'b', label: 'Quân Đen', blurb: 'Đi sau', glyph: '將' },
+const SIDES = [
+  { value: 'r' as Side, label: 'Đỏ', glyph: '帥' },
+  { value: 'b' as Side, label: 'Đen', glyph: '將' },
 ]
 
-const LINKS: { to: string; label: string; icon: IconName }[] = [
-  { to: '/history', label: 'Lịch sử', icon: 'history' },
-  { to: '/settings', label: 'Cài đặt', icon: 'settings' },
-  { to: '/about', label: 'Giới thiệu', icon: 'info' },
+/** Names that fit a quarter of a phone's width without wrapping. */
+const SHORT_DIFFICULTY: Partial<Record<Difficulty, string>> = {
+  easy: 'Dễ',
+  medium: 'Vừa',
+  hard: 'Khó',
+  master: 'Siêu khó',
+}
+
+const LINKS = [
+  { to: '/profile', label: 'Hồ sơ', icon: UserRound },
+  { to: '/history', label: 'Lịch sử', icon: History },
+  { to: '/settings', label: 'Cài đặt', icon: Settings },
+  { to: '/about', label: 'Giới thiệu', icon: Info },
 ]
 
 export function HomePage() {
@@ -58,109 +86,108 @@ export function HomePage() {
   const canResume = resumable !== null && resumable.moveCount > 0
 
   return (
-    <div className="launcher">
-      <header className="launcher__hero">
-        <span className="launcher__crest" aria-hidden="true">
+    <div className="mx-auto flex w-full max-w-md flex-col gap-4">
+      <header className="flex items-center gap-3 pt-1">
+        <span
+          className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-accent text-2xl text-white"
+          aria-hidden="true"
+        >
           帥
         </span>
-        <h1 className="launcher__title">Đệ Nhất Cờ Tướng</h1>
-        <p className="launcher__tagline">Chơi ngoại tuyến. Máy mạnh, và biết rút kinh nghiệm.</p>
+        <div className="min-w-0">
+          <h1 className="truncate text-xl leading-tight font-bold">Đệ Nhất Cờ Tướng</h1>
+          <p className="text-sm text-ink-dim">Chơi ngoại tuyến</p>
+        </div>
       </header>
 
       {canResume && (
-        <Link className="resume" to="/play">
-          <span className="resume__icon" aria-hidden="true">
-            <Icon name="play" size={22} />
+        <Link
+          to="/play"
+          className="flex items-center gap-3 rounded-2xl border border-accent bg-accent-soft p-3 transition-[filter] hover:brightness-105"
+        >
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-accent text-white">
+            <Play size={18} fill="currentColor" />
           </span>
-          <span className="resume__body">
-            <strong className="resume__title">Chơi tiếp ván dở</strong>
-            <span className="resume__meta">
+          <span className="min-w-0 flex-1">
+            <strong className="block text-[0.95rem] leading-tight">Chơi tiếp</strong>
+            <span className="text-sm text-ink-dim">
               {resumable.moveCount} nước
-              {resumable.difficulty ? ` · mức ${DIFFICULTY_PRESETS[resumable.difficulty].label}` : ''}
+              {resumable.difficulty
+                ? ` · ${DIFFICULTY_PRESETS[resumable.difficulty].label}`
+                : ''}
             </span>
           </span>
         </Link>
       )}
 
-      <section className="launcher__section">
-        <h2 className="launcher__label">Đối thủ</h2>
-        <div className="pickers">
-          {MODES.map((m) => (
-            <button
-              key={m.value}
-              type="button"
-              className="picker"
-              aria-pressed={settings.mode === m.value}
-              onClick={() => update({ mode: m.value })}
-            >
-              <span className="picker__icon" aria-hidden="true">
-                <Icon name={m.icon} size={22} />
-              </span>
-              <span className="picker__label">{m.label}</span>
-              <span className="picker__blurb">{m.blurb}</span>
-            </button>
-          ))}
-        </div>
-      </section>
+      <Segmented
+        label="Đối thủ"
+        options={MODES}
+        value={settings.mode}
+        onChange={(mode) => update({ mode })}
+      />
 
       {settings.mode === 'pve' && (
         <>
-          <section className="launcher__section">
-            <h2 className="launcher__label">Mức khó</h2>
-            <div className="pickers pickers--grid">
-              {DIFFICULTY_ORDER.map((d: Difficulty) => (
-                <button
-                  key={d}
-                  type="button"
-                  className="picker"
-                  aria-pressed={settings.difficulty === d}
-                  onClick={() => update({ difficulty: d })}
-                >
-                  <span className="picker__label">{DIFFICULTY_PRESETS[d].label}</span>
-                  <span className="picker__blurb">{DIFFICULTY_PRESETS[d].blurb}</span>
-                </button>
-              ))}
-            </div>
-          </section>
-
-          <section className="launcher__section">
-            <h2 className="launcher__label">Bạn cầm quân</h2>
-            <div className="pickers">
-              {SIDES.map((s) => (
-                <button
-                  key={s.value}
-                  type="button"
-                  className="picker"
-                  aria-pressed={settings.playerSide === s.value}
-                  onClick={() => update({ playerSide: s.value, flipped: s.value === 'b' })}
-                >
-                  <span
-                    className={`picker__piece picker__piece--${s.value === 'r' ? 'red' : 'black'}`}
-                    aria-hidden="true"
-                  >
-                    {s.glyph}
-                  </span>
-                  <span className="picker__label">{s.label}</span>
-                  <span className="picker__blurb">{s.blurb}</span>
-                </button>
-              ))}
-            </div>
-          </section>
+          <Segmented
+            label="Mức khó"
+            // Short labels here rather than the full preset names: "Trung
+            // bình" wraps onto two lines in a quarter-width cell and makes the
+            // whole row taller than its neighbours for no gain in clarity.
+            options={DIFFICULTY_ORDER.map((d: Difficulty) => ({
+              value: d,
+              label: SHORT_DIFFICULTY[d] ?? DIFFICULTY_PRESETS[d].label,
+            }))}
+            value={settings.difficulty}
+            onChange={(difficulty) => update({ difficulty })}
+          />
+          <Segmented
+            label="Cầm quân"
+            options={SIDES}
+            value={settings.playerSide}
+            onChange={(playerSide) =>
+              update({ playerSide, flipped: playerSide === 'b' })
+            }
+          />
         </>
       )}
 
-      <button type="button" className="btn btn--primary launcher__start" onClick={startFresh}>
-        <Icon name="play" size={20} /> {canResume ? 'Bắt đầu ván mới' : 'Bắt đầu'}
-      </button>
+      {/*
+        The one thing this screen exists for.
 
-      <nav className="tiles" aria-label="Các mục khác">
-        {LINKS.map((l) => (
-          <Link key={l.to} className="tile" to={l.to}>
-            <Icon name={l.icon} size={20} />
-            <span>{l.label}</span>
+        Taller than anything else on the page, full width, filled rather than
+        outlined, and carrying a shadow so it sits above the cards instead of
+        among them. On a launcher every control competes for the eye, and the
+        way you win that competition is not by being clever — it is by being
+        visibly bigger than everything around you.
+      */}
+      <Button
+        variant="primary"
+        size="lg"
+        className="h-16 w-full rounded-2xl text-lg shadow-[0_8px_24px_-6px_var(--accent)] active:translate-y-px"
+        onClick={startFresh}
+      >
+        <Play size={24} fill="currentColor" />
+        {canResume ? 'Ván mới' : 'Bắt đầu'}
+      </Button>
+
+      <nav className="grid grid-cols-4 gap-2" aria-label="Các mục khác">
+        {LINKS.map(({ to, label, icon: Icon }) => (
+          <Link
+            key={to}
+            to={to}
+            className="flex min-h-[68px] flex-col items-center justify-center gap-1.5 rounded-2xl border border-border bg-surface text-xs text-ink-dim transition-colors hover:bg-surface-2 hover:text-ink"
+          >
+            <Icon size={19} />
+            {label}
           </Link>
         ))}
       </nav>
+
+      <footer className="flex items-center justify-center gap-1 pt-1 pb-2 text-sm text-ink-dim">
+        <BookOpen size={13} aria-hidden="true" />
+        <Author />
+      </footer>
     </div>
   )
 }

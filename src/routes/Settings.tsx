@@ -1,8 +1,27 @@
+/**
+ * Settings, cut down to settings.
+ *
+ * The previous version explained every switch in a full sentence and a half —
+ * what the perpetual-check rule does, what the commentator says when it is
+ * bored, what happens to the voice when the network drops. All of it true, all
+ * of it three screens of reading on a phone, and none of it what someone came
+ * to this page for. They came to flip something.
+ *
+ * So each row is now a name, at most one short clause, and a switch. The
+ * explanations moved to the About page, which is the page whose job is
+ * explaining.
+ */
+
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Download, HardDrive, Save, Trash2, Upload } from 'lucide-react'
 
 import { downloadVoicePack } from '../audio/pack'
-import { Icon } from '../components/Icon'
+import { Button } from '../components/ui/button'
+import { Card, CardTitle } from '../components/ui/card'
+import { Segmented } from '../components/ui/segmented'
+import { Switch } from '../components/ui/switch'
 import { getEngineClient } from '../engine/client'
+import type { Difficulty } from '../engine/types'
 import { DIFFICULTY_ORDER, DIFFICULTY_PRESETS } from '../engine/types'
 import { engineVersion } from '../engine/wasm'
 import { useSettings } from '../settings'
@@ -16,33 +35,34 @@ import {
 
 const EXPERIENCE_KEY = 'engine.experience'
 
+/** Short enough to fit beside a switch on a 375px screen. */
+const SHORT: Partial<Record<Difficulty, string>> = {
+  easy: 'Dễ',
+  medium: 'Vừa',
+  hard: 'Khó',
+  master: 'Siêu khó',
+}
+
+const SWITCHES: {
+  key: 'flipped' | 'showHints' | 'sound' | 'voice' | 'perpetualRule' | 'learnFromGames'
+  label: string
+  hint?: string
+}[] = [
+  { key: 'flipped', label: 'Lật bàn cờ', hint: 'Đen ở phía dưới' },
+  { key: 'showHints', label: 'Tô sáng nước gợi ý' },
+  { key: 'sound', label: 'Âm thanh' },
+  { key: 'voice', label: 'Bình luận viên', hint: 'Cần mạng để có tiếng' },
+  { key: 'perpetualRule', label: 'Xử thua khi chiếu lặp', hint: 'Lặp 5 lần' },
+  { key: 'learnFromGames', label: 'Máy rút kinh nghiệm' },
+]
+
 export function SettingsPage() {
+  const { settings, update } = useSettings()
+
   const [packBusy, setPackBusy] = useState(false)
   const [packPercent, setPackPercent] = useState(0)
   const [packNote, setPackNote] = useState<string | null>(null)
-
-  const onDownloadPack = useCallback(async () => {
-    setPackBusy(true)
-    setPackPercent(0)
-    setPackNote(null)
-    try {
-      const result = await downloadVoicePack(({ done, total }) =>
-        setPackPercent(Math.round((done / total) * 100))
-      )
-      setPackNote(
-        result.failed > 0
-          ? `Đã tải ${result.fetched + result.already}/${result.total} câu. ${result.failed} câu chưa có bản ghi, sẽ hiện chữ thay vì đọc.`
-          : `Xong. ${result.total} câu đã nằm trong máy, không cần mạng nữa.`
-      )
-    } catch (e) {
-      setPackNote(e instanceof Error ? e.message : 'Không tải được.')
-    } finally {
-      setPackBusy(false)
-    }
-  }, [])
-
-  const { settings, update } = useSettings()
-  const [storeKind, setStoreKind] = useState<string>('…')
+  const [storeKind, setStoreKind] = useState('…')
   const [experienceSize, setExperienceSize] = useState<number | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -69,12 +89,32 @@ export function SettingsPage() {
     void refreshExperience()
   }, [refreshExperience])
 
+  const onDownloadPack = useCallback(async () => {
+    setPackBusy(true)
+    setPackPercent(0)
+    setPackNote(null)
+    try {
+      const result = await downloadVoicePack(({ done, total }) =>
+        setPackPercent(Math.round((done / total) * 100))
+      )
+      setPackNote(
+        result.failed > 0
+          ? `${result.fetched + result.already}/${result.total} câu đã tải. ${result.failed} câu chưa có bản ghi.`
+          : `Xong — ${result.total} câu đã nằm trong máy.`
+      )
+    } catch (e) {
+      setPackNote(e instanceof Error ? e.message : 'Không tải được.')
+    } finally {
+      setPackBusy(false)
+    }
+  }, [])
+
   const clearExperience = useCallback(async () => {
     await getEngineClient().loadExperience('')
     const store = await getHistoryStore()
     await store.setState(EXPERIENCE_KEY, '')
     await refreshExperience()
-    setNotice('Đã xóa những gì máy học được.')
+    setNotice('Đã xoá kinh nghiệm của máy.')
   }, [refreshExperience])
 
   // Backup lives here rather than on the history page: it is maintenance, and
@@ -108,144 +148,97 @@ export function SettingsPage() {
     const store = await getHistoryStore()
     await store.clearGames()
     await store.saveInProgress(null)
-    setNotice('Đã xóa toàn bộ lịch sử ván đấu.')
+    setNotice('Đã xoá toàn bộ lịch sử.')
   }, [])
 
-  const toggle = (
-    key: 'sound' | 'voice' | 'showHints' | 'flipped' | 'learnFromGames' | 'perpetualRule',
-    label: string,
-    help: string
-  ) => (
-    <div className="switch-row">
-      <div>
-        <div>{label}</div>
-        <div className="muted">{help}</div>
-      </div>
-      <button
-        type="button"
-        className="chip"
-        aria-pressed={settings[key]}
-        onClick={() => update({ [key]: !settings[key] })}
-      >
-        {settings[key] ? 'Bật' : 'Tắt'}
-      </button>
-    </div>
-  )
-
   return (
-    <>
-      <h1 className="page__title">Cài đặt</h1>
-      <p className="page__lede">Mọi thiết lập và dữ liệu đều nằm trên máy này.</p>
+    <div className="mx-auto flex w-full max-w-md flex-col gap-3">
+      <h1 className="pt-1 text-xl font-bold">Cài đặt</h1>
 
       {error && <div className="banner banner--error">{error}</div>}
       {notice && <div className="banner">{notice}</div>}
 
-      <div className="card" style={{ marginBottom: 18 }}>
-        <div className="field__label">Độ khó mặc định</div>
-        <div className="chips">
-          {DIFFICULTY_ORDER.map((d) => (
-            <button
-              key={d}
-              type="button"
-              className="chip"
-              aria-pressed={settings.difficulty === d}
-              onClick={() => update({ difficulty: d })}
-            >
-              {DIFFICULTY_PRESETS[d].label}
-            </button>
-          ))}
-        </div>
-        <p className="muted" style={{ marginTop: 8, marginBottom: 0 }}>
-          {DIFFICULTY_PRESETS[settings.difficulty].blurb}
-        </p>
-      </div>
+      <Segmented
+        label="Độ khó mặc định"
+        options={DIFFICULTY_ORDER.map((d) => ({
+          value: d,
+          label: SHORT[d] ?? DIFFICULTY_PRESETS[d].label,
+        }))}
+        value={settings.difficulty}
+        onChange={(difficulty) => update({ difficulty })}
+      />
 
-      <div className="card" style={{ marginBottom: 18 }}>
-        {toggle('flipped', 'Lật bàn cờ', 'Đặt quân Đen ở phía dưới.')}
-        {toggle('showHints', 'Hiện gợi ý', 'Tô sáng nước đi khi bấm nút Gợi ý.')}
-        {toggle('sound', 'Âm thanh', 'Phát tiếng khi đi quân, ăn quân, chiếu tướng.')}
-        {toggle(
-          'voice',
-          'Bình luận viên',
-          'Có người bình cờ suốt ván, lúc rảnh thì kể chuyện. Bật tắt được ngay trong ván. Cần mạng; mất mạng thì chỉ còn chữ.'
-        )}
-        {toggle(
-          'perpetualRule',
-          'Luật chiếu và đuổi liên hoàn',
-          'Đi lặp một thế cờ 5 lần thì bên ép liên tục bị xử thua. Tắt thì lặp chỉ tính hoà.'
-        )}
-        {toggle(
-          'learnFromGames',
-          'Máy rút kinh nghiệm',
-          'Sau mỗi ván, máy nhớ những nước đã khiến nó thua để lần sau tránh.'
-        )}
-      </div>
+      <Card className="divide-y divide-border py-1">
+        {SWITCHES.map(({ key, label, hint }) => (
+          <Switch
+            key={key}
+            label={label}
+            hint={hint}
+            checked={settings[key]}
+            onChange={(next) => update({ [key]: next })}
+          />
+        ))}
+      </Card>
 
-      <div className="card" style={{ marginBottom: 18 }}>
-        <h2 style={{ fontSize: '1rem', marginTop: 0 }}>Tiếng nói ngoại tuyến</h2>
-        <p className="muted" style={{ marginTop: 0 }}>
-          {packNote ??
-            'Tải sẵn toàn bộ lời bình về máy để nghe được cả khi mất mạng. Vài megabyte, chỉ tải một lần.'}
-        </p>
+      <Card>
+        <CardTitle>
+          <Download size={15} /> Tiếng nói ngoại tuyến
+        </CardTitle>
         {packBusy && (
-          <div className="insight__bar" style={{ marginBottom: 10 }}>
-            <span
-              className="insight__fill insight__fill--red"
-              style={{ width: `${packPercent}%` }}
+          <div className="mb-2 h-1.5 overflow-hidden rounded-full bg-surface-2">
+            <div
+              className="h-full origin-left bg-accent transition-transform"
+              style={{ transform: `scaleX(${packPercent / 100})` }}
             />
           </div>
         )}
-        <button type="button" className="btn" onClick={onDownloadPack} disabled={packBusy}>
-          <Icon name="download" /> {packBusy ? 'Đang tải…' : 'Tải gói lời nói'}
-        </button>
-      </div>
+        {packNote && <p className="mb-2 text-sm text-ink-dim">{packNote}</p>}
+        <Button className="w-full" onClick={() => void onDownloadPack()} disabled={packBusy}>
+          <Download size={17} /> {packBusy ? `Đang tải ${packPercent}%` : 'Tải về máy'}
+        </Button>
+      </Card>
 
-      <div className="card" style={{ marginBottom: 18 }}>
-        <h2 style={{ fontSize: '1rem', marginTop: 0 }}>Sao lưu</h2>
-        <p className="muted">
-          Lưu toàn bộ ván đấu ra một tệp để giữ lại hoặc chuyển sang máy khác.
-        </p>
-        <div className="btn-row">
-          <button type="button" className="btn" onClick={() => void exportAll()}>
-            <Icon name="download" /> Lưu ra tệp
-          </button>
-          <button type="button" className="btn" onClick={() => fileRef.current?.click()}>
-            <Icon name="upload" /> Khôi phục từ tệp
-          </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="application/json,.json"
-            hidden
-            onChange={(e) => {
-              const file = e.target.files?.[0]
-              if (file) void importFile(file)
-              // Reset so choosing the same file twice still fires a change.
-              e.target.value = ''
-            }}
-          />
+      <Card>
+        <CardTitle>
+          <Save size={15} /> Sao lưu
+        </CardTitle>
+        <div className="grid grid-cols-2 gap-2">
+          <Button onClick={() => void exportAll()}>
+            <Download size={17} /> Lưu tệp
+          </Button>
+          <Button onClick={() => fileRef.current?.click()}>
+            <Upload size={17} /> Khôi phục
+          </Button>
         </div>
-      </div>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="application/json,.json"
+          hidden
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            if (file) void importFile(file)
+            // Reset so choosing the same file twice still fires a change.
+            e.target.value = ''
+          }}
+        />
+      </Card>
 
-      <div className="card">
-        <h2 style={{ fontSize: '1rem', marginTop: 0 }}>Dữ liệu</h2>
-        <p className="muted">
-          Ván đấu được lưu <strong>{storeKind}</strong>, trên máy này.
-          {experienceSize !== null && experienceSize > 0 && (
-            <>
-              {' '}Máy đã ghi nhớ <strong>{experienceSize}</strong> nước đi từ các ván trước.
-            </>
-          )}
+      <Card>
+        <CardTitle>
+          <HardDrive size={15} /> Dữ liệu
+        </CardTitle>
+        <p className="mb-3 text-sm text-ink-dim">
+          Lưu {storeKind}
+          {experienceSize !== null && experienceSize > 0 && ` · máy nhớ ${experienceSize} nước`}
         </p>
-        <div className="btn-row">
-          <button type="button" className="btn" onClick={() => void clearExperience()}>
-            Xóa kinh nghiệm của máy
-          </button>
-          <button type="button" className="btn btn--danger" onClick={() => void clearHistory()}>
-            Xóa toàn bộ lịch sử
-          </button>
+        <div className="grid gap-2">
+          <Button onClick={() => void clearExperience()}>Xoá kinh nghiệm của máy</Button>
+          <Button variant="danger" onClick={() => void clearHistory()}>
+            <Trash2 size={17} /> Xoá toàn bộ lịch sử
+          </Button>
         </div>
-      </div>
-    </>
+      </Card>
+    </div>
   )
 }

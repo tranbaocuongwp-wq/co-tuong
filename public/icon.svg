@@ -1,23 +1,98 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Cờ Tướng">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Đệ Nhất Cờ Tướng">
+  <title>Đệ Nhất Cờ Tướng</title>
+  <!--
+    A seal, not a chess piece.
+
+    The obvious mark for a xiangqi app is a wooden disc with a glyph on it, and
+    that was the old icon. It has one fatal problem: at 48px — the size a home
+    screen and a browser tab actually use — a light disc on a dark square loses
+    its rim, the wood gradient turns to mud, and what is left is a pale blob.
+
+    A seal is the opposite shape: solid colour to the edges, one glyph reversed
+    out of it in white. It is also the right reference, because a red seal is
+    what you find in the corner of every Chinese painting and every chess
+    manual, and it survives being shrunk to nothing.
+
+    The board lines are drawn faintly *behind* the glyph rather than beside it,
+    so they add texture at 512px and simply disappear at 48px instead of turning
+    into noise. The palace diagonals are left out on purpose: they cross the
+    middle of the square, which is exactly where the glyph is, and two lines
+    running through a character read as a mistake rather than as a board.
+  -->
   <defs>
-    <radialGradient id="disc" cx="36%" cy="30%" r="78%">
-      <stop offset="0%" stop-color="#fff8e8" />
-      <stop offset="72%" stop-color="#e5cfa4" />
-      <stop offset="100%" stop-color="#c08f4e" />
-    </radialGradient>
+    <linearGradient id="seal" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#c33f26" />
+      <stop offset="100%" stop-color="#962a15" />
+    </linearGradient>
+    <linearGradient id="ribbon" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f2c75c" />
+      <stop offset="100%" stop-color="#d19a2c" />
+    </linearGradient>
+    <!--
+      The ribbon is cut to the card, or it spills past the rounded corner and
+      the icon stops looking like one shape.
+    -->
+    <clipPath id="card">
+      <rect width="512" height="512" rx="112" />
+    </clipPath>
   </defs>
-  <rect width="512" height="512" rx="96" fill="#7a4a24" />
-  <circle cx="256" cy="256" r="188" fill="url(#disc)" />
-  <circle cx="256" cy="256" r="188" fill="none" stroke="#8a5a2b" stroke-width="10" />
-  <circle cx="256" cy="256" r="160" fill="none" stroke="#b3301c" stroke-width="9" />
+
+  <rect width="512" height="512" rx="112" fill="url(#seal)" />
+
+  <!-- The palace and the river, at the faintest weight that still reads. -->
+  <g stroke="#ffffff" stroke-opacity="0.14" stroke-width="7" fill="none" stroke-linecap="round">
+    <path d="M104 128h304M104 200h304M104 312h304M104 384h304" />
+    <path d="M104 128v72M256 128v72M408 128v72M104 312v72M256 312v72M408 312v72" />
+  </g>
+
+  <!-- The river band, which is where the name would sit on a real board. -->
+  <rect x="104" y="228" width="304" height="56" rx="10" fill="#ffffff" fill-opacity="0.08" />
+
+  <!--
+    The glyph is drawn on the river line and deliberately oversized: it is the
+    only thing that has to survive at 48px, so it gets the whole middle.
+  -->
   <text
     x="256"
     y="256"
     text-anchor="middle"
     dominant-baseline="central"
-    font-family="Songti SC, SimSun, Noto Serif CJK SC, serif"
-    font-size="230"
+    font-family="'Songti SC', 'Noto Serif CJK SC', 'Source Han Serif', serif"
+    font-size="284"
     font-weight="700"
-    fill="#b3301c"
+    fill="#fff6ec"
   >帥</text>
+
+  <!--
+    The corner ribbon, across the bottom-right.
+
+    Two lines of constant x+y bound it, which is what makes a band at exactly
+    45° without any rotation arithmetic: the outer edge is x+y=760, the inner
+    x+y=880, and the polygon is simply where those two cross the right and
+    bottom edges of the square. The text sits on the midline between them, at
+    (410,410), turned -45° to run along it.
+
+    Gold on red because it has to be legible against the seal at a glance, and
+    because a darker band would read as a hole rather than as a label.
+
+    Not repeated on the maskable icon: Android crops that to a circle or a
+    squircle, and a corner ribbon is the one thing guaranteed to be cropped off.
+    An icon whose badge is only sometimes there is worse than one without.
+  -->
+  <g clip-path="url(#card)">
+    <polygon points="512,248 248,512 368,512 512,368" fill="#0000001f" transform="translate(0,6)" />
+    <polygon points="512,248 248,512 368,512 512,368" fill="url(#ribbon)" />
+    <text
+      x="410"
+      y="410"
+      transform="rotate(-45 410 410)"
+      text-anchor="middle"
+      dominant-baseline="central"
+      font-family="'Helvetica Neue', Helvetica, Arial, sans-serif"
+      font-size="52"
+      font-weight="700"
+      letter-spacing="1"
+      fill="#3d1608"
+    >SIÊU KHÓ</text>
+  </g>
 </svg>

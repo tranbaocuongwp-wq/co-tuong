@@ -1,22 +1,43 @@
 /**
- * The game drawer.
+ * The game menu, as a sheet from the bottom.
  *
- * Everything that is not the board lives here — controls, the score sheet,
- * what has been captured — so the playing screen itself stays a board and
- * nothing else. On a phone that is the difference between a board you can read
- * and one squeezed between panels.
+ * It used to slide in from the side and run the full height of the screen. That
+ * is fine with a mouse and wrong on a phone: the top half of a large phone
+ * cannot be reached by the thumb holding it, so half the controls needed a
+ * second hand or a shuffle of the grip. Everything tappable now sits in the
+ * bottom half, which is the only part of a phone that is genuinely comfortable.
+ *
+ * The six actions come first and are the only things at full size — they are
+ * what the menu is opened for. The score sheet and the captured pieces are
+ * reference, so they read as reference: smaller, below, and scrollable.
+ *
+ * Focus trapping, Escape, the scrim, and locking the page behind are all
+ * handled by the Sheet primitive rather than by hand here. The hand-rolled
+ * version got the first three right and the fourth subtly wrong.
  *
  * The wording avoids engine vocabulary throughout. A player wants to know the
  * computer is looking eight moves ahead; "nodes", "depth" and "centipawns" tell
  * them nothing.
  */
 
-import { useEffect, useRef } from 'react'
 import { NavLink } from 'react-router'
+import {
+  FlipHorizontal2,
+  Flag,
+  Lightbulb,
+  ListOrdered,
+  Plus,
+  Undo2,
+  Volume2,
+  VolumeX,
+} from 'lucide-react'
 
-import type { Piece, SearchInfo, Side } from '../engine/types'
-import { Icon } from './Icon'
+import type { Piece, PieceKind, SearchInfo, Side } from '../engine/types'
+import { Author } from './Author'
 import { MoveList } from './MoveList'
+import { PieceIcon } from './PieceIcon'
+import { Button } from './ui/button'
+import { Sheet } from './ui/sheet'
 
 export interface GameMenuProps {
   open: boolean
@@ -42,26 +63,29 @@ export interface GameMenuProps {
 }
 
 /** The full complement each side starts with, by piece kind. */
-const FULL_SET: Record<string, number> = { k: 1, a: 2, e: 2, h: 2, r: 2, c: 2, p: 5 }
+const FULL_SET: Record<PieceKind, number> = { k: 1, a: 2, e: 2, h: 2, r: 2, c: 2, p: 5 }
 
-const GLYPHS: Record<Side, Record<string, string>> = {
-  r: { k: '帥', a: '仕', e: '相', h: '傌', r: '俥', c: '炮', p: '兵' },
-  b: { k: '將', a: '士', e: '象', h: '馬', r: '車', c: '砲', p: '卒' },
-}
-
-/** Pieces of `side` that are no longer on the board. */
-function capturedFrom(pieces: Piece[], side: Side): string[] {
-  const alive: Record<string, number> = {}
+/** Pieces of `side` that are no longer on the board, most valuable first. */
+function capturedFrom(pieces: Piece[], side: Side): PieceKind[] {
+  const alive: Partial<Record<PieceKind, number>> = {}
   for (const p of pieces) {
     if (p.side === side) alive[p.kind] = (alive[p.kind] ?? 0) + 1
   }
-  const gone: string[] = []
-  for (const [kind, total] of Object.entries(FULL_SET)) {
-    const missing = total - (alive[kind] ?? 0)
-    for (let i = 0; i < missing; i++) gone.push(GLYPHS[side][kind])
+  const order: PieceKind[] = ['r', 'c', 'h', 'e', 'a', 'p']
+  const gone: PieceKind[] = []
+  for (const kind of order) {
+    const missing = FULL_SET[kind] - (alive[kind] ?? 0)
+    for (let i = 0; i < missing; i++) gone.push(kind)
   }
   return gone
 }
+
+const NAV = [
+  { to: '/', label: 'Trang chủ', end: true },
+  { to: '/profile', label: 'Hồ sơ', end: false },
+  { to: '/history', label: 'Lịch sử', end: false },
+  { to: '/settings', label: 'Cài đặt', end: false },
+]
 
 export function GameMenu({
   open,
@@ -83,143 +107,105 @@ export function GameMenu({
   onFlip,
   onResign,
 }: GameMenuProps) {
-  const panelRef = useRef<HTMLDivElement>(null)
-
-  // Escape closes the drawer, which is what anyone who opened it by accident
-  // will reach for first. Opening also locks the page behind it: without that,
-  // scrolling the drawer drags the board around underneath and the whole thing
-  // judders.
-  useEffect(() => {
-    if (!open) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    window.addEventListener('keydown', onKey)
-    document.body.classList.add('drawer-open')
-    panelRef.current?.focus()
-    return () => {
-      window.removeEventListener('keydown', onKey)
-      document.body.classList.remove('drawer-open')
-    }
-  }, [open, onClose])
-
   const redLost = capturedFrom(pieces, 'r')
   const blackLost = capturedFrom(pieces, 'b')
 
   return (
-    <>
-      <div className={`scrim${open ? ' scrim--open' : ''}`} onClick={onClose} aria-hidden="true" />
-      <aside
-        ref={panelRef}
-        className={`drawer${open ? ' drawer--open' : ''}`}
-        aria-label="Bảng điều khiển ván đấu"
-        aria-hidden={!open}
-        tabIndex={-1}
-      >
-        <div className="drawer__head">
-          <strong>Ván đấu</strong>
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="Đóng">
-            <Icon name="close" />
-          </button>
+    <Sheet
+      open={open}
+      onOpenChange={(next) => !next && onClose()}
+      title="Ván đấu"
+      description="Điều khiển ván đấu, nước đi và quân đã ăn"
+    >
+      <div className="flex flex-col gap-4">
+        {/* Two columns of thumb-sized targets, nothing else at this size. */}
+        <div className="grid grid-cols-2 gap-2">
+          <Button variant="primary" onClick={onNewGame}>
+            <Plus size={18} /> Ván mới
+          </Button>
+          <Button onClick={onUndo} disabled={!canUndo}>
+            <Undo2 size={18} /> Đi lại · {undosLeft}
+          </Button>
+          <Button
+            onClick={onHint}
+            disabled={isOver || busy || hintsLeft <= 0}
+            title={hintsLeft > 0 ? undefined : 'Hết gợi ý cho ván này'}
+          >
+            <Lightbulb size={18} /> Gợi ý · {hintsLeft}
+          </Button>
+          <Button onClick={onFlip}>
+            <FlipHorizontal2 size={18} /> Lật bàn
+          </Button>
+          <Button onClick={onToggleVoice} aria-pressed={voiceOn}>
+            {voiceOn ? <Volume2 size={18} /> : <VolumeX size={18} />} Bình luận
+          </Button>
+          <Button variant="danger" onClick={onResign} disabled={isOver}>
+            <Flag size={18} /> Chịu thua
+          </Button>
         </div>
 
-        <div className="drawer__body">
-          <div className="drawer__actions">
-            <button type="button" className="btn btn--primary" onClick={onNewGame}>
-              <Icon name="new" /> Ván mới
-            </button>
-            <button type="button" className="btn" onClick={onUndo} disabled={!canUndo}>
-              <Icon name="undo" /> Đi lại ({undosLeft})
-            </button>
-            <button
-              type="button"
-              className="btn"
-              onClick={onHint}
-              disabled={isOver || busy || hintsLeft <= 0}
-              title={hintsLeft > 0 ? undefined : 'Hết gợi ý cho ván này'}
-            >
-              <Icon name="hint" /> Gợi ý <span className="pill">{hintsLeft}</span>
-            </button>
-            <button type="button" className="btn" onClick={onFlip}>
-              <Icon name="flip" /> Lật bàn
-            </button>
-            <button
-              type="button"
-              className="btn"
-              onClick={onToggleVoice}
-              aria-pressed={voiceOn}
-            >
-              <Icon name={voiceOn ? 'speaker' : 'speakerOff'} /> Bình luận
-            </button>
-            <button type="button" className="btn btn--danger" onClick={onResign} disabled={isOver}>
-              <Icon name="resign" /> Chịu thua
-            </button>
+        <section className="rounded-2xl border border-border bg-surface-2/50 p-3">
+          <h3 className="mb-2 text-xs font-medium tracking-wide text-ink-dim uppercase">Đã ăn</h3>
+          <div className="flex flex-col gap-2">
+            {(
+              [
+                ['Đỏ mất', 'r', redLost],
+                ['Đen mất', 'b', blackLost],
+              ] as const
+            ).map(([label, side, lost]) => (
+              <div key={side} className="flex items-center gap-2">
+                <span className="w-16 shrink-0 text-sm text-ink-dim">{label}</span>
+                <span className="flex flex-wrap gap-1">
+                  {lost.length === 0 ? (
+                    <span className="text-sm text-ink-dim">—</span>
+                  ) : (
+                    lost.map((kind, i) => (
+                      <PieceIcon key={`${kind}-${i}`} kind={kind} side={side} size={22} />
+                    ))
+                  )}
+                </span>
+              </div>
+            ))}
           </div>
+        </section>
 
-          <section className="drawer__section">
-            <h3 className="drawer__title">
-              <Icon name="captured" size={15} /> Đã ăn
-            </h3>
-            <div className="tray">
-              <div className="tray__row">
-                <span className="tray__label">Đỏ mất</span>
-                <span className="tray__pieces tray__pieces--red">
-                  {redLost.length ? redLost.join(' ') : '—'}
-                </span>
-              </div>
-              <div className="tray__row">
-                <span className="tray__label">Đen mất</span>
-                <span className="tray__pieces tray__pieces--black">
-                  {blackLost.length ? blackLost.join(' ') : '—'}
-                </span>
-              </div>
-            </div>
-          </section>
+        {(info || difficultyLabel) && (
+          <p className="text-sm text-ink-dim">
+            {difficultyLabel && <>Mức {difficultyLabel}</>}
+            {info && (
+              <>
+                {difficultyLabel && ' · '}
+                {info.fromBook ? 'nước vừa rồi theo bài bản' : `nghĩ trước ${info.depth} nước`}
+              </>
+            )}
+          </p>
+        )}
 
-          {(info || difficultyLabel) && (
-            <section className="drawer__section">
-              <h3 className="drawer__title">
-                <Icon name="engine" size={15} /> Máy
-              </h3>
-              <p className="muted">
-                {difficultyLabel && <>Mức {difficultyLabel}</>}
-                {info && (
-                  <>
-                    {difficultyLabel && ' · '}
-                    {info.fromBook
-                      ? 'nước vừa rồi theo bài bản'
-                      : `nghĩ trước ${info.depth} nước`}
-                  </>
-                )}
-              </p>
-            </section>
-          )}
+        <section>
+          <h3 className="mb-2 flex items-center gap-1.5 text-xs font-medium tracking-wide text-ink-dim uppercase">
+            <ListOrdered size={14} /> Nước đi
+          </h3>
+          <MoveList moves={moves} limit={5} />
+        </section>
 
-          <section className="drawer__section">
-            <h3 className="drawer__title">
-              <Icon name="moves" size={15} /> Nước đi
-            </h3>
-            <MoveList moves={moves} limit={5} />
-          </section>
-
-          <nav className="drawer__nav" aria-label="Đi tới">
-            <NavLink to="/" end onClick={onClose}>
-              Trang chủ
+        <nav className="grid grid-cols-4 gap-1.5" aria-label="Đi tới">
+          {NAV.map(({ to, label, end }) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={end}
+              onClick={onClose}
+              className="grid min-h-11 place-items-center rounded-xl border border-border text-xs text-ink-dim transition-colors hover:bg-surface-2 hover:text-ink"
+            >
+              {label}
             </NavLink>
-            <NavLink to="/history" onClick={onClose}>
-              Lịch sử
-            </NavLink>
-            <NavLink to="/settings" onClick={onClose}>
-              Cài đặt
-            </NavLink>
-            <NavLink to="/about" onClick={onClose}>
-              Giới thiệu
-            </NavLink>
-          </nav>
+          ))}
+        </nav>
 
-          <p className="drawer__credit">Tác giả: Trần Bảo Cường</p>
+        <div className="flex justify-center pb-1">
+          <Author />
         </div>
-      </aside>
-    </>
+      </div>
+    </Sheet>
   )
 }

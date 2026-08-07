@@ -1,12 +1,24 @@
 /**
  * Guards two things a compiler cannot.
  *
- * 1. **Every `className` used in JSX has a rule in `styles.css`.**
+ * 1. **Every `className` used in JSX resolves to a real rule.**
  *    This exists because of a real bug: rewriting one section of the stylesheet
  *    silently dropped the rules for the move list and the review screen. The
  *    app kept building, kept type-checking, and kept rendering — just wrong.
  *    An unstyled element looks *almost* right, which is exactly why it survives
  *    review. A missing class is a hard error here.
+ *
+ *    Since the interface moved to Tailwind for its ordinary screens, "a real
+ *    rule" means one of two things, and the check reads both: the bespoke rules
+ *    hand-written in `styles.css`, and the utilities Tailwind actually emitted
+ *    into the built stylesheet. Reading the built output rather than keeping a
+ *    list of Tailwind's prefixes is what makes this still worth running — a
+ *    misspelt utility is not a utility Tailwind recognises, so it never reaches
+ *    the output, and it gets caught exactly like a missing bespoke class would.
+ *
+ *    That means the check needs `dist/` to be current, which is why `npm run
+ *    build` now runs it *after* Vite rather than before. Run on its own with no
+ *    build present it falls back to `styles.css` alone and says so.
  *
  * 2. **No emoji in the interface.** The project uses drawn icons; emoji render
  *    as another platform's artwork (bright blue play buttons on iOS) and cannot
@@ -22,6 +34,7 @@ import { fileURLToPath } from 'node:url'
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const SRC = join(root, 'src')
 const STYLES = join(SRC, 'styles.css')
+const DIST_ASSETS = join(root, 'dist', 'assets')
 
 /** Generated output — not ours to police. */
 const SKIP_DIRS = new Set(['wasm'])
@@ -40,7 +53,28 @@ function walk(dir) {
 }
 
 const files = walk(SRC)
-const css = readFileSync(STYLES, 'utf8')
+
+/**
+ * Every stylesheet worth consulting: the hand-written one, plus whatever the
+ * last build emitted (which is where the Tailwind utilities live).
+ */
+function stylesheets() {
+  const sources = [readFileSync(STYLES, 'utf8')]
+  let built = false
+  try {
+    for (const name of readdirSync(DIST_ASSETS)) {
+      if (extname(name) === '.css') {
+        sources.push(readFileSync(join(DIST_ASSETS, name), 'utf8'))
+        built = true
+      }
+    }
+  } catch {
+    // No dist yet. Handled below by narrowing what is checked.
+  }
+  return { css: sources.join('\n'), built }
+}
+
+const { css, built } = stylesheets()
 
 // ---------------------------------------------------------------------------
 // 1. Class names
@@ -94,8 +128,14 @@ for (const file of files) {
 
 const missing = []
 for (const [cls, file] of used) {
-  // Only look at things that look like our BEM-ish class names.
   if (!/^[a-z][\w-]*$/.test(cls)) continue
+  /*
+   * Without a build there is no way to tell a Tailwind utility from a typo, so
+   * checking the whole set would be nothing but false alarms. The bespoke
+   * classes are still checkable: they are the BEM-shaped ones, and they are the
+   * ones the original bug destroyed.
+   */
+  if (!built && !cls.includes('__') && !cls.includes('--')) continue
   if (!defined.has(cls)) missing.push({ cls, file: file.replace(root + '/', '') })
 }
 
@@ -147,7 +187,10 @@ if (emoji.length > 0) {
 }
 
 if (!failed) {
-  console.log(`✓ ${used.size} class names all styled, no emoji (${files.length} files)`)
+  console.log(
+  `✓ ${used.size} class names all styled, no emoji (${files.length} files)` +
+    (built ? '' : ' — chưa dựng dist, chỉ kiểm lớp BEM')
+)
 }
 
 process.exit(failed ? 1 : 0)

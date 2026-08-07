@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Đệ Nhất Cờ Tướng">
+  <title>Đệ Nhất Cờ Tướng</title>
+  <!--
+    The maskable variant. Android crops this to whatever shape the launcher
+    uses — circle, squircle, teardrop — and only the middle 80% is guaranteed to
+    survive. So the background runs edge to edge with no rounded corners of its
+    own (the launcher supplies those), and everything that must be seen is
+    pulled well inside that safe circle.
+  -->
+  <defs>
+    <linearGradient id="seal" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#c33f26" />
+      <stop offset="100%" stop-color="#962a15" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#seal)" />
+  <g stroke="#ffffff" stroke-opacity="0.13" stroke-width="7" fill="none" stroke-linecap="round">
+    <path d="M150 168h212M150 224h212M150 288h212M150 344h212" />
+    <path d="M150 168v56M256 168v56M362 168v56M150 288v56M256 288v56M362 288v56" />
+  </g>
+  <rect x="150" y="238" width="212" height="36" rx="8" fill="#ffffff" fill-opacity="0.08" />
+  <text x="256" y="256" text-anchor="middle" dominant-baseline="central"
+    font-family="'Songti SC', 'Noto Serif CJK SC', serif" font-size="216" font-weight="700"
+    fill="#fff6ec">帥</text>
+</svg>
