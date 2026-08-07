@@ -10,7 +10,7 @@
  */
 
 import type { CSSProperties } from 'react'
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 
 import { playSelect } from '../audio/sfx'
 import type { MoveInfo, Piece, Side } from '../engine/types'
@@ -37,6 +37,22 @@ export interface BoardProps {
   disabled: boolean
   /** Highlighted suggestion from the Hint button. */
   hint: { fromRow: number; fromCol: number; toRow: number; toCol: number } | null
+  /**
+   * A move being *considered* rather than played.
+   *
+   * Drawn dashed, and alongside it the squares that move would put under
+   * pressure. This is the difference between a hint that tells you a move and
+   * one that shows you a plan: "Pháo 2 bình 5" means nothing until you can see
+   * what ends up in its line of fire.
+   */
+  preview: {
+    fromRow: number
+    fromCol: number
+    toRow: number
+    toCol: number
+    /** Enemy pieces the move would then be attacking. */
+    targets: { row: number; col: number }[]
+  } | null
   /**
    * How long the piece takes to slide, in milliseconds.
    *
@@ -67,6 +83,7 @@ export function Board({
   inCheck,
   disabled,
   hint,
+  preview,
 }: BoardProps) {
   const [selected, setSelected] = useState<Point | null>(null)
   const { live, ghosts } = usePieceLayout(pieces, lastMove, moveMs)
@@ -137,47 +154,72 @@ export function Board({
    * triangle rather than an SVG marker — markers do not inherit the line's
    * opacity, and a solid head over a translucent shaft looks wrong.
    */
-  const arrow = useMemo(() => {
-    if (!lastMove) return null
-    const from = toScreen({ row: lastMove.fromRow, col: lastMove.fromCol })
-    const to = toScreen({ row: lastMove.toRow, col: lastMove.toCol })
-    const ax = PAD + from.col
-    const ay = PAD + from.row
-    const bx = PAD + to.col
-    const by = PAD + to.row
+  const arrowBetween = useCallback(
+    (a: Point, b: Point) => {
+      const from = toScreen(a)
+      const to = toScreen(b)
+      const ax = PAD + from.col
+      const ay = PAD + from.row
+      const bx = PAD + to.col
+      const by = PAD + to.row
 
-    const dx = bx - ax
-    const dy = by - ay
-    const len = Math.hypot(dx, dy)
-    if (len < 0.001) return null
-    const ux = dx / len
-    const uy = dy / len
+      const dx = bx - ax
+      const dy = by - ay
+      const len = Math.hypot(dx, dy)
+      if (len < 0.001) return null
+      const ux = dx / len
+      const uy = dy / len
 
-    // Clearance at each end, in board units (a piece is ~0.9 across).
-    const startGap = 0.42
-    const endGap = 0.5
-    if (len <= startGap + endGap) return null
+      // Clearance at each end, in board units (a piece is ~0.9 across).
+      const startGap = 0.42
+      const endGap = 0.5
+      if (len <= startGap + endGap) return null
 
-    const x1 = ax + ux * startGap
-    const y1 = ay + uy * startGap
-    const x2 = bx - ux * endGap
-    const y2 = by - uy * endGap
+      const x1 = ax + ux * startGap
+      const y1 = ay + uy * startGap
+      const x2 = bx - ux * endGap
+      const y2 = by - uy * endGap
 
-    const headLen = 0.26
-    const headHalf = 0.15
-    const px = -uy
-    const py = ux
-    const baseX = x2 - ux * headLen
-    const baseY = y2 - uy * headLen
-    const head = [
-      `${x2},${y2}`,
-      `${baseX + px * headHalf},${baseY + py * headHalf}`,
-      `${baseX - px * headHalf},${baseY - py * headHalf}`,
-    ].join(' ')
+      const headLen = 0.26
+      const headHalf = 0.15
+      const px = -uy
+      const py = ux
+      const baseX = x2 - ux * headLen
+      const baseY = y2 - uy * headLen
+      const head = [
+        `${x2},${y2}`,
+        `${baseX + px * headHalf},${baseY + py * headHalf}`,
+        `${baseX - px * headHalf},${baseY - py * headHalf}`,
+      ].join(' ')
 
-    // Stop the shaft where the head begins so it does not show through.
-    return { x1, y1, x2: baseX, y2: baseY, head }
-  }, [lastMove, flipped])
+      // Stop the shaft where the head begins so it does not show through.
+      return { x1, y1, x2: baseX, y2: baseY, head }
+    },
+    // `toScreen` closes over `flipped`, which is the only thing that moves it.
+    [flipped]
+  )
+
+  const arrow = useMemo(
+    () =>
+      lastMove
+        ? arrowBetween(
+            { row: lastMove.fromRow, col: lastMove.fromCol },
+            { row: lastMove.toRow, col: lastMove.toCol }
+          )
+        : null,
+    [lastMove, arrowBetween]
+  )
+
+  const previewArrow = useMemo(
+    () =>
+      preview
+        ? arrowBetween(
+            { row: preview.fromRow, col: preview.fromCol },
+            { row: preview.toRow, col: preview.toCol }
+          )
+        : null,
+    [preview, arrowBetween]
+  )
 
   const gridLines = useMemo(() => {
     const lines: { x1: number; y1: number; x2: number; y2: number }[] = []
@@ -203,7 +245,7 @@ export function Board({
 
   return (
     <div
-      className="board"
+      className={inCheck ? 'board board--check' : 'board'}
       role="group"
       aria-label="Bàn cờ tướng"
       style={{ '--move-ms': `${moveMs}ms` } as CSSProperties}
@@ -255,6 +297,20 @@ export function Board({
             />
           </>
         )}
+
+        {previewArrow && (
+          <>
+            <line
+              className="board__arrow board__arrow--preview"
+              x1={previewArrow.x1}
+              y1={previewArrow.y1}
+              x2={previewArrow.x2}
+              y2={previewArrow.y2}
+              strokeWidth={0.11}
+            />
+            <polygon className="board__arrowhead board__arrowhead--preview" points={previewArrow.head} />
+          </>
+        )}
       </svg>
 
       {/* Click targets: one per intersection, so empty points are tappable. */}
@@ -268,6 +324,8 @@ export function Board({
             const isLastTo = lastMove && lastMove.toRow === row && lastMove.toCol === col
             const isHintFrom = hint && hint.fromRow === row && hint.fromCol === col
             const isHintTo = hint && hint.toRow === row && hint.toCol === col
+            const isPreviewTo = preview && preview.toRow === row && preview.toCol === col
+            const isPreviewTarget = preview?.targets.some((t) => t.row === row && t.col === col)
             return (
               <button
                 key={`${row}-${col}`}
@@ -280,6 +338,8 @@ export function Board({
               >
                 {(isLastFrom || isLastTo) && <span className="marker marker--last" />}
                 {(isHintFrom || isHintTo) && <span className="marker marker--hint" />}
+                {isPreviewTo && <span className="marker marker--claim" />}
+                {isPreviewTarget && <span className="marker marker--menaced" />}
                 {isSelected && <span className="marker marker--selected" />}
                 {move && (
                   <span

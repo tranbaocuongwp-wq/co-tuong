@@ -85,6 +85,13 @@ export interface HintInfo {
   givesCheck: boolean
   /** Enemy kinds this move would then threaten, best first. */
   threats: PieceKind[]
+  /**
+   * Where those threatened pieces stand, in the same order as `threats`.
+   *
+   * What the board preview highlights. The kind alone cannot be pointed at:
+   * with two Cannons on the board only one of them is usually in danger.
+   */
+  threatSquares: { row: number; col: number }[]
   /** The reply the engine expects, in notation. Empty if the move ends it. */
   reply: string
 }

@@ -16,9 +16,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router'
 
 import { primeSounds, setSoundEnabled } from '../audio/sfx'
-import { primeVoice, setVoiceEnabled, stopVoice } from '../audio/voice'
+import { primeVoice, setVoiceMode, stopVoice } from '../audio/voice'
 import { LINES } from '../commentary/lines'
 import { Board } from '../components/Board'
+import { CommentaryFeed, type FeedEntry } from '../components/CommentaryFeed'
+import { GameOverDialog } from '../components/GameOverDialog'
 import { GameMenu } from '../components/GameMenu'
 import { HintDialog } from '../components/HintDialog'
 import { MatchInsight } from '../components/MatchInsight'
@@ -32,6 +34,7 @@ import { engineVersion } from '../engine/wasm'
 import { useCommentary } from '../game/useCommentary'
 import { ENGINE_MOVE_MS, MOVE_MS } from '../game/usePieceLayout'
 import { useGame } from '../game/useGame'
+import { useMediaQuery } from '../useMediaQuery'
 import { useSettings } from '../settings'
 import { getHistoryStore } from '../storage'
 import { useAppUpdate } from '../update'
@@ -47,8 +50,10 @@ const EXPERIENCE_KEY = 'engine.experience'
  *
  * The engine will hand out a best move all day; a budget is what keeps the
  * hint button a lifeline rather than a way to have the computer play for you.
+ * Ten is generous by design: a budget so tight that people ration it stops
+ * being a safety net and becomes another thing to lose.
  */
-const HINTS_PER_GAME = 5
+const HINTS_PER_GAME = 10
 
 /**
  * Take-backs allowed per game.
@@ -56,7 +61,7 @@ const HINTS_PER_GAME = 5
  * Same reasoning as the hint budget: unlimited take-backs turn a loss into a
  * search for the one line that wins, and the game stops being a game.
  */
-const UNDOS_PER_GAME = 5
+const UNDOS_PER_GAME = 10
 
 /**
  * How long the player must be thinking before the commentator offers an opinion.
@@ -65,6 +70,20 @@ const UNDOS_PER_GAME = 5
  * prompting the moment a turn starts.
  */
 const ADVICE_AFTER_MS = 7_000
+
+/**
+ * How long the hint search may run.
+ *
+ * Spent two ways now (see `rank_moves`): a quick pass over every legal move to
+ * find the handful worth thinking about, then everything left on those. Four
+ * seconds buys real depth on the shortlist, where two and a half spread evenly
+ * across forty moves bought almost none — which is why the old suggestions were
+ * so often wrong.
+ */
+const HINT_MS = 4_000
+
+/** How many entries the commentary feed keeps. Long enough to scroll back a while. */
+const FEED_MAX = 60
 
 /** How often he actually says something, once that pause has run. */
 const ADVICE_CHANCE = 0.45
@@ -85,6 +104,10 @@ export function PlayPage() {
   const [hintChoices, setHintChoices] = useState<HintInfo[]>([])
   const [hintOpen, setHintOpen] = useState(false)
   const [hintBusy, setHintBusy] = useState(false)
+  /** The option currently being shown on the board, before it is committed to. */
+  const [previewIccs, setPreviewIccs] = useState<string | null>(null)
+  /** Whether the result panel is up. Dismissible, so the board can be looked at. */
+  const [resultOpen, setResultOpen] = useState(false)
   /** A move the commentator may hold forth about while the player thinks. */
   const [advice, setAdvice] = useState<{ hint: HintInfo; side: Side; ply: number } | null>(null)
   const [hintsLeft, setHintsLeft] = useState(HINTS_PER_GAME)
@@ -99,15 +122,33 @@ export function PlayPage() {
 
   const { projection, status, isOver, thinking, progress, lastInfo } = game
 
+  /**
+   * Where there is room for a written feed beside the board.
+   *
+   * Same breakpoint as the position chart, and for the same reason: this is
+   * exactly the shape of screen that has a spare column. On a phone the board
+   * needs every pixel and there is nowhere to put it.
+   */
+  const roomForFeed = useMediaQuery('(min-width: 700px)')
+
+  /**
+   * Off, written, or spoken.
+   *
+   * Turning the sound off does not turn the commentator off when there is
+   * somewhere to put his remarks — he keeps watching and keeps talking, just
+   * into the feed instead of the speaker.
+   */
+  const voiceMode = settings.voice ? 'voice' : roomForFeed ? 'silent' : 'off'
+
   // The voice is a module singleton, like the synthesiser, so the preference is
   // pushed to it rather than threaded through every call site.
   useEffect(() => {
-    setVoiceEnabled(settings.voice)
-    if (settings.voice) {
+    setVoiceMode(voiceMode)
+    if (voiceMode === 'voice') {
       // The opening remark should not be the one that waits on the network.
       primeVoice([...LINES.greeting, ...LINES.opening])
     }
-  }, [settings.voice])
+  }, [voiceMode])
 
   // Leaving the board should not leave a voice talking over the next screen.
   useEffect(() => stopVoice, [])
@@ -120,18 +161,23 @@ export function PlayPage() {
    * nothing.
    */
   const commentaryRef = useRef<CommentaryEntry[]>([])
+  /** The same remarks, kept for the on-screen feed. Newest first. */
+  const [feed, setFeed] = useState<FeedEntry[]>([])
   const onSpoke = useCallback((utterance: Utterance) => {
-    commentaryRef.current.push({
-      ply: projectionRef.current,
-      id: utterance.id,
-      at: Date.now(),
-    })
+    const ply = projectionRef.current
+    commentaryRef.current.push({ ply, id: utterance.id, at: Date.now() })
+    setFeed((current) => [
+      // Keyed by arrival rather than by line: the same remark can legitimately
+      // be made twice in a game, and two rows with one key is a React bug.
+      { key: `${utterance.id}-${commentaryRef.current.length}`, text: utterance.text, ply },
+      ...current.slice(0, FEED_MAX - 1),
+    ])
   }, [])
   const projectionRef = useRef(0)
   projectionRef.current = projection.movesIccs.length
 
   const { spoken: spokenLine, reset: resetCommentary } = useCommentary({
-    enabled: settings.voice,
+    enabled: voiceMode !== 'off',
     status,
     pieces: projection.pieces,
     moveCount: projection.movesIccs.length,
@@ -173,18 +219,18 @@ export function PlayPage() {
    * search for the machine's move.
    */
   useEffect(() => {
-    if (!settings.voice || isOver || thinking || game.engineToMove) return
+    if (voiceMode === 'off' || isOver || thinking || game.engineToMove) return
     const ply = projection.movesIccs.length
     if (ply === 0) return
     const timer = setTimeout(() => {
       if (Math.random() > ADVICE_CHANCE) return
-      void game.hints(1, 600).then(([best]) => {
+      void game.hints(1, 1_500).then(([best]) => {
         if (best) setAdvice({ hint: best, side: status.sideToMove, ply })
       })
     }, ADVICE_AFTER_MS)
     return () => clearTimeout(timer)
   }, [
-    settings.voice,
+    voiceMode,
     isOver,
     thinking,
     game,
@@ -325,6 +371,9 @@ export function PlayPage() {
     setHint(null)
     setHintChoices([])
     setHintOpen(false)
+    setPreviewIccs(null)
+    setResultOpen(false)
+    setFeed([])
     setSavedNote(null)
     setMenuOpen(false)
     setHintsLeft(HINTS_PER_GAME)
@@ -345,10 +394,11 @@ export function PlayPage() {
     setMenuOpen(false)
     setHint(null)
     setHintChoices([])
+    setPreviewIccs(null)
     setHintOpen(true)
     setHintBusy(true)
     try {
-      const choices = await game.hints(3)
+      const choices = await game.hints(3, HINT_MS)
       setHintChoices(choices)
       // Only spend a hint when advice actually came back.
       if (choices.length > 0) {
@@ -377,10 +427,70 @@ export function PlayPage() {
     (iccs: string) => {
       setHint(hintChoices.find((c) => c.iccs === iccs) ?? null)
       setHintOpen(false)
+      setPreviewIccs(null)
       game.playMove(iccs)
     },
     [game, hintChoices]
   )
+
+  /**
+   * The option being considered, as squares on the board.
+   *
+   * The threatened squares come from the engine's own report of that move, so
+   * the highlight points at pieces that really would be under attack — not at
+   * every piece of the right kind. With two Cannons on the board, only one of
+   * them is usually in danger, and lighting up both would be a lie told in
+   * colour.
+   */
+  const previewSquares = useMemo(() => {
+    if (!previewIccs) return null
+    const choice = hintChoices.find((c) => c.iccs === previewIccs)
+    const move = projection.legalMoves.find((m) => m.iccs === previewIccs)
+    if (!choice || !move) return null
+    return {
+      fromRow: move.fromRow,
+      fromCol: move.fromCol,
+      toRow: move.toRow,
+      toCol: move.toCol,
+      targets: choice.threatSquares ?? [],
+    }
+  }, [previewIccs, hintChoices, projection.legalMoves])
+
+  /*
+   * Raise the result panel once, when the game ends.
+   *
+   * Once, not whenever `isOver` is true: the player is allowed to dismiss it and
+   * look at the final position, and a panel that springs back up every render
+   * would make that impossible.
+   */
+  const announcedRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!isOver) {
+      announcedRef.current = null
+      return
+    }
+    if (announcedRef.current === gameId) return
+    announcedRef.current = gameId
+    setResultOpen(true)
+  }, [isOver, gameId])
+
+  /**
+   * Take back the losing move and carry on.
+   *
+   * Everything the end of the game set up has to be undone with it: the panel
+   * goes, and the "already filed" guard is cleared so that when this game does
+   * finish it is filed again under the same id, replacing the record of the loss
+   * rather than leaving it as the last word.
+   */
+  const onUndoAfterEnd = useCallback(() => {
+    if (undosLeft <= 0) return
+    assistsRef.current.push({ ply: projection.movesIccs.length, kind: 'undo', at: Date.now() })
+    setUndosLeft((n) => n - 1)
+    setResultOpen(false)
+    setSavedNote(null)
+    filedRef.current = null
+    game.undo()
+  }, [game, undosLeft, projection.movesIccs.length])
 
   const hintSquares = useMemo(() => {
     if (!hint) return null
@@ -397,6 +507,24 @@ export function PlayPage() {
   }
 
   const humanControls = settings.mode === 'pvp' ? null : settings.playerSide
+
+  /**
+   * How the game went *for the player*, or null when both sides are human.
+   *
+   * The commentator names colours because he is an onlooker; the result panel is
+   * talking to the person holding the phone, and "Đen thắng" is a strange thing
+   * to read when you were Black.
+   */
+  const outcome: 'win' | 'loss' | 'draw' | null =
+    settings.mode === 'pvp' || status.status === 'playing'
+      ? status.status === 'draw'
+        ? 'draw'
+        : null
+      : status.status === 'draw'
+        ? 'draw'
+        : (status.status === 'redWin') === (settings.playerSide === 'r')
+          ? 'win'
+          : 'loss'
   const boardDisabled = isOver || thinking || game.engineToMove
 
   // Reloading is free when the game is over, has not started, or is simply
@@ -428,7 +556,7 @@ export function PlayPage() {
           ) : (
             <>
               {status.sideToMove === 'r' ? 'Đỏ' : 'Đen'} đi
-              {status.inCheck && <span className="badge badge--loss">Chiếu tướng</span>}
+              {status.inCheck && <strong className="badge badge--alarm">Chiếu tướng!</strong>}
             </>
           )}
         </span>
@@ -442,7 +570,7 @@ export function PlayPage() {
         </button>
       </div>
 
-      <div className="stage__board">
+      <div className={status.inCheck && !isOver ? 'stage__board stage__board--check' : 'stage__board'}>
         <Board
           pieces={projection.pieces}
           legalMoves={projection.legalMoves}
@@ -457,6 +585,7 @@ export function PlayPage() {
           inCheck={status.inCheck}
           disabled={boardDisabled}
           hint={settings.showHints ? hintSquares : null}
+          preview={previewSquares}
           moveMs={
             // The computer's replies play out slowly enough to follow. The
             // player's own moves do not need it: they already know what moved.
@@ -475,6 +604,23 @@ export function PlayPage() {
           progress={progress}
           label={hintBusy ? 'Đang tìm gợi ý' : undefined}
         />
+
+        {/*
+          Check, said loudly.
+          
+          A small grey badge in the status line was technically an announcement
+          and practically invisible — a player concentrating on the board simply
+          did not see it, and losing to a check you were never told about feels
+          like the app cheated. This sits on the board itself, where the eyes
+          already are.
+        */}
+        {status.inCheck && !isOver && (
+          <div className="flare" role="alert">
+            <span className="flare__text">
+              {status.sideToMove === 'r' ? 'Đỏ' : 'Đen'} đang bị chiếu tướng
+            </span>
+          </div>
+        )}
       </div>
 
       <MatchInsight
@@ -491,13 +637,19 @@ export function PlayPage() {
         </div>
       )}
 
-      {isOver && (
+      {/*
+        With the sound off but room to spare, the commentary becomes a feed.
+        Same remarks, same pacing, no audio — see `CommentaryFeed`.
+      */}
+      {voiceMode === 'silent' && <CommentaryFeed entries={feed} />}
+
+      {isOver && !resultOpen && (
         <div className="stage__end card">
           <strong>{describeResult(status.status, status.reason)}</strong>
           {savedNote && <div className="muted">{savedNote}</div>}
           <div className="btn-row" style={{ marginTop: 10 }}>
-            <button type="button" className="btn btn--primary" onClick={onNewGame}>
-              Ván mới
+            <button type="button" className="btn btn--primary" onClick={() => setResultOpen(true)}>
+              Kết quả
             </button>
             <Link className="btn" to="/history">
               Xem lịch sử
@@ -505,6 +657,18 @@ export function PlayPage() {
           </div>
         </div>
       )}
+
+      <GameOverDialog
+        open={isOver && resultOpen}
+        headline={describeResult(status.status, status.reason)}
+        outcome={outcome}
+        undosLeft={undosLeft}
+        canUndo={projection.movesIccs.length > 0}
+        reviewHref={savedNote ? `/review/${gameId}` : null}
+        onUndo={onUndoAfterEnd}
+        onNewGame={onNewGame}
+        onClose={() => setResultOpen(false)}
+      />
 
       {hint && !isOver && (
         <p className="stage__hint muted">
@@ -516,8 +680,13 @@ export function PlayPage() {
         open={hintOpen}
         busy={hintBusy}
         choices={hintChoices}
+        previewing={previewIccs}
+        onPreview={setPreviewIccs}
         onPick={onPickHint}
-        onClose={() => setHintOpen(false)}
+        onClose={() => {
+          setHintOpen(false)
+          setPreviewIccs(null)
+        }}
       />
 
       <GameMenu

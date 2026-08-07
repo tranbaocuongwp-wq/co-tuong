@@ -57,7 +57,24 @@ pub struct HintInfo {
     pub captured: Option<&'static str>,
     pub gives_check: bool,
     pub threats: Vec<&'static str>,
+    /// Where those threatened pieces stand, in the same order as `threats`.
+    pub threat_squares: Vec<Square>,
     pub reply: String,
+}
+
+/// A board square as the UI counts them: row 0 is Black's back rank.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Square {
+    pub row: usize,
+    pub col: usize,
+}
+
+fn square_of(sq: u8) -> Square {
+    Square {
+        row: xiangqi_engine::types::disp_row(sq as usize),
+        col: xiangqi_engine::types::disp_col(sq as usize),
+    }
 }
 
 fn kind_name(kind: u8) -> &'static str {
@@ -233,6 +250,10 @@ async fn engine_hints(
                 threats: report
                     .as_ref()
                     .map(|r| r.threats.iter().copied().map(kind_name).collect())
+                    .unwrap_or_default(),
+                threat_squares: report
+                    .as_ref()
+                    .map(|r| r.threat_squares.iter().map(|s| square_of(*s)).collect())
                     .unwrap_or_default(),
                 reply,
             });

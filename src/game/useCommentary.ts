@@ -27,6 +27,15 @@ import {
 } from '../audio/voice'
 import { adviceLead, adviceReason } from '../commentary/advice'
 import type { Kind, MoveReport, SideLetter } from '../commentary/facts'
+import { foresightLine, readAhead } from '../commentary/foresight'
+import {
+  endgameLine,
+  matchupLine,
+  readEndgame,
+  readMatchup,
+  readShape,
+  shapeLine,
+} from '../commentary/shape'
 import {
   actionOf,
   captureLine,
@@ -42,8 +51,16 @@ import type { Line, Situation } from '../commentary/lines'
 import { pickLine } from '../commentary/lines'
 import type { GameStatus, HintInfo, Piece, SearchInfo, Side, StatusInfo } from '../engine/types'
 
-/** How many recent lines to avoid repeating. */
-const MEMORY = 12
+/**
+ * How many recent lines to avoid repeating.
+ *
+ * Deep on purpose. A pool of twelve with a memory of twelve is not "no repeats
+ * for twelve lines" — it is no *immediate* repeats, and a fair pick still lands
+ * on the same line often enough that a listener notices. The memory now runs
+ * wider than most pools, so a situation genuinely exhausts its lines before any
+ * of them comes round again.
+ */
+const MEMORY = 30
 
 /** Quiet moves that still earn a reaction, as a fraction. */
 const IDLE_CHANCE = 0.22
@@ -69,7 +86,30 @@ const FILLER_MS = 5_000
 const FILLER_TICK_MS = 1200
 
 /** How often filler reaches for an anecdote rather than a read of the position. */
-const STORY_SHARE = 0.65
+const STORY_SHARE = 0.5
+
+/**
+ * How often a move gets the long view instead of a stock reaction.
+ *
+ * Low on purpose. Reading the engine's line out after every move would be both
+ * exhausting and misleading: a principal variation is a best guess, and one
+ * offered constantly starts to sound like a promise. Held back, it lands as the
+ * thing a good pundit does once or twice a game -- look up from the move and say
+ * where all of this is going.
+ */
+const FORESIGHT_CHANCE = 0.22
+
+/** How often the commentator names the formation rather than reacting to a move. */
+const SHAPE_CHANCE = 0.3
+
+/**
+ * Moves between two formation readings.
+ *
+ * The shape of a position changes slowly, so naming it every move would be
+ * saying the same true thing over and over, which is exactly the complaint these
+ * pools were widened to fix.
+ */
+const SHAPE_GAP = 6
 
 export interface CommentaryInput {
   enabled: boolean
@@ -106,6 +146,8 @@ export function useCommentary(input: CommentaryInput) {
   const mateCalledRef = useRef(false)
   /** When the commentator last had the microphone, for measuring the silence. */
   const lastSpokeRef = useRef(0)
+  /** Ply of the last formation reading, and what it was, so it is not repeated. */
+  const lastShapeRef = useRef({ ply: -SHAPE_GAP, name: '' })
 
   const {
     enabled,
@@ -202,6 +244,34 @@ export function useCommentary(input: CommentaryInput) {
      */
     if (report?.formation) {
       sayLine(formationLine(report.side as SideLetter, report.formation), 'critical')
+    }
+
+    /*
+     * The long view, read out of the engine's own principal variation.
+     *
+     * This is the only thing the commentator says that is not already on the
+     * board, and it is the reason he is worth having: he is not describing the
+     * move, he is describing where the move leads. Every word of it comes from
+     * the line the engine actually intends to play, walked forward over the real
+     * position -- see `foresight.ts`. Nothing here is invented.
+     */
+    if (info?.pv && info.pv.length > 2 && Math.random() < FORESIGHT_CHANCE) {
+      sayLine(foresightLine(readAhead(pieces, status.sideToMove as SideLetter, info.pv)), 'event')
+    }
+
+    /*
+     * What the whole army is doing, named.
+     *
+     * "Pháo đầu đối bình phong mã" says more about a position than any sentence
+     * about a single piece can, and it is the vocabulary a player needs in order
+     * to read a game rather than just watch one.
+     */
+    if (moveCount - lastShapeRef.current.ply >= SHAPE_GAP && Math.random() < SHAPE_CHANCE) {
+      const said = sayShape(pieces, moveCount, lastShapeRef.current.name)
+      if (said) {
+        lastShapeRef.current = { ply: moveCount, name: said.name }
+        sayLine(said.line, 'event')
+      }
     }
 
     // 2. The reaction, when there is something to react to. The line above is
@@ -322,6 +392,7 @@ export function useCommentary(input: CommentaryInput) {
     prevScoreRef.current = null
     mateCalledRef.current = false
     recentRef.current = []
+    lastShapeRef.current = { ply: -SHAPE_GAP, name: '' }
     advisedRef.current = -1
     lastSpokeRef.current = Date.now()
     setSpoken(null)
@@ -388,6 +459,39 @@ function leaderSituation(info: SearchInfo | null, engineSide: Side | null): Situ
 function fillerSituation(info: SearchInfo | null, engineSide: Side | null): Situation {
   if (Math.random() < STORY_SHARE) return 'story'
   return leaderSituation(info, engineSide) ?? (info ? 'balanced' : 'thinking')
+}
+
+/**
+ * The best formation reading available, or null.
+ *
+ * A named pairing beats one side's shape, which beats a material reading: the
+ * pairing tells a listener the most about what kind of game they are watching.
+ * Whatever was said last time is skipped, so a slowly-changing position does not
+ * produce the same observation twice.
+ */
+function sayShape(
+  pieces: Piece[],
+  moveCount: number,
+  last: string
+): { name: string; line: Line } | null {
+  const matchup = readMatchup(pieces)
+  if (matchup && matchup !== last) return { name: matchup, line: matchupLine(matchup) }
+
+  for (const side of ['r', 'b'] as SideLetter[]) {
+    const shape = readShape(pieces, side, moveCount)
+    if (shape && `${side}:${shape}` !== last) {
+      return { name: `${side}:${shape}`, line: shapeLine(side, shape) }
+    }
+  }
+
+  for (const side of ['r', 'b'] as SideLetter[]) {
+    const end = readEndgame(pieces, side)
+    if (end && `${side}:${end}` !== last) {
+      return { name: `${side}:${end}`, line: endgameLine(side, end) }
+    }
+  }
+
+  return null
 }
 
 function resultSituation(status: GameStatus): Situation {

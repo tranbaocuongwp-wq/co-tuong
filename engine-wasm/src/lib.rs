@@ -96,6 +96,13 @@ pub struct PieceInfo {
 /// vocabulary for pieces rather than two.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct Square {
+    pub row: usize,
+    pub col: usize,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MoveReportInfo {
     /// Kind of the piece that moved.
     pub mover: &'static str,
@@ -107,6 +114,8 @@ pub struct MoveReportInfo {
     pub gives_check: bool,
     /// Enemy kinds the moved piece can now profitably take, best first.
     pub threats: Vec<&'static str>,
+    /// Where those threatened pieces stand, in the same order as `threats`.
+    pub threat_squares: Vec<Square>,
     /// The moved piece is now on the far side of the river.
     pub crossed_river: bool,
     /// The move carried the piece into the enemy palace.
@@ -135,6 +144,12 @@ pub struct HintInfo {
     pub gives_check: bool,
     /// Enemy kinds this move would then threaten, best first.
     pub threats: Vec<&'static str>,
+    /// Where those threatened pieces stand, in the same order as `threats`.
+    ///
+    /// What the preview highlights. Naming the kind is enough to talk about a
+    /// threat but not to point at it: with two Cannons on the board, only one
+    /// of them is in danger.
+    pub threat_squares: Vec<Square>,
     /// The reply the engine expects, in notation. Empty if the move ends it.
     pub reply: String,
 }
@@ -472,6 +487,7 @@ impl Game {
             captured: r.captured.map(kind_name),
             gives_check: r.gives_check,
             threats: r.threats.into_iter().map(kind_name).collect(),
+            threat_squares: r.threat_squares.iter().map(|s| square_of(*s)).collect(),
             crossed_river: r.crossed_river,
             into_palace: r.into_palace,
             formation: r.formation.map(|f| match f {
@@ -733,11 +749,23 @@ impl Engine {
                     .as_ref()
                     .map(|r| r.threats.iter().copied().map(kind_name).collect())
                     .unwrap_or_default(),
+                threat_squares: report
+                    .as_ref()
+                    .map(|r| r.threat_squares.iter().map(|s| square_of(*s)).collect())
+                    .unwrap_or_default(),
                 reply,
             });
         }
 
         to_js(&out)
+    }
+}
+
+/// A board square as the UI counts them: row 0 is Black's back rank.
+fn square_of(sq: u8) -> Square {
+    Square {
+        row: disp_row(sq as usize),
+        col: disp_col(sq as usize),
     }
 }
 

@@ -556,6 +556,36 @@ impl Searcher {
     /// The opening book is deliberately left out: a book move is a fine thing
     /// to play but it comes with no score, and a hint that cannot say how good
     /// its advice is has nothing to offer here.
+    ///
+    /// ## Why this is done in two passes
+    ///
+    /// The obvious implementation — split the time budget evenly across every
+    /// legal move — is what this used to do, and it gave bad advice. A
+    /// middlegame position has around forty legal moves, so a two-and-a-half
+    /// second budget bought sixty milliseconds each: about four plies. At four
+    /// plies a losing move and a winning move can easily come back with the
+    /// same score, and since the list is *sorted* by those scores, the noise
+    /// decides the order. The player was being confidently handed whichever
+    /// blunder happened to look best at depth four.
+    ///
+    /// Spreading effort evenly is the mistake. Almost all of those forty moves
+    /// are obviously bad and need only enough search to be dismissed; the answer
+    /// is among a handful. So: one cheap pass to find that handful, then the
+    /// whole remaining budget spent on it. Same wall clock, several plies deeper
+    /// where it counts.
+    ///
+    /// ## The anchor
+    ///
+    /// A shallow scouting pass can discard the move that actually wins — a test
+    /// in this file demonstrates exactly that on a crowded middlegame, which is
+    /// why the pass alone is not enough. So the ordinary search runs first and
+    /// its move is placed at the head of the list unconditionally.
+    ///
+    /// That gives the guarantee a hint needs to be worth trusting: **the first
+    /// suggestion is never worse than the move the engine would play itself.**
+    /// The ranking's job is to explain the alternatives, not to overrule the
+    /// strongest statement the engine is capable of making — and a shallower
+    /// search disagreeing with a deeper one is noise, not a discovery.
     pub fn rank_moves(
         &mut self,
         pos: &mut Position,
@@ -563,6 +593,21 @@ impl Searcher {
         ctx: &SearchContext,
         top: usize,
     ) -> Vec<RootChoice> {
+        /// Plies for the scouting pass. Enough to see a hanging piece, no more —
+        /// this pass only has to be right about which moves are *plausible*.
+        const SCOUT_DEPTH: u32 = 4;
+        /// Never give a scouted move less than this, however many there are.
+        const SCOUT_MIN_MS: u64 = 8;
+        /// Never give a shortlisted move less than this.
+        const DEEP_MIN_MS: u64 = 60;
+        /// The shortlist is at least this long, so a hint always has real
+        /// alternatives to compare even when only one move is any good.
+        const SHORTLIST_MIN: usize = 8;
+        /// Share of the budget spent deciding what to think about.
+        const SCOUT_SHARE: u64 = 4;
+        /// Share of the budget given to the ordinary search that anchors the list.
+        const ANCHOR_SHARE: u64 = 3;
+
         let moves = pos.legal_moves();
         if moves.is_empty() || top == 0 {
             return Vec::new();
@@ -572,35 +617,101 @@ impl Searcher {
             book: None,
             experience: ctx.experience,
         };
-        let per_move = if limits.movetime_ms > 0 {
-            (limits.movetime_ms / moves.len() as u64).max(20)
-        } else {
-            0
-        };
-        let child_limits = SearchLimits {
-            max_depth: limits.max_depth.saturating_sub(1).max(1),
-            movetime_ms: per_move,
+
+        // The move the engine would play, and the score it stands behind. This
+        // is the one number here that comes from a full-width search of the real
+        // position rather than from a slice of the budget.
+        let anchor = self.search_with(
+            pos,
+            SearchLimits {
+                movetime_ms: limits.movetime_ms / ANCHOR_SHARE,
+                randomness_cp: 0,
+                ..limits
+            },
+            &child_ctx,
+            None,
+        );
+
+        let rest = limits.movetime_ms - limits.movetime_ms / ANCHOR_SHARE;
+        let scout_budget = rest / SCOUT_SHARE;
+        let scout_limits = SearchLimits {
+            max_depth: limits.max_depth.min(SCOUT_DEPTH).max(1),
+            movetime_ms: if limits.movetime_ms > 0 {
+                (scout_budget / moves.len() as u64).max(SCOUT_MIN_MS)
+            } else {
+                0
+            },
             // No noise: the whole point is to compare these honestly.
             randomness_cp: 0,
             seed: limits.seed,
         };
 
-        let mut out = Vec::with_capacity(moves.len());
+        let mut scouted = Vec::with_capacity(moves.len());
         for mv in moves {
+            // The anchor already has a better answer than this pass could give.
+            if mv == anchor.best_move {
+                continue;
+            }
             if !pos.make_move(mv) {
                 continue;
             }
-            let child = self.search_with(pos, child_limits, &child_ctx, None);
+            let child = self.search_with(pos, scout_limits, &child_ctx, None);
             pos.undo_move();
             // The child score is from the opponent's point of view.
-            out.push(RootChoice {
+            scouted.push(RootChoice {
                 mv,
+                score: -child.score,
+                reply: child.best_move,
+            });
+        }
+        scouted.sort_by(|a, b| b.score.cmp(&a.score));
+
+        // Wider than `top` on purpose: the scouting pass is shallow, so a move
+        // worth offering may be sitting a few places down the list. Giving it a
+        // proper search is the only way to find that out.
+        let shortlist = scouted.len().min(top.saturating_mul(3).max(SHORTLIST_MIN));
+        let deep_budget = rest.saturating_sub(scout_budget);
+        let deep_limits = SearchLimits {
+            max_depth: limits.max_depth.saturating_sub(1).max(1),
+            movetime_ms: if limits.movetime_ms > 0 {
+                (deep_budget / shortlist as u64).max(DEEP_MIN_MS)
+            } else {
+                0
+            },
+            randomness_cp: 0,
+            seed: limits.seed,
+        };
+
+        let mut out = Vec::with_capacity(shortlist);
+        for choice in scouted.into_iter().take(shortlist) {
+            if !pos.make_move(choice.mv) {
+                continue;
+            }
+            let child = self.search_with(pos, deep_limits, &child_ctx, None);
+            pos.undo_move();
+            out.push(RootChoice {
+                mv: choice.mv,
                 score: -child.score,
                 reply: child.best_move,
             });
         }
 
         out.sort_by(|a, b| b.score.cmp(&a.score));
+        out.truncate(top.saturating_sub(1));
+
+        // The anchor goes in front of them all — see the note above. Its reply is
+        // the second move of its own principal variation, which is precisely
+        // "what the engine expects to happen next".
+        if anchor.best_move != 0 {
+            out.insert(
+                0,
+                RootChoice {
+                    mv: anchor.best_move,
+                    score: anchor.score,
+                    reply: anchor.pv.get(1).copied().unwrap_or(0),
+                },
+            );
+        }
         out.truncate(top);
         out
     }
@@ -867,6 +978,37 @@ mod tests {
             ranked[0].score >= ranked[1].score && ranked[1].score >= ranked[2].score,
             "choices must come back best first"
         );
+    }
+
+    /// The scouting pass must not throw away the move that actually wins.
+    ///
+    /// This is the whole risk the two-pass design takes on: a shallow look
+    /// decides what gets a real search, so anything it drops can never be
+    /// recommended however good it is. A middlegame with forty-odd legal moves
+    /// is where that would bite, and the assertion is the one that matters —
+    /// ranking must still land on the move a deeper search picks, at a depth the
+    /// scout itself (capped at four plies) cannot see.
+    #[test]
+    fn ranking_survives_a_crowded_position() {
+        let mut pos =
+            Position::from_fen("rnbakabnr/9/1c5c1/p1p1p1p1p/9/9/P1P1P1P1P/1C5C1/9/RNBAKABNR w - - 0 1")
+                .unwrap();
+        assert!(
+            pos.legal_moves().len() > 30,
+            "the point of this test is a position with plenty to choose from"
+        );
+
+        let limits = SearchLimits {
+            max_depth: 8,
+            movetime_ms: 0,
+            randomness_cp: 0,
+            seed: 1,
+        };
+        let mut engine = Searcher::new(16, zero_clock);
+        let best = engine.search(&mut pos, limits, None).best_move;
+
+        let ranked = engine.rank_moves(&mut pos, limits, &SearchContext::default(), 3);
+        assert_eq!(ranked[0].mv, best, "the shortlist dropped the best move");
     }
 
     /// Nothing to choose between when there is nothing to play.

@@ -160,6 +160,7 @@ export function ReviewPage() {
             inCheck={view.status.inCheck}
             disabled
             hint={null}
+          preview={null}
           />
         </div>
 

@@ -112,7 +112,25 @@ interface Queued {
   seq: number
 }
 
-let enabled = false
+/**
+ * How much of the commentator is switched on.
+ *
+ * - `off` — he is not there at all.
+ * - `silent` — he still decides what to say and the words still appear, but
+ *   nothing is fetched and nothing is heard.
+ * - `voice` — the full thing.
+ *
+ * `silent` exists because turning the sound off should not turn the *commentary*
+ * off. On a screen with room for it the remarks go into a feed beside the board
+ * instead, and a feed that only fills up when the speaker is on would be a
+ * strange thing to build. Running it through this same queue rather than a
+ * separate path is what makes the feed read like a broadcast: the same ordering,
+ * the same "urgent goes to the front", the same discarding of stale chatter, and
+ * the same pacing — lines arrive as they would have been said, not all at once.
+ */
+export type VoiceMode = 'off' | 'silent' | 'voice'
+
+let mode: VoiceMode = 'off'
 let seq = 0
 let queue: Queued[] = []
 let running = false
@@ -123,14 +141,36 @@ let listener: ((utterance: Utterance | null) => void) | null = null
 const buffers = new Map<string, AudioBuffer>()
 const loading = new Map<string, Promise<void>>()
 
+/** Whether the commentator is running at all, aloud or not. */
+function live(): boolean {
+  return mode !== 'off'
+}
+
+export function setVoiceMode(next: VoiceMode): void {
+  if (mode === next) return
+  const wasLive = live()
+  mode = next
+  // Going quiet must stop what is already in the air; going from silent to
+  // spoken (or back) must not throw away a queue that is still relevant.
+  if (!live() && wasLive) stopVoice()
+  if (mode === 'silent') {
+    for (const src of playing) {
+      try {
+        src.stop()
+      } catch {
+        // Already finished.
+      }
+    }
+    playing = []
+  }
+}
+
 export function setVoiceEnabled(on: boolean): void {
-  if (enabled === on) return
-  enabled = on
-  if (!on) stopVoice()
+  setVoiceMode(on ? 'voice' : 'off')
 }
 
 export function isVoiceEnabled(): boolean {
-  return enabled
+  return live()
 }
 
 /**
@@ -297,44 +337,54 @@ async function run(): Promise<void> {
   if (running) return
   running = true
   try {
-    while (enabled && queue.length > 0) {
+    while (live() && queue.length > 0) {
       const next = queue.shift()
       if (!next) break
 
       // Overtaken by the game while it waited. Say nothing rather than say it late.
       if (next.priority === 'idle' && Date.now() - next.queuedAt > STALE_MS) continue
 
-      const ctx = audioContext()
-      // A context that will not start is worse than none: scheduling into it
-      // loses the utterance silently, where falling through shows the caption.
-      if (ctx && ctx.state !== 'running') {
-        try {
-          await ctx.resume()
-        } catch {
-          // Still waiting on a gesture; the caption carries this one.
+      /*
+       * Getting the audio is entirely optional, at every step.
+       *
+       * The recording may not exist yet, the Worker may be down, the browser may
+       * be offline, the audio context may still be waiting on a gesture. None of
+       * those is an error the player should meet: if the sound can be had it
+       * plays, and if it cannot the words go up on screen for as long as they
+       * would have taken to say. The game itself never waits on any of this.
+       */
+      let ctx: AudioContext | null = null
+      if (mode === 'voice') {
+        const found = audioContext()
+        if (found && found.state !== 'running') {
+          try {
+            await found.resume()
+          } catch {
+            // Still waiting on a gesture; the caption carries this one.
+          }
         }
+        ctx = found?.state === 'running' ? found : null
+        if (ctx) await Promise.all(next.utterance.parts.map((id) => load(ctx as AudioContext, id)))
       }
-      const live = ctx?.state === 'running' ? ctx : null
-      if (live) await Promise.all(next.utterance.parts.map((id) => load(live, id)))
-      if (!enabled) break
+      if (!live()) break
 
       // The caption goes up when the utterance actually starts, audio or not.
       emit(next.utterance)
 
-      const list = live
+      const list = ctx
         ? next.utterance.parts.map((id) => buffers.get(id)).filter((b): b is AudioBuffer => !!b)
         : []
 
       // All or nothing: half a sentence is worse than a caption on its own.
-      if (live && list.length === next.utterance.parts.length) {
-        await playSequence(live, list)
+      if (ctx && list.length === next.utterance.parts.length) {
+        await playSequence(ctx, list)
       } else {
         await sleep(
           Math.max(MIN_CAPTION_MS, (next.utterance.text.length / CHARS_PER_SECOND) * 1000)
         )
       }
 
-      if (enabled && queue.length > 0) await sleep(GAP_MS)
+      if (live() && queue.length > 0) await sleep(GAP_MS)
     }
   } finally {
     running = false
@@ -345,7 +395,7 @@ async function run(): Promise<void> {
 
 /** Queue an utterance. Returns at once; the board never waits on the commentary. */
 export function say(utterance: Utterance, priority: VoicePriority = 'event'): void {
-  if (!enabled) return
+  if (!live()) return
 
   // Already waiting to be said; queueing it twice would stutter.
   if (queue.some((q) => q.utterance.id === utterance.id)) return
@@ -389,7 +439,10 @@ export function speakWords(text: string, words: Line[], priority: VoicePriority 
  * Anything already in the cache costs nothing here.
  */
 export function primeVoice(lines: Line[]): void {
-  if (!enabled) return
+  // Only when something will actually be heard. Pulling megabytes down for a
+  // feed that is going to render text would be someone else's data plan spent
+  // on nothing.
+  if (mode !== 'voice') return
   for (const line of lines) void warm(line.id)
 }
 

@@ -9,6 +9,15 @@
  * Nothing here computes anything. Every reason shown is something the engine
  * reported about the actual position: what the move takes, whether it checks,
  * what it would then be threatening, and what it expects in reply.
+ *
+ * ## Look before you leap
+ *
+ * Tapping an option used to play it straight away, which made the list a menu
+ * of decisions rather than a set of ideas. Now the first tap *shows* it: the
+ * sheet steps aside, an arrow appears on the board, and the squares that move
+ * would put under pressure light up. Playing it is a second, deliberate tap.
+ * That is the whole point of offering three — you cannot compare things you
+ * cannot look at.
  */
 
 import type { HintInfo, PieceKind } from '../engine/types'
@@ -18,6 +27,11 @@ export interface HintDialogProps {
   open: boolean
   busy: boolean
   choices: HintInfo[]
+  /** The option currently being shown on the board, if any. */
+  previewing: string | null
+  /** Show this option on the board. */
+  onPreview: (iccs: string | null) => void
+  /** Commit to it. */
   onPick: (iccs: string) => void
   onClose: () => void
 }
@@ -65,14 +79,28 @@ function verdict(score: number): string {
   return 'Rất khó'
 }
 
-export function HintDialog({ open, busy, choices, onPick, onClose }: HintDialogProps) {
+export function HintDialog({
+  open,
+  busy,
+  choices,
+  previewing,
+  onPreview,
+  onPick,
+  onClose,
+}: HintDialogProps) {
   if (!open) return null
 
   const best = choices[0]
   const hopeless = !busy && choices.length > 0 && best.score <= HOPELESS
 
   return (
-    <div className="sheet" role="dialog" aria-modal="true" aria-label="Gợi ý nước đi">
+    <div
+      // While an option is being shown the sheet slides down out of the way and
+      // stops swallowing taps, so the board underneath is both visible and live.
+      className={previewing ? 'sheet sheet--peek' : 'sheet'}
+      role="dialog"
+      aria-label="Gợi ý nước đi"
+    >
       <div className="sheet__scrim" onClick={onClose} />
       <div className="sheet__panel">
         <div className="sheet__head">
@@ -96,22 +124,49 @@ export function HintDialog({ open, busy, choices, onPick, onClose }: HintDialogP
           </p>
         )}
 
+        {!busy && choices.length > 0 && (
+          <p className="muted sheet__note">Chạm để xem trước trên bàn cờ, chạm lần nữa để đi.</p>
+        )}
+
         {!busy &&
-          choices.map((choice, i) => (
-            <button
-              key={choice.iccs}
-              type="button"
-              className={`hint-card${i === 0 ? ' hint-card--best' : ''}`}
-              onClick={() => onPick(choice.iccs)}
-            >
-              <span className="hint-card__rank">{i + 1}</span>
-              <span className="hint-card__body">
-                <span className="hint-card__move">{choice.text}</span>
-                <span className="hint-card__why">{reasons(choice).join(' · ')}</span>
-              </span>
-              <span className="hint-card__verdict">{verdict(choice.score)}</span>
-            </button>
-          ))}
+          choices.map((choice, i) => {
+            const shown = previewing === choice.iccs
+            return (
+              <div
+                key={choice.iccs}
+                className={[
+                  'hint-card',
+                  i === 0 ? 'hint-card--best' : '',
+                  shown ? 'hint-card--shown' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+              >
+                <button
+                  type="button"
+                  className="hint-card__pick"
+                  onClick={() => onPreview(shown ? null : choice.iccs)}
+                  aria-pressed={shown}
+                >
+                  <span className="hint-card__rank">{i + 1}</span>
+                  <span className="hint-card__body">
+                    <span className="hint-card__move">{choice.text}</span>
+                    <span className="hint-card__why">{reasons(choice).join(' · ')}</span>
+                  </span>
+                  <span className="hint-card__verdict">{verdict(choice.score)}</span>
+                </button>
+                {shown && (
+                  <button
+                    type="button"
+                    className="btn btn--primary hint-card__go"
+                    onClick={() => onPick(choice.iccs)}
+                  >
+                    Đi nước này
+                  </button>
+                )}
+              </div>
+            )
+          })}
       </div>
     </div>
   )

@@ -83,6 +83,15 @@ pub struct MoveReport {
     pub gives_check: bool,
     /// Enemy kinds the moved piece could now profitably take, best first.
     pub threats: Vec<u8>,
+    /// Where those threatened pieces actually stand, as board squares.
+    ///
+    /// The kinds alone are enough to *say* something ("it is aiming at a
+    /// Cannon") but not enough to *show* it: with two Cannons on the board,
+    /// highlighting both would point at one square that is not threatened at
+    /// all. Since the square is already in hand where the threat is found,
+    /// carrying it out costs nothing and is the difference between a preview
+    /// that is true and one that is nearly true.
+    pub threat_squares: Vec<u8>,
     /// The moved piece is now on the far side of the river.
     pub crossed_river: bool,
     /// The move carried the piece into the enemy palace.
@@ -927,7 +936,9 @@ impl Position {
 
         let mut list = MoveList::new();
         self.generate(&mut list, true);
-        let mut threats = Vec::new();
+        // Kind and square together, so the two can be sorted as one and never
+        // drift out of step with each other.
+        let mut found: Vec<(u8, u8)> = Vec::new();
 
         for i in 0..list.len {
             let m = list.moves[i];
@@ -946,8 +957,8 @@ impl Position {
             } else {
                 true
             };
-            if profitable && !threats.contains(&kind_of(victim)) {
-                threats.push(kind_of(victim));
+            if profitable && !found.iter().any(|(k, _)| *k == kind_of(victim)) {
+                found.push((kind_of(victim), target as u8));
             }
         }
 
@@ -955,7 +966,7 @@ impl Position {
         self.key = saved_key;
 
         // Most valuable first: that is the one worth naming.
-        threats.sort_by_key(|k| match *k {
+        found.sort_by_key(|(k, _)| match *k {
             ROOK => 0,
             CANNON => 1,
             HORSE => 2,
@@ -963,6 +974,8 @@ impl Position {
             ADVISOR => 4,
             _ => 5,
         });
+        let threats: Vec<u8> = found.iter().map(|(k, _)| *k).collect();
+        let threat_squares: Vec<u8> = found.iter().map(|(_, s)| *s).collect();
 
         // Two facts a watcher reads off the board without being told, and which
         // change what a move *means*: a piece over the river is committed, and
@@ -987,6 +1000,7 @@ impl Position {
             mover_side,
             gives_check: self.in_check(),
             threats,
+            threat_squares,
             crossed_river: crossed,
             into_palace: enemy_palace,
         })
