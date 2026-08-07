@@ -444,6 +444,7 @@ dependencies = [
 name = "co-tuong"
 version = "0.3.0"
 dependencies = [
+ "co-tuong-engine",
  "log",
  "serde",
  "serde_json",
@@ -451,7 +452,22 @@ dependencies = [
  "tauri-build",
  "tauri-plugin-log",
  "tauri-plugin-sql",
- "xiangqi-engine",
+]
+
+[[package]]
+name = "co-tuong-engine"
+version = "0.3.0"
+
+[[package]]
+name = "co-tuong-engine-wasm"
+version = "0.3.0"
+dependencies = [
+ "co-tuong-engine",
+ "console_error_panic_hook",
+ "js-sys",
+ "serde",
+ "serde-wasm-bindgen",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -5409,22 +5425,6 @@ dependencies = [
  "libc",
  "once_cell",
  "pkg-config",
-]
-
-[[package]]
-name = "xiangqi-engine"
-version = "0.3.0"
-
-[[package]]
-name = "xiangqi-engine-wasm"
-version = "0.3.0"
-dependencies = [
- "console_error_panic_hook",
- "js-sys",
- "serde",
- "serde-wasm-bindgen",
- "wasm-bindgen",
- "xiangqi-engine",
 ]
 
 [[package]]

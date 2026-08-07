@@ -6,7 +6,7 @@
 //! wrong: the hobbled horse, the elephant's blocked eye, the cannon's screen,
 //! and the flying-general constraint. If these numbers match, the rules match.
 
-use xiangqi_engine::Position;
+use co_tuong_engine::Position;
 
 /// Reference node counts from the initial array.
 const START_PERFT: [(u32, u64); 5] = [

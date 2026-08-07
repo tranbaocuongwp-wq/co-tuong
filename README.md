@@ -45,8 +45,8 @@ rustup target add wasm32-unknown-unknown && cargo install wasm-pack
 | Bản cài đặt cho máy tính | `npm run tauri:build` |
 | Trang web tĩnh (PWA) | `npm run build` → thư mục `dist/` |
 | Kiểm thử engine | `npm run test:engine` |
-| Perft đầy đủ (độ sâu 5) | `cargo test -p xiangqi-engine --release --test perft -- --ignored` |
-| Đo sức cờ | `cargo run -p xiangqi-engine --release --example bench` |
+| Perft đầy đủ (độ sâu 5) | `cargo test -p co-tuong-engine --release --test perft -- --ignored` |
+| Đo sức cờ | `cargo run -p co-tuong-engine --release --example bench` |
 
 ---
 

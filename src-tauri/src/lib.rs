@@ -14,11 +14,11 @@ use std::sync::Mutex;
 use serde::{Deserialize, Serialize};
 use tauri::Manager;
 
-use xiangqi_engine::learn::Outcome;
-use xiangqi_engine::search::system_now_ms;
-use xiangqi_engine::types::{iccs_to_move, move_to_iccs, Move, BLACK, RED};
-use xiangqi_engine::notation::move_to_vietnamese;
-use xiangqi_engine::{
+use co_tuong_engine::learn::Outcome;
+use co_tuong_engine::search::system_now_ms;
+use co_tuong_engine::types::{iccs_to_move, move_to_iccs, Move, BLACK, RED};
+use co_tuong_engine::notation::move_to_vietnamese;
+use co_tuong_engine::{
     Book, Experience, Position, SearchContext, SearchLimits, Searcher, MATE_BOUND, MATE_VALUE,
     START_FEN,
 };
@@ -72,8 +72,8 @@ pub struct Square {
 
 fn square_of(sq: u8) -> Square {
     Square {
-        row: xiangqi_engine::types::disp_row(sq as usize),
-        col: xiangqi_engine::types::disp_col(sq as usize),
+        row: co_tuong_engine::types::disp_row(sq as usize),
+        col: co_tuong_engine::types::disp_col(sq as usize),
     }
 }
 

@@ -11,8 +11,8 @@ import { dirname, join } from 'node:path'
 const here = dirname(fileURLToPath(import.meta.url))
 const pkg = join(here, '..', 'src', 'wasm')
 
-const init = await import(join(pkg, 'xiangqi_engine_wasm.js'))
-const bytes = await readFile(join(pkg, 'xiangqi_engine_wasm_bg.wasm'))
+const init = await import(join(pkg, 'co_tuong_engine_wasm.js'))
+const bytes = await readFile(join(pkg, 'co_tuong_engine_wasm_bg.wasm'))
 await init.default({ module_or_path: bytes })
 
 const { Game, Engine, startFen, version } = init

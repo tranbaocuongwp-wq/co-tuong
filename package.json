@@ -15,7 +15,7 @@
     "tauri": "tauri",
     "tauri:dev": "npm run wasm:dev && tauri dev",
     "tauri:build": "npm run wasm && tauri build",
-    "test:engine": "cargo test -p xiangqi-engine --release",
+    "test:engine": "cargo test -p co-tuong-engine --release",
     "check:ui": "node scripts/check-ui.mjs",
     "gen:sfx": "node scripts/generate-sfx.mjs",
     "gen:voice": "node scripts/pregenerate-voice.mjs",

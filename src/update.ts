@@ -16,7 +16,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 
-import wasmUrl from './wasm/xiangqi_engine_wasm_bg.wasm?url'
+import wasmUrl from './wasm/co_tuong_engine_wasm_bg.wasm?url'
 
 /** Injected by Vite at build time; see `vite.config.ts`. */
 declare const __BUILD_ID__: string

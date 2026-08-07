@@ -97,6 +97,6 @@ export default defineConfig({
   },
   // wasm-pack output is generated, not authored — don't let Vite pre-bundle it.
   optimizeDeps: {
-    exclude: ['./src/wasm/xiangqi_engine_wasm.js'],
+    exclude: ['./src/wasm/co_tuong_engine_wasm.js'],
   },
 })

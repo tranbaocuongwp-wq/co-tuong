@@ -24,19 +24,19 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Format
-        run: cargo fmt --package xiangqi-engine --package xiangqi-engine-wasm --check
+        run: cargo fmt --package co-tuong-engine --package co-tuong-engine-wasm --check
 
       - name: Clippy
-        run: cargo clippy --package xiangqi-engine --all-targets -- -D warnings
+        run: cargo clippy --package co-tuong-engine --all-targets -- -D warnings
 
       - name: Unit tests
-        run: cargo test --package xiangqi-engine --release
+        run: cargo test --package co-tuong-engine --release
 
       # Perft is the correctness gate for the rules. Depth 5 is 133M nodes and
       # takes a few seconds in release; it is worth running on every push
       # because a movegen regression is otherwise almost invisible.
       - name: Perft (depth 5)
-        run: cargo test --package xiangqi-engine --release --test perft -- --ignored --nocapture
+        run: cargo test --package co-tuong-engine --release --test perft -- --ignored --nocapture
 
   web:
     name: Web build + WebAssembly smoke test

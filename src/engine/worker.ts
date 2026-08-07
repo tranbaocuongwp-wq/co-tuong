@@ -12,8 +12,8 @@
  * why the second search in a game is faster than the first.
  */
 
-import init, { Engine, Game } from '../wasm/xiangqi_engine_wasm.js'
-import wasmUrl from '../wasm/xiangqi_engine_wasm_bg.wasm?url'
+import init, { Engine, Game } from '../wasm/co_tuong_engine_wasm.js'
+import wasmUrl from '../wasm/co_tuong_engine_wasm_bg.wasm?url'
 import type { HintInfo, SearchInfo, SearchOptions } from './types'
 
 /** 16 MB is a reasonable table for a browser tab. */

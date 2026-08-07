@@ -16,14 +16,14 @@
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
-use xiangqi_engine::board::{Forcing, Formation, RepKind};
-use xiangqi_engine::learn::Outcome;
-use xiangqi_engine::notation::move_to_vietnamese;
-use xiangqi_engine::types::{
+use co_tuong_engine::board::{Forcing, Formation, RepKind};
+use co_tuong_engine::learn::Outcome;
+use co_tuong_engine::notation::move_to_vietnamese;
+use co_tuong_engine::types::{
     disp_col, disp_row, iccs_to_move, kind_of, move_to_iccs, mv_from, mv_to, side_of, Move, BLACK,
     EMPTY, RED,
 };
-use xiangqi_engine::{
+use co_tuong_engine::{
     Book, Experience, Position, SearchContext, SearchLimits, Searcher, START_FEN,
 };
 
@@ -235,9 +235,9 @@ fn glyph_for(pc: u8) -> &'static str {
 ///
 /// `source` is the position the move is played *from*, needed to render the
 /// move in Vietnamese notation.
-fn describe_search(source: &Position, r: &xiangqi_engine::SearchResult) -> SearchInfo {
-    let mate_in = if r.score.abs() >= xiangqi_engine::MATE_BOUND {
-        let plies = xiangqi_engine::MATE_VALUE - r.score.abs();
+fn describe_search(source: &Position, r: &co_tuong_engine::SearchResult) -> SearchInfo {
+    let mate_in = if r.score.abs() >= co_tuong_engine::MATE_BOUND {
+        let plies = co_tuong_engine::MATE_VALUE - r.score.abs();
         Some(if r.score > 0 { plies } else { -plies })
     } else {
         None
@@ -404,7 +404,7 @@ impl Game {
     /// The moves played so far in Vietnamese notation.
     #[wasm_bindgen(js_name = movesText)]
     pub fn moves_text(&self) -> Result<JsValue, JsValue> {
-        let text = xiangqi_engine::notation::game_to_vietnamese(&self.start_fen, &self.moves)
+        let text = co_tuong_engine::notation::game_to_vietnamese(&self.start_fen, &self.moves)
             .map_err(err)?;
         to_js(&text)
     }
@@ -417,7 +417,7 @@ impl Game {
     /// Every piece on the board, for rendering.
     pub fn pieces(&self) -> Result<JsValue, JsValue> {
         let mut out = Vec::with_capacity(32);
-        for s in xiangqi_engine::types::all_squares() {
+        for s in co_tuong_engine::types::all_squares() {
             let pc = self.pos.board[s];
             if pc == EMPTY {
                 continue;
@@ -677,7 +677,7 @@ impl Engine {
             experience: opts.use_experience.then_some(&self.experience),
         };
         let source = &game.pos;
-        let mut report = |partial: &xiangqi_engine::SearchResult| {
+        let mut report = |partial: &co_tuong_engine::SearchResult| {
             if let Some(f) = &on_progress {
                 if let Ok(payload) = to_js(&describe_search(source, partial)) {
                     // A throwing or detached callback must not abort the
@@ -686,7 +686,7 @@ impl Engine {
                 }
             }
         };
-        let callback: Option<xiangqi_engine::InfoFn> = if on_progress.is_some() {
+        let callback: Option<co_tuong_engine::InfoFn> = if on_progress.is_some() {
             Some(&mut report)
         } else {
             None

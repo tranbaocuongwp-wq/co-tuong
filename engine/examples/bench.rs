@@ -1,9 +1,9 @@
 //! Quick strength probe: how deep does the engine get inside a time budget?
 //!
-//! Run with `cargo run -p xiangqi-engine --release --example bench`.
+//! Run with `cargo run -p co-tuong-engine --release --example bench`.
 
-use xiangqi_engine::search::{system_now_ms, SearchLimits, Searcher};
-use xiangqi_engine::{move_to_iccs, Position, START_FEN};
+use co_tuong_engine::search::{system_now_ms, SearchLimits, Searcher};
+use co_tuong_engine::{move_to_iccs, Position, START_FEN};
 
 const POSITIONS: [(&str, &str); 3] = [
     ("opening (initial array)", START_FEN),

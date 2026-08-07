@@ -11,8 +11,8 @@ import init, {
   Game as WasmGame,
   startFen as wasmStartFen,
   version as wasmVersion,
-} from '../wasm/xiangqi_engine_wasm.js'
-import wasmUrl from '../wasm/xiangqi_engine_wasm_bg.wasm?url'
+} from '../wasm/co_tuong_engine_wasm.js'
+import wasmUrl from '../wasm/co_tuong_engine_wasm_bg.wasm?url'
 
 let ready: Promise<void> | null = null
 let loaded = false
