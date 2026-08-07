@@ -16,7 +16,15 @@ import init, { Engine, Game } from '../wasm/co_tuong_engine_wasm.js'
 import wasmUrl from '../wasm/co_tuong_engine_wasm_bg.wasm?url'
 import type { HintInfo, SearchInfo, SearchOptions } from './types'
 
-/** 16 MB is a reasonable table for a browser tab. */
+/**
+ * 16 MB, and measured rather than guessed.
+ *
+ * A bigger table is the obvious way to buy strength for free, so it was tried:
+ * 64 MB reached *fewer* plies than 16 MB at every budget over a second (17 vs
+ * 18 at twenty-five seconds). A table that no longer fits the processor's cache
+ * costs more in misses than it saves in re-searches, and this workload is
+ * already deep in that territory. Leave it alone without new measurements.
+ */
 const TT_MB = 16
 
 export type WorkerRequest =

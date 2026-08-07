@@ -15,13 +15,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Download, HardDrive, Save, Trash2, Upload } from 'lucide-react'
 
-import { downloadVoicePack } from '../audio/pack'
+import { VoicePack } from '../components/VoicePack'
 import { Button } from '../components/ui/button'
 import { Card, CardTitle } from '../components/ui/card'
 import { Segmented } from '../components/ui/segmented'
 import { Switch } from '../components/ui/switch'
 import { getEngineClient } from '../engine/client'
-import type { Difficulty } from '../engine/types'
 import { DIFFICULTY_ORDER, DIFFICULTY_PRESETS } from '../engine/types'
 import { engineVersion } from '../engine/wasm'
 import { useSettings } from '../settings'
@@ -34,14 +33,6 @@ import {
 } from '../storage'
 
 const EXPERIENCE_KEY = 'engine.experience'
-
-/** Short enough to fit beside a switch on a 375px screen. */
-const SHORT: Partial<Record<Difficulty, string>> = {
-  easy: 'Dễ',
-  medium: 'Vừa',
-  hard: 'Khó',
-  master: 'Siêu khó',
-}
 
 const SWITCHES: {
   key: 'flipped' | 'showHints' | 'sound' | 'voice' | 'perpetualRule' | 'learnFromGames'
@@ -59,9 +50,6 @@ const SWITCHES: {
 export function SettingsPage() {
   const { settings, update } = useSettings()
 
-  const [packBusy, setPackBusy] = useState(false)
-  const [packPercent, setPackPercent] = useState(0)
-  const [packNote, setPackNote] = useState<string | null>(null)
   const [storeKind, setStoreKind] = useState('…')
   const [experienceSize, setExperienceSize] = useState<number | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -88,26 +76,6 @@ export function SettingsPage() {
   useEffect(() => {
     void refreshExperience()
   }, [refreshExperience])
-
-  const onDownloadPack = useCallback(async () => {
-    setPackBusy(true)
-    setPackPercent(0)
-    setPackNote(null)
-    try {
-      const result = await downloadVoicePack(({ done, total }) =>
-        setPackPercent(Math.round((done / total) * 100))
-      )
-      setPackNote(
-        result.failed > 0
-          ? `${result.fetched + result.already}/${result.total} câu đã tải. ${result.failed} câu chưa có bản ghi.`
-          : `Xong — ${result.total} câu đã nằm trong máy.`
-      )
-    } catch (e) {
-      setPackNote(e instanceof Error ? e.message : 'Không tải được.')
-    } finally {
-      setPackBusy(false)
-    }
-  }, [])
 
   const clearExperience = useCallback(async () => {
     await getEngineClient().loadExperience('')
@@ -162,7 +130,7 @@ export function SettingsPage() {
         label="Độ khó mặc định"
         options={DIFFICULTY_ORDER.map((d) => ({
           value: d,
-          label: SHORT[d] ?? DIFFICULTY_PRESETS[d].label,
+          label: DIFFICULTY_PRESETS[d].label,
         }))}
         value={settings.difficulty}
         onChange={(difficulty) => update({ difficulty })}
@@ -180,23 +148,7 @@ export function SettingsPage() {
         ))}
       </Card>
 
-      <Card>
-        <CardTitle>
-          <Download size={15} /> Tiếng nói ngoại tuyến
-        </CardTitle>
-        {packBusy && (
-          <div className="mb-2 h-1.5 overflow-hidden rounded-full bg-surface-2">
-            <div
-              className="h-full origin-left bg-accent transition-transform"
-              style={{ transform: `scaleX(${packPercent / 100})` }}
-            />
-          </div>
-        )}
-        {packNote && <p className="mb-2 text-sm text-ink-dim">{packNote}</p>}
-        <Button className="w-full" onClick={() => void onDownloadPack()} disabled={packBusy}>
-          <Download size={17} /> {packBusy ? `Đang tải ${packPercent}%` : 'Tải về máy'}
-        </Button>
-      </Card>
+      <VoicePack />
 
       <Card>
         <CardTitle>

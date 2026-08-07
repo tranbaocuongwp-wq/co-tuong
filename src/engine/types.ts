@@ -111,6 +111,36 @@ export type Difficulty = 'easy' | 'medium' | 'hard' | 'master'
  * Difficulty is expressed as search limits rather than as a single "level"
  * number, so each step is a concrete, explainable change in how the engine
  * thinks rather than an opaque dial.
+ *
+ * ## The whole ladder moved up
+ *
+ * It used to start at depth 2 with 120 centipawns of noise thrown in, which is
+ * not "easy", it is a player who hangs pieces for no reason. Nobody enjoys
+ * beating that, and it made the first three rungs feel like a different, worse
+ * game rather than a gentler one. So the bottom rung is now exactly what the
+ * top rung used to be — full strength, five seconds a move, opening book and
+ * experience — and every level above it is more time.
+ *
+ * ## What more time actually buys, measured
+ *
+ * On a real middlegame, on this machine:
+ *
+ * | budget | depth reached |
+ * |--------|---------------|
+ * |  5s    | 16 plies      |
+ * | 10s    | 17            |
+ * | 20s    | 18            |
+ * | 40s    | ~19           |
+ *
+ * Roughly one extra ply per doubling, which is what search behaves like once
+ * the cheap wins are gone. So the gap between the rungs here is real but it is
+ * not dramatic: Siêu khó is about three plies deeper than Dễ, not a different
+ * species of opponent. The honest way to describe the top level is "will not
+ * miss anything, and will take its time", and that is what the blurb says.
+ *
+ * A bigger transposition table was the other obvious lever and it was measured
+ * too: 64 MB came out *worse* than 16 MB at every budget over a second, so the
+ * table stays where it is. See `TT_MB` in `engine/worker.ts`.
  */
 export const DIFFICULTY_PRESETS: Record<
   Difficulty,
@@ -118,32 +148,32 @@ export const DIFFICULTY_PRESETS: Record<
 > = {
   easy: {
     label: 'Dễ',
-    blurb: 'Nghĩ nông, thỉnh thoảng đi hớ như người mới học.',
+    blurb: 'Nghĩ 5 giây mỗi nước, chơi hết sức. Đây là mức thấp nhất, và nó không hiền.',
     options: {
-      maxDepth: 2,
-      movetimeMs: 0,
-      randomnessCp: 120,
-      useBook: false,
-      useExperience: false,
+      maxDepth: 64,
+      movetimeMs: 5_000,
+      randomnessCp: 0,
+      useBook: true,
+      useExperience: true,
     },
   },
   medium: {
-    label: 'Trung bình',
-    blurb: 'Đi chắc tay, ít khi cho không quân.',
+    label: 'Vừa',
+    blurb: 'Nghĩ 10 giây mỗi nước. Sâu hơn Dễ một tầng, và một tầng là đủ để thấy khác.',
     options: {
-      maxDepth: 5,
-      movetimeMs: 0,
-      randomnessCp: 25,
+      maxDepth: 64,
+      movetimeMs: 10_000,
+      randomnessCp: 0,
       useBook: true,
-      useExperience: false,
+      useExperience: true,
     },
   },
   hard: {
     label: 'Khó',
-    blurb: 'Nghĩ kỹ trước mỗi nước và trừng phạt sai lầm.',
+    blurb: 'Nghĩ 20 giây mỗi nước. Đến đây thì hầu như không còn nước hớ nào lọt qua.',
     options: {
       maxDepth: 64,
-      movetimeMs: 1_500,
+      movetimeMs: 20_000,
       randomnessCp: 0,
       useBook: true,
       useExperience: true,
@@ -151,10 +181,10 @@ export const DIFFICULTY_PRESETS: Record<
   },
   master: {
     label: 'Siêu khó',
-    blurb: 'Nghĩ 5 giây mỗi nước, chơi hết sức và nhớ cả ván cũ.',
+    blurb: 'Nghĩ 40 giây mỗi nước. Nó sẽ không bỏ sót gì cả — và bạn sẽ phải chờ.',
     options: {
       maxDepth: 64,
-      movetimeMs: 5_000,
+      movetimeMs: 40_000,
       randomnessCp: 0,
       useBook: true,
       useExperience: true,

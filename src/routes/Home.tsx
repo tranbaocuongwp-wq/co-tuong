@@ -48,14 +48,6 @@ const SIDES = [
   { value: 'b' as Side, label: 'Đen', glyph: '將' },
 ]
 
-/** Names that fit a quarter of a phone's width without wrapping. */
-const SHORT_DIFFICULTY: Partial<Record<Difficulty, string>> = {
-  easy: 'Dễ',
-  medium: 'Vừa',
-  hard: 'Khó',
-  master: 'Siêu khó',
-}
-
 const LINKS = [
   { to: '/profile', label: 'Hồ sơ', icon: UserRound },
   { to: '/history', label: 'Lịch sử', icon: History },
@@ -131,12 +123,9 @@ export function HomePage() {
         <>
           <Segmented
             label="Mức khó"
-            // Short labels here rather than the full preset names: "Trung
-            // bình" wraps onto two lines in a quarter-width cell and makes the
-            // whole row taller than its neighbours for no gain in clarity.
             options={DIFFICULTY_ORDER.map((d: Difficulty) => ({
               value: d,
-              label: SHORT_DIFFICULTY[d] ?? DIFFICULTY_PRESETS[d].label,
+              label: DIFFICULTY_PRESETS[d].label,
             }))}
             value={settings.difficulty}
             onChange={(difficulty) => update({ difficulty })}
