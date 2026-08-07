@@ -142,47 +142,6 @@
       env(safe-area-inset-left);
   }
 
-  .topbar {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 16px;
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    position: sticky;
-    top: 0;
-    z-index: 10;
-  }
-
-  .topbar__brand {
-    font-weight: 700;
-    letter-spacing: 0.02em;
-    color: var(--accent);
-    text-decoration: none;
-    font-size: 1.05rem;
-  }
-
-  .topbar__nav {
-    display: flex;
-    gap: 4px;
-    margin-left: auto;
-    flex-wrap: wrap;
-  }
-
-  .topbar__link {
-    padding: 6px 12px;
-    border-radius: 999px;
-    text-decoration: none;
-    color: var(--text-dim);
-    font-size: 0.92rem;
-  }
-
-  .topbar__link[aria-current='page'] {
-    background: var(--accent-soft);
-    color: var(--accent);
-    font-weight: 600;
-  }
-
   .page {
     flex: 1;
     width: 100%;
@@ -203,45 +162,6 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-  }
-
-  /*
-   * A compact top bar once the window gets narrow.
-   *
-   * The nav scrolls sideways in a single row rather than wrapping onto a second
-   * line: wrapping pushed the brand into two lines and cost a third of the screen
-   * before any content appeared.
-   */
-  @media (max-width: 620px) {
-    .topbar {
-      padding: 8px 10px;
-      gap: 8px;
-    }
-
-    .topbar__brand {
-      font-size: 0.9rem;
-      white-space: nowrap;
-      flex: none;
-    }
-
-    .topbar__nav {
-      flex-wrap: nowrap;
-      overflow-x: auto;
-      gap: 2px;
-      /* Hide the scrollbar; the row is short and obviously swipeable. */
-      scrollbar-width: none;
-      -ms-overflow-style: none;
-    }
-
-    .topbar__nav::-webkit-scrollbar {
-      display: none;
-    }
-
-    .topbar__link {
-      padding: 5px 9px;
-      font-size: 0.84rem;
-      white-space: nowrap;
-    }
   }
 
   .page__title {
@@ -324,12 +244,6 @@
     gap: 8px;
   }
 
-  .chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
   .chip {
     padding: 8px 14px;
     border-radius: 999px;
@@ -380,60 +294,6 @@
     margin: 0 auto;
   }
 
-  .launcher__hero {
-    text-align: center;
-    display: grid;
-    justify-items: center;
-    gap: 6px;
-    padding: 8px 0 2px;
-  }
-
-  /* A single piece as the crest, in the same style as the board's discs. */
-  .launcher__crest {
-    width: 66px;
-    height: 66px;
-    display: grid;
-    place-items: center;
-    border-radius: 50%;
-    font-family: ui-serif, 'Songti SC', 'SimSun', serif;
-    font-size: 2.1rem;
-    font-weight: 700;
-    color: var(--red-piece);
-    background: radial-gradient(circle at 35% 30%, #fff8e8, #e5cfa4 78%, #c9ad7c);
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3), inset 0 0 0 2px rgba(0, 0, 0, 0.12);
-  }
-
-  .launcher__title {
-    margin: 4px 0 0;
-    font-size: 1.7rem;
-    letter-spacing: 0.01em;
-  }
-
-  .launcher__tagline {
-    margin: 0;
-    color: var(--text-dim);
-    font-size: 0.95rem;
-  }
-
-  .launcher__section {
-    display: grid;
-    gap: 9px;
-  }
-
-  .launcher__label {
-    margin: 0;
-    font-size: 0.78rem;
-    text-transform: uppercase;
-    letter-spacing: 0.07em;
-    color: var(--text-dim);
-  }
-
-  .launcher__start {
-    width: 100%;
-    min-height: 54px;
-    font-size: 1.05rem;
-  }
-
   /* -- resume card -- */
 
   .resume {
@@ -452,131 +312,12 @@
     filter: brightness(0.98);
   }
 
-  .resume__icon {
-    display: grid;
-    place-items: center;
-    width: 42px;
-    height: 42px;
-    border-radius: 50%;
-    background: var(--accent);
-    color: #fff;
-    flex: none;
-  }
-
-  .resume__body {
-    display: grid;
-    gap: 1px;
-  }
-
-  .resume__title {
-    color: var(--accent);
-  }
-
-  .resume__meta {
-    font-size: 0.86rem;
-    color: var(--text-dim);
-  }
-
-  /* -- choice cards -- */
-
-  .pickers {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-  }
-
-  @media (min-width: 560px) {
-    .pickers--grid {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-    }
-  }
-
-  .picker {
-    display: grid;
-    justify-items: start;
-    gap: 3px;
-    padding: 13px 14px;
-    border-radius: var(--radius);
-    border: 1px solid var(--border);
-    background: var(--surface);
-    cursor: pointer;
-    text-align: left;
-    transition: border-color 0.15s, background 0.15s;
-  }
-
-  .picker:hover {
-    background: var(--surface-2);
-  }
-
-  .picker[aria-pressed='true'] {
-    border-color: var(--accent);
-    background: var(--accent-soft);
-  }
-
-  .picker__icon {
-    color: var(--accent);
-    margin-bottom: 2px;
-  }
-
-  .picker__label {
-    font-weight: 600;
-    font-size: 0.97rem;
-  }
-
-  .picker__blurb {
-    font-size: 0.82rem;
-    color: var(--text-dim);
-    line-height: 1.35;
-  }
-
-  /* The side chooser shows the actual piece rather than describing it. */
-  .picker__piece {
-    width: 34px;
-    height: 34px;
-    display: grid;
-    place-items: center;
-    margin-bottom: 4px;
-    border-radius: 50%;
-    font-family: ui-serif, 'Songti SC', 'SimSun', serif;
-    font-size: 1.15rem;
-    font-weight: 700;
-    background: radial-gradient(circle at 35% 30%, #fff8e8, #e5cfa4 78%, #c9ad7c);
-    box-shadow: inset 0 0 0 1.5px rgba(0, 0, 0, 0.14);
-  }
-
-  .picker__piece--red {
-    color: var(--red-piece);
-  }
-
-  .picker__piece--black {
-    color: #1f2933;
-  }
-
   /* -- secondary destinations -- */
 
   .tiles {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
-  }
-
-  .tile {
-    display: grid;
-    justify-items: center;
-    gap: 5px;
-    padding: 12px 6px;
-    border-radius: 10px;
-    border: 1px solid var(--border);
-    background: var(--surface);
-    color: var(--text-dim);
-    text-decoration: none;
-    font-size: 0.8rem;
-    text-align: center;
-  }
-
-  .tile:hover {
-    background: var(--surface-2);
-    color: var(--text);
   }
 
   /* --- board ---------------------------------------------------------------- */
@@ -1026,58 +767,6 @@
     margin: 0;
   }
 
-  .icon-btn {
-    margin-left: auto;
-    display: grid;
-    place-items: center;
-    width: 42px;
-    height: 42px;
-    border-radius: 10px;
-    border: 1px solid var(--border);
-    background: var(--surface);
-    cursor: pointer;
-    flex: none;
-  }
-
-  .icon-btn:hover {
-    background: var(--surface-2);
-  }
-
-  /* Pushed to the far end of the bar, away from the turn indicator. */
-  .icon-btn--menu {
-    margin-left: auto;
-  }
-
-  /* Three bars drawn with borders, so no icon font or SVG is needed. */
-  .icon-btn__bars,
-  .icon-btn__bars::before,
-  .icon-btn__bars::after {
-    display: block;
-    width: 17px;
-    height: 2px;
-    border-radius: 2px;
-    background: currentColor;
-  }
-
-  .icon-btn__bars {
-    position: relative;
-  }
-
-  .icon-btn__bars::before,
-  .icon-btn__bars::after {
-    content: '';
-    position: absolute;
-    left: 0;
-  }
-
-  .icon-btn__bars::before {
-    top: -6px;
-  }
-
-  .icon-btn__bars::after {
-    top: 6px;
-  }
-
   /* --- commentator caption --------------------------------------------------- */
 
   /*
@@ -1182,14 +871,6 @@
     }
   }
 
-  .insight__title {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    margin: 0 0 4px;
-    font-size: 0.9rem;
-  }
-
   .insight__row {
     display: flex;
     align-items: baseline;
@@ -1242,20 +923,6 @@
     .insight__fill {
       transition: none;
     }
-  }
-
-  /* The track has to clip, now that the fill is always full width. */
-  .axis__track {
-    overflow: hidden;
-  }
-
-  .insight__notes {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px 12px;
-    margin-top: 8px;
-    color: var(--muted);
-    font-size: 0.76rem;
   }
 
   /* --- thinking toast ------------------------------------------------------- */
@@ -1423,12 +1090,6 @@
     }
   }
 
-  /* Animated ellipsis, so the pill itself never changes width. */
-  .toast__dots::after {
-    content: '';
-    animation: toast-dots 1.4s steps(4, end) infinite;
-  }
-
   @keyframes toast-dots {
     0% {
       content: '';
@@ -1470,11 +1131,6 @@
     z-index: 50;
   }
 
-  .scrim--open {
-    opacity: 1;
-    pointer-events: auto;
-  }
-
   .drawer {
     position: fixed;
     top: 0;
@@ -1496,127 +1152,18 @@
     padding-bottom: env(safe-area-inset-bottom);
   }
 
-  .drawer--open {
-    transform: translateX(0);
-  }
-
   /* Keep the closed drawer out of the tab order and off screen readers. */
   .drawer[aria-hidden='true'] {
     visibility: hidden;
     transition: transform 0.26s cubic-bezier(0.32, 0.72, 0, 1), visibility 0s linear 0.26s;
   }
 
-  .drawer__head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 14px 16px;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .drawer__head .icon-btn {
-    margin-left: 0;
-    width: 36px;
-    height: 36px;
-    font-size: 1rem;
-  }
-
-  .drawer__body {
-    flex: 1;
-    /*
-     * `min-height: 0` is load-bearing. A flex child defaults to `min-height:
-     * auto`, which refuses to shrink below its content — so this panel grew to
-     * the full height of the move list instead of scrolling, and the sections
-     * below it spilled out of the drawer and printed over each other.
-     */
-    min-height: 0;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
-    padding: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 18px;
-  }
-
-  .drawer__actions {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-    flex: none;
-  }
-
   .drawer__actions .btn:first-child {
     grid-column: 1 / -1;
   }
 
-  .drawer__section {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    flex: none;
-  }
-
-  .drawer__title {
-    margin: 0;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 0.8rem;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--text-dim);
-  }
-
-  .drawer__credit {
-    margin: 0;
-    padding-top: 4px;
-    font-size: 0.8rem;
-    color: var(--text-dim);
-    text-align: center;
-    flex: none;
-  }
-
-  /* While the drawer is open the page behind it must not scroll. */
-  body.drawer-open {
-    overflow: hidden;
-  }
-
   .drawer__section .muted {
     margin: 0;
-  }
-
-  .tray {
-    display: grid;
-    gap: 6px;
-  }
-
-  .tray__row {
-    display: flex;
-    align-items: baseline;
-    gap: 10px;
-  }
-
-  .tray__label {
-    font-size: 0.84rem;
-    color: var(--text-dim);
-    flex: none;
-    width: 68px;
-  }
-
-  .tray__pieces {
-    font-family: ui-serif, 'Songti SC', 'SimSun', serif;
-    font-size: 1.15rem;
-    letter-spacing: 0.14em;
-    line-height: 1.4;
-  }
-
-  .tray__pieces--red {
-    color: var(--red-piece);
-  }
-
-  .tray__pieces--black {
-    color: var(--black-piece);
   }
 
   /* Small count badge, e.g. hints remaining. */
@@ -1635,29 +1182,6 @@
 
   .btn:disabled .pill {
     opacity: 0.7;
-  }
-
-  .drawer__nav {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 4px;
-    flex: none;
-    border-top: 1px solid var(--border);
-    padding-top: 12px;
-  }
-
-  .drawer__nav a {
-    padding: 10px;
-    border-radius: 8px;
-    text-decoration: none;
-    color: var(--text);
-    font-size: 0.9rem;
-    text-align: center;
-    border: 1px solid transparent;
-  }
-
-  .drawer__nav a:hover {
-    background: var(--surface-2);
   }
 
   /* --- update notice -------------------------------------------------------- */
@@ -1707,12 +1231,6 @@
     }
   }
 
-  .drawer__nav a[aria-current='page'] {
-    background: var(--accent-soft);
-    color: var(--accent);
-    font-weight: 600;
-  }
-
   /*
    * On a phone the drawer is the screen. The header stays pinned so "close" is
    * always reachable with a thumb, the buttons grow to a comfortable target, and
@@ -1724,19 +1242,6 @@
       border-left: 0;
     }
 
-    .drawer__head {
-      padding: 14px;
-    }
-
-    .drawer__body {
-      padding: 14px 14px calc(24px + env(safe-area-inset-bottom));
-      gap: 16px;
-    }
-
-    .drawer__actions {
-      gap: 8px;
-    }
-
     .drawer__actions .btn {
       min-height: 50px;
       font-size: 0.95rem;
@@ -1744,10 +1249,6 @@
 
     .movelist {
       max-height: 220px;
-    }
-
-    .tray__pieces {
-      font-size: 1.3rem;
     }
   }
 
@@ -1859,7 +1360,6 @@
     font-size: 0.95rem;
   }
 
-
   /* --- hint sheet ------------------------------------------------------------ */
 
   /*
@@ -1878,35 +1378,9 @@
     justify-content: center;
   }
 
-  .sheet__scrim {
-    position: absolute;
-    inset: 0;
-    background: rgba(20, 14, 10, 0.42);
-  }
-
-  .sheet__panel {
-    position: relative;
-    width: min(100%, 460px);
-    max-height: 88dvh;
-    overflow-y: auto;
-    display: grid;
-    gap: 10px;
-    padding: 16px 16px calc(18px + env(safe-area-inset-bottom));
-    border-radius: 18px 18px 0 0;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    box-shadow: var(--shadow);
-    animation: sheet-in 0.2s ease-out;
-  }
-
   @media (min-width: 560px) {
     .sheet {
       align-items: center;
-    }
-
-    .sheet__panel {
-      border-radius: 18px;
-      padding-bottom: 18px;
     }
   }
 
@@ -1915,106 +1389,6 @@
       opacity: 0;
       transform: translateY(16px);
     }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .sheet__panel {
-      animation: none;
-    }
-  }
-
-  .sheet__head {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .sheet__title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 0;
-    flex: 1;
-    font-size: 1.02rem;
-  }
-
-  .sheet__note {
-    margin: 0;
-    font-size: 0.9rem;
-  }
-
-  /* The honest warning when nothing on offer actually saves the position. */
-  .sheet__warn {
-    margin: 0;
-    padding: 10px 12px;
-    border-radius: 10px;
-    background: color-mix(in srgb, var(--loss, #b4534a) 12%, transparent);
-    border: 1px solid color-mix(in srgb, var(--loss, #b4534a) 35%, transparent);
-    font-size: 0.88rem;
-    line-height: 1.45;
-  }
-
-  .hint-card {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    width: 100%;
-    padding: 12px;
-    border-radius: 12px;
-    border: 1px solid var(--border);
-    background: var(--surface-2);
-    text-align: left;
-    cursor: pointer;
-    font: inherit;
-    color: inherit;
-  }
-
-  .hint-card:hover {
-    border-color: var(--accent);
-  }
-
-  /* The engine's own first choice, marked so the ordering is not just implied. */
-  .hint-card--best {
-    border-color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 10%, var(--surface-2));
-  }
-
-  .hint-card__rank {
-    display: grid;
-    place-items: center;
-    flex: none;
-    width: 26px;
-    height: 26px;
-    border-radius: 50%;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    font-size: 0.82rem;
-    font-weight: 600;
-  }
-
-  .hint-card__body {
-    display: grid;
-    gap: 2px;
-    flex: 1;
-    min-width: 0;
-  }
-
-  .hint-card__move {
-    font-weight: 600;
-    font-size: 0.98rem;
-  }
-
-  .hint-card__why {
-    color: var(--muted);
-    font-size: 0.82rem;
-    line-height: 1.4;
-  }
-
-  .hint-card__verdict {
-    flex: none;
-    color: var(--muted);
-    font-size: 0.78rem;
-    white-space: nowrap;
   }
 
   /* --- history -------------------------------------------------------------- */
@@ -2054,11 +1428,6 @@
     white-space: nowrap;
   }
 
-  .badge--win {
-    color: var(--ok);
-    border-color: currentColor;
-  }
-
   .badge--loss {
     color: var(--accent);
     border-color: currentColor;
@@ -2074,24 +1443,6 @@
     display: grid;
     gap: 6px;
     margin-bottom: 14px;
-  }
-
-  .field__label {
-    font-size: 0.88rem;
-    color: var(--text-dim);
-  }
-
-  .switch-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .switch-row:last-child {
-    border-bottom: 0;
   }
 
   /* --- check, said loudly ---------------------------------------------------- */
@@ -2171,15 +1522,6 @@
     }
   }
 
-  .badge--alarm {
-    margin-left: 8px;
-    padding: 2px 9px;
-    border-radius: 999px;
-    background: var(--danger, #b3261e);
-    color: #fff;
-    font-size: 0.78rem;
-  }
-
   @media (prefers-reduced-motion: reduce) {
     .stage__board--check::after,
     .flare__text {
@@ -2246,48 +1588,6 @@
     }
   }
 
-  /*
-   * While a move is being shown, the sheet gets out of the way rather than
-   * closing. Closing would lose the comparison; staying put would hide the very
-   * thing it is asking the player to look at.
-   */
-  .sheet--peek .sheet__panel {
-    transform: translateY(calc(100% - 190px));
-  }
-
-  .sheet--peek .sheet__scrim {
-    opacity: 0;
-    pointer-events: none;
-  }
-
-  .hint-card {
-    display: grid;
-    gap: 8px;
-  }
-
-  .hint-card__pick {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    width: 100%;
-    text-align: left;
-    background: none;
-    border: 0;
-    padding: 0;
-    color: inherit;
-    cursor: pointer;
-    font: inherit;
-  }
-
-  .hint-card--shown {
-    border-color: var(--ok);
-    box-shadow: 0 0 0 1px var(--ok);
-  }
-
-  .hint-card__go {
-    width: 100%;
-  }
-
   /* --- the result, over the board -------------------------------------------- */
 
   .over {
@@ -2299,78 +1599,10 @@
     padding: 20px;
   }
 
-  .over__scrim {
-    position: absolute;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.55);
-  }
-
-  .over__panel {
-    position: relative;
-    width: min(100%, 380px);
-    padding: 22px 20px;
-    border-radius: 16px;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
-    text-align: center;
-    animation: over-in 0.28s cubic-bezier(0.2, 0.9, 0.3, 1);
-  }
-
-  /* A stripe rather than a colour wash: readable in both themes, and it does not
-     turn a loss into a red screen the player wants to close unread. */
-  .over__panel--win {
-    border-top: 4px solid var(--ok);
-  }
-
-  .over__panel--loss {
-    border-top: 4px solid var(--danger, #b3261e);
-  }
-
-  .over__panel--draw {
-    border-top: 4px solid var(--text-dim);
-  }
-
   @keyframes over-in {
     from {
       opacity: 0;
       transform: translateY(14px) scale(0.97);
-    }
-  }
-
-  .over__title {
-    margin: 0 0 4px;
-    font-size: 1.35rem;
-  }
-
-  .over__reason {
-    margin: 0 0 10px;
-    color: var(--text-dim);
-    font-size: 0.94rem;
-  }
-
-  .over__note {
-    margin: 0 0 16px;
-    font-size: 0.9rem;
-  }
-
-  .over__actions {
-    display: grid;
-    gap: 8px;
-  }
-
-  .over__action {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .over__saving {
-    font-size: 0.86rem;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .over__panel {
-      animation: none;
     }
   }
 
@@ -2385,70 +1617,10 @@
     min-width: 0;
   }
 
-  .feed__title {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    margin: 0 0 8px;
-    font-size: 0.92rem;
-    color: var(--text-dim);
-  }
-
-  .feed__empty {
-    margin: 0;
-    font-size: 0.88rem;
-  }
-
-  /*
-   * Newest at the top and scrolled from the top, which is how a live chat reads.
-   * A transcript runs the other way, but a transcript is for afterwards — during
-   * the game the line you want is the one that just arrived.
-   */
-  .feed__list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    max-height: 260px;
-    overflow-y: auto;
-    display: grid;
-    gap: 8px;
-  }
-
-  .feed__item {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 8px;
-    align-items: start;
-    font-size: 0.88rem;
-    line-height: 1.45;
-    animation: feed-in 0.3s ease-out;
-  }
-
-  .feed__ply {
-    min-width: 22px;
-    padding: 1px 5px;
-    border-radius: 5px;
-    background: var(--surface-2);
-    color: var(--text-dim);
-    font-size: 0.74rem;
-    text-align: center;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .feed__text {
-    min-width: 0;
-  }
-
   @keyframes feed-in {
     from {
       opacity: 0;
       transform: translateY(-4px);
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .feed__item {
-      animation: none;
     }
   }
 
@@ -2467,127 +1639,9 @@
     height: auto;
   }
 
-  .radar__ring {
-    fill: none;
-    stroke: var(--border);
-    stroke-width: 0.5;
-  }
-
-  .radar__spoke {
-    stroke: var(--border);
-    stroke-width: 0.4;
-  }
-
-  .radar__area {
-    stroke-width: 1.2;
-    fill-opacity: 0.22;
-  }
-
-  .radar__area--red {
-    fill: var(--accent);
-    stroke: var(--accent);
-  }
-
-  .radar__area--black {
-    fill: var(--text-dim);
-    stroke: var(--text-dim);
-  }
-
-  .radar__legend {
-    display: flex;
-    gap: 14px;
-    font-size: 0.78rem;
-    color: var(--text-dim);
-  }
-
-  .radar__key {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-  }
-
-  .radar__key::before {
-    content: '';
-    width: 9px;
-    height: 9px;
-    border-radius: 2px;
-  }
-
-  .radar__key--red::before {
-    background: var(--accent);
-  }
-
-  .radar__key--black::before {
-    background: var(--text-dim);
-  }
-
-  /*
-   * Each axis is repeated as a labelled bar under the chart. The radar shows the
-   * shape at a glance and is hopeless for reading an exact value off; the bars are
-   * the opposite. Neither replaces the other, and the note under each says what it
-   * counts, because an axis nobody can define is decoration.
-   */
-  .axis-list {
-    list-style: none;
-    margin: 10px 0 0;
-    padding: 0;
-    display: grid;
-    gap: 9px;
-  }
-
   .axis {
     display: grid;
     gap: 3px;
-  }
-
-  .axis__head {
-    display: flex;
-    justify-content: space-between;
-    gap: 10px;
-    font-size: 0.84rem;
-  }
-
-  .axis__label {
-    color: var(--text);
-  }
-
-  .axis__value {
-    color: var(--text-dim);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .axis__track {
-    display: grid;
-    gap: 2px;
-  }
-
-  .axis__bar {
-    display: block;
-    width: 100%;
-    height: 5px;
-    border-radius: 3px;
-    transform-origin: left center;
-    transition: transform 0.35s ease;
-    will-change: transform;
-  }
-
-  .axis__bar--red {
-    background: var(--accent);
-  }
-
-  .axis__bar--black {
-    background: var(--text-dim);
-  }
-
-  .axis__note {
-    font-size: 0.74rem;
-    color: var(--text-dim);
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .axis__bar {
-      transition: none;
-    }
   }
 
   /* --- which build is running -------------------------------------------------- */

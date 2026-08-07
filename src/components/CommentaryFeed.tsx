@@ -24,7 +24,7 @@
 
 import { memo, useEffect, useRef } from 'react'
 
-import { Icon } from './Icon'
+import { MessagesSquare } from 'lucide-react'
 
 export interface FeedEntry {
   /** Unique per arrival, not per line: the same remark can be made twice. */
@@ -50,18 +50,26 @@ function CommentaryFeedView({ entries }: CommentaryFeedProps) {
   }, [entries])
 
   return (
-    <section className="feed" aria-label="Lời bình">
-      <h2 className="feed__title">
-        <Icon name="speaker" size={15} /> Lời bình
+    <section
+      className="feed rounded-2xl border border-border bg-surface p-3"
+      aria-label="Lời bình"
+    >
+      <h2 className="mb-2 flex items-center gap-1.5 text-xs font-medium tracking-wide text-ink-dim uppercase">
+        <MessagesSquare size={14} /> Lời bình
       </h2>
       {entries.length === 0 ? (
-        <p className="muted feed__empty">Bình luận viên đang xem ván cờ…</p>
+        <p className="text-sm text-ink-dim">Bình luận viên đang xem ván cờ…</p>
       ) : (
-        <ol className="feed__list" ref={listRef}>
+        <ol className="grid max-h-64 list-none gap-2 overflow-y-auto p-0" ref={listRef}>
           {entries.map((entry) => (
-            <li key={entry.key} className="feed__item">
-              <span className="feed__ply">{entry.ply}</span>
-              <span className="feed__text">{entry.text}</span>
+            <li
+              key={entry.key}
+              className="grid grid-cols-[auto_1fr] items-start gap-2 text-[0.86rem] leading-snug"
+            >
+              <span className="min-w-[22px] rounded-md bg-surface-2 px-1.5 py-px text-center text-[0.7rem] text-ink-dim tabular-nums">
+                {entry.ply}
+              </span>
+              <span className="min-w-0">{entry.text}</span>
             </li>
           ))}
         </ol>

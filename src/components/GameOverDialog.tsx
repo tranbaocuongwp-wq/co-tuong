@@ -6,9 +6,9 @@
  * on a phone that card could be off the bottom of the screen entirely. A player
  * would sit there wondering why the board had stopped responding.
  *
- * So it is a panel over the board, and it answers the three questions somebody
- * actually has at that moment, in that order: what happened, can I take that
- * back, and can I look at it again.
+ * So it is a panel in the middle of the screen, and it answers the three
+ * questions somebody actually has at that moment, in that order: what happened,
+ * can I take that back, and can I look at it again.
  *
  * The take-back is the important one. Losing to a single blunder and being
  * offered nothing but "Ván mới" is what makes people put a chess app down — the
@@ -16,9 +16,12 @@
  * take-backs in hand, the button is right there, and it is the primary action.
  */
 
+import * as Dialog from '@radix-ui/react-dialog'
+import { Handshake, ListRestart, Play, Plus, Trophy, Undo2 } from 'lucide-react'
 import { Link } from 'react-router'
 
-import { Icon } from './Icon'
+import { cn } from '../lib/utils'
+import { Button } from './ui/button'
 
 export interface GameOverDialogProps {
   open: boolean
@@ -40,16 +43,31 @@ export interface GameOverDialogProps {
   onClose: () => void
 }
 
-const TITLE: Record<'win' | 'loss' | 'draw', string> = {
-  win: 'Bạn thắng rồi!',
-  loss: 'Bạn thua ván này',
-  draw: 'Hoà cờ',
-}
-
-const NOTE: Record<'win' | 'loss' | 'draw', string> = {
-  win: 'Ván đấu khép lại đúng ý bạn.',
-  loss: 'Còn lượt đi lại thì vẫn gỡ được — ván cờ chưa hẳn đã hết.',
-  draw: 'Không ai hạ được ai. Cũng là một kết quả sòng phẳng.',
+const LOOK: Record<
+  'win' | 'loss' | 'draw',
+  { title: string; note: string; icon: typeof Trophy; ring: string; tint: string }
+> = {
+  win: {
+    title: 'Bạn thắng rồi!',
+    note: 'Ván đấu khép lại đúng ý bạn.',
+    icon: Trophy,
+    ring: 'border-t-ok',
+    tint: 'bg-ok/15 text-ok',
+  },
+  loss: {
+    title: 'Bạn thua ván này',
+    note: 'Còn lượt đi lại thì vẫn gỡ được.',
+    icon: ListRestart,
+    ring: 'border-t-[color:var(--danger,#b3261e)]',
+    tint: 'bg-[color:var(--danger,#b3261e)]/15 text-[color:var(--danger,#b3261e)]',
+  },
+  draw: {
+    title: 'Hoà cờ',
+    note: 'Không ai hạ được ai. Cũng là một kết quả sòng phẳng.',
+    icon: Handshake,
+    ring: 'border-t-ink-dim',
+    tint: 'bg-surface-2 text-ink-dim',
+  },
 }
 
 export function GameOverDialog({
@@ -63,43 +81,63 @@ export function GameOverDialog({
   onNewGame,
   onClose,
 }: GameOverDialogProps) {
-  if (!open) return null
-
+  const look = LOOK[outcome ?? 'draw']
+  const Badge = look.icon
   const offerUndo = canUndo && undosLeft > 0
 
   return (
-    <div className="over" role="dialog" aria-modal="true" aria-label="Kết quả ván đấu">
-      <div className="over__scrim" onClick={onClose} />
-      <div className={`over__panel over__panel--${outcome ?? 'draw'}`}>
-        <h2 className="over__title">{outcome ? TITLE[outcome] : headline}</h2>
-        <p className="over__reason">{headline}</p>
-        {outcome && <p className="over__note">{NOTE[outcome]}</p>}
-
-        <div className="over__actions">
-          {offerUndo && (
-            <button type="button" className="btn btn--primary over__action" onClick={onUndo}>
-              <Icon name="undo" size={17} /> Đi lại nước vừa rồi · còn {undosLeft}
-            </button>
+    <Dialog.Root open={open} onOpenChange={(next) => !next && onClose()}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/55" />
+        <Dialog.Content
+          className={cn(
+            'fixed top-1/2 left-1/2 z-50 w-[min(100%-2rem,24rem)] -translate-x-1/2 -translate-y-1/2',
+            'rounded-3xl border border-border border-t-4 bg-surface p-6 text-center',
+            'shadow-[0_18px_50px_rgba(0,0,0,0.45)]',
+            look.ring
           )}
-          {reviewHref ? (
-            <Link className="btn over__action" to={reviewHref}>
-              <Icon name="play" size={17} /> Xem lại ván này
-            </Link>
-          ) : (
-            <span className="muted over__saving">Đang lưu ván để xem lại…</span>
-          )}
-          <button
-            type="button"
-            className={`btn over__action${offerUndo ? '' : ' btn--primary'}`}
-            onClick={onNewGame}
+        >
+          <span
+            className={cn('mx-auto mb-3 grid h-14 w-14 place-items-center rounded-2xl', look.tint)}
+            aria-hidden="true"
           >
-            <Icon name="new" size={17} /> Ván mới
-          </button>
-          <button type="button" className="btn over__action" onClick={onClose}>
-            Xem lại bàn cờ
-          </button>
-        </div>
-      </div>
-    </div>
+            <Badge size={26} />
+          </span>
+
+          <Dialog.Title className="text-xl font-bold">
+            {outcome ? look.title : headline}
+          </Dialog.Title>
+          <Dialog.Description className="mt-1 text-sm text-ink-dim">{headline}</Dialog.Description>
+          {outcome && <p className="mt-2 text-sm">{look.note}</p>}
+
+          <div className="mt-5 grid gap-2">
+            {offerUndo && (
+              <Button variant="primary" size="lg" className="w-full" onClick={onUndo}>
+                <Undo2 size={19} /> Đi lại · còn {undosLeft}
+              </Button>
+            )}
+            {reviewHref ? (
+              <Button asChild className="w-full">
+                <Link to={reviewHref}>
+                  <Play size={17} /> Xem lại ván này
+                </Link>
+              </Button>
+            ) : (
+              <p className="text-sm text-ink-dim">Đang lưu ván để xem lại…</p>
+            )}
+            <Button
+              variant={offerUndo ? 'outline' : 'primary'}
+              className="w-full"
+              onClick={onNewGame}
+            >
+              <Plus size={17} /> Ván mới
+            </Button>
+            <Button variant="ghost" className="w-full" onClick={onClose}>
+              Xem lại bàn cờ
+            </Button>
+          </div>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   )
 }

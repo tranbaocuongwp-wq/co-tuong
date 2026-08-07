@@ -21,10 +21,10 @@
  * know, because it has found a forced mate, that is shown exactly.
  */
 
-import { memo, useMemo } from 'react'
+import { memo, useMemo, type ReactNode } from 'react'
 
 import type { Piece, SearchInfo, Side } from '../engine/types'
-import { Icon } from './Icon'
+import { Swords } from 'lucide-react'
 
 export interface MatchInsightProps {
   /** The engine's last assessment, from its own side's point of view. */
@@ -182,6 +182,61 @@ function polygon(values: number[]): string {
     .join(' ')
 }
 
+/** A labelled pair of numbers over one bar showing how they split. */
+function Split({
+  label,
+  share,
+  children,
+}: {
+  label: string
+  share: number
+  children: ReactNode
+}) {
+  return (
+    <>
+      <div className="mt-1.5 flex items-baseline justify-between gap-2 text-[0.82rem]">
+        <span className="text-ink-dim">{label}</span>
+        <span>{children}</span>
+      </div>
+      <div className="mt-1 h-2 overflow-hidden rounded-full bg-[color-mix(in_srgb,var(--text)_22%,transparent)]">
+        <div
+          className="h-full w-full origin-left rounded-full bg-red-piece transition-transform duration-500 ease-out"
+          style={{ transform: `scaleX(${share})` }}
+        />
+      </div>
+    </>
+  )
+}
+
+/**
+ * Sized by transform, not width.
+ *
+ * A width transition is a layout animation, and there are fourteen of these
+ * updating after every move. `scaleX` on a full-width element draws the same
+ * picture using only the compositor.
+ */
+function Bar({ share, colour }: { share: number; colour: string }) {
+  return (
+    <span
+      className={`block h-[5px] w-full origin-left rounded-full transition-transform duration-300 ${colour}`}
+      style={{ transform: `scaleX(${share})` }}
+    />
+  )
+}
+
+function Key({ colour, children }: { colour: string; children: ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span
+        className="h-2 w-2 rounded-[2px]"
+        style={{ background: colour }}
+        aria-hidden="true"
+      />
+      {children}
+    </span>
+  )
+}
+
 function MatchInsightView({ info, engineSide, pieces, moveCount }: MatchInsightProps) {
   const axes = useMemo(() => axesOf(pieces), [pieces])
 
@@ -202,85 +257,92 @@ function MatchInsightView({ info, engineSide, pieces, moveCount }: MatchInsightP
   const seen = info?.depth ?? 0
 
   return (
-    <section className="insight" aria-label="Nhận định thế cờ">
-      <h2 className="insight__title">
-        <Icon name="board" size={15} /> Cục diện
+    <section
+      className="insight rounded-2xl border border-border bg-surface p-3"
+      aria-label="Nhận định thế cờ"
+    >
+      <h2 className="mb-2 flex items-center gap-1.5 text-xs font-medium tracking-wide text-ink-dim uppercase">
+        <Swords size={14} /> Cục diện
       </h2>
 
-      <div className="insight__row">
-        <span className="insight__label">Khả năng thắng</span>
-        <span className="insight__value">
-          Đỏ {Math.round(redChance * 100)}% · Đen {Math.round((1 - redChance) * 100)}%
-        </span>
-      </div>
-      <div className="insight__bar">
-        <span
-          className="insight__fill insight__fill--red"
-          style={{ transform: `scaleX(${redChance})` }}
-        />
-      </div>
+      <Split label="Khả năng thắng" share={redChance}>
+        Đỏ {Math.round(redChance * 100)}% · Đen {Math.round((1 - redChance) * 100)}%
+      </Split>
+      <Split label="Lực lượng" share={materialShare}>
+        Đỏ {redMaterial.toFixed(1)} · Đen {blackMaterial.toFixed(1)}
+      </Split>
 
-      <div className="insight__row">
-        <span className="insight__label">Lực lượng</span>
-        <span className="insight__value">
-          Đỏ {redMaterial.toFixed(1)} · Đen {blackMaterial.toFixed(1)}
-        </span>
-      </div>
-      <div className="insight__bar">
-        <span
-          className="insight__fill insight__fill--red"
-          style={{ transform: `scaleX(${materialShare})` }}
-        />
-      </div>
-
-      <figure className="radar">
-        <svg viewBox="0 0 112 112" role="img" aria-label="Biểu đồ sáu mặt của thế cờ">
+      <figure className="mt-3 mb-1 grid justify-items-center gap-1.5">
+        <svg
+          viewBox="0 0 112 112"
+          role="img"
+          aria-label="Biểu đồ sáu mặt của thế cờ"
+          className="h-auto w-full max-w-[190px]"
+        >
           {/* Rings at a quarter, a half, three quarters and full. */}
           {[0.25, 0.5, 0.75, 1].map((step) => (
             <polygon
               key={step}
-              className="radar__ring"
               points={polygon(axes.map(() => step))}
+              fill="none"
+              stroke="var(--border)"
+              strokeWidth={0.5}
             />
           ))}
           {axes.map((axis, i) => {
             const [x, y] = point(i, axes.length, R)
-            return <line key={axis.label} className="radar__spoke" x1={CENTRE} y1={CENTRE} x2={x} y2={y} />
+            return (
+              <line
+                key={axis.label}
+                x1={CENTRE}
+                y1={CENTRE}
+                x2={x}
+                y2={y}
+                stroke="var(--border)"
+                strokeWidth={0.4}
+              />
+            )
           })}
-          <polygon className="radar__area radar__area--black" points={polygon(axes.map((a) => a.black))} />
-          <polygon className="radar__area radar__area--red" points={polygon(axes.map((a) => a.red))} />
+          <polygon
+            points={polygon(axes.map((a) => a.black))}
+            fill="var(--text-dim)"
+            fillOpacity={0.22}
+            stroke="var(--text-dim)"
+            strokeWidth={1.2}
+          />
+          <polygon
+            points={polygon(axes.map((a) => a.red))}
+            fill="var(--accent)"
+            fillOpacity={0.22}
+            stroke="var(--accent)"
+            strokeWidth={1.2}
+          />
         </svg>
-        <figcaption className="radar__legend">
-          <span className="radar__key radar__key--red">Đỏ</span>
-          <span className="radar__key radar__key--black">Đen</span>
+        <figcaption className="flex gap-3 text-[0.72rem] text-ink-dim">
+          <Key colour="var(--accent)">Đỏ</Key>
+          <Key colour="var(--text-dim)">Đen</Key>
         </figcaption>
       </figure>
 
-      <ul className="axis-list">
+      <ul className="mt-2 grid list-none gap-2 p-0">
         {axes.map((axis) => (
-          <li key={axis.label} className="axis">
-            <span className="axis__head">
-              <span className="axis__label">{axis.label}</span>
-              <span className="axis__value">
+          <li key={axis.label} className="grid gap-1">
+            <span className="flex justify-between gap-2 text-[0.82rem]">
+              <span>{axis.label}</span>
+              <span className="text-ink-dim tabular-nums">
                 {Math.round(axis.red * 100)} · {Math.round(axis.black * 100)}
               </span>
             </span>
-            <span className="axis__track">
-              <span
-                className="axis__bar axis__bar--red"
-                style={{ transform: `scaleX(${axis.red})` }}
-              />
-              <span
-                className="axis__bar axis__bar--black"
-                style={{ transform: `scaleX(${axis.black})` }}
-              />
+            <span className="grid gap-0.5 overflow-hidden">
+              <Bar share={axis.red} colour="bg-accent" />
+              <Bar share={axis.black} colour="bg-ink-dim" />
             </span>
-            <span className="axis__note">{axis.note}</span>
+            <span className="text-[0.72rem] text-ink-dim">{axis.note}</span>
           </li>
         ))}
       </ul>
 
-      <div className="insight__notes">
+      <div className="mt-3 flex flex-wrap justify-between gap-2 border-t border-border pt-2 text-[0.76rem] text-ink-dim">
         <span>Đã đi {moveCount} nước</span>
         {mate !== null && mate !== undefined ? (
           <strong>Có chiếu bí sau {Math.ceil(Math.abs(mate) / 2)} nước</strong>

@@ -18,13 +18,15 @@ import { Link } from 'react-router'
 import { primeSounds, setSoundEnabled } from '../audio/sfx'
 import { primeVoice, setVoiceMode, stopVoice } from '../audio/voice'
 import { linesOf } from '../commentary/lines'
+import { Home, Lightbulb, Menu } from 'lucide-react'
+
 import { Board } from '../components/Board'
 import { CommentaryFeed, type FeedEntry } from '../components/CommentaryFeed'
 import { GameOverDialog } from '../components/GameOverDialog'
+import { Button } from '../components/ui/button'
 import { GameMenu } from '../components/GameMenu'
 import { HintDialog } from '../components/HintDialog'
 import { MatchInsight } from '../components/MatchInsight'
-import { Icon } from '../components/Icon'
 import { ThinkingToast } from '../components/ThinkingToast'
 import { UpdateNotice } from '../components/UpdateNotice'
 import { getEngineClient } from '../engine/client'
@@ -562,33 +564,63 @@ export function PlayPage() {
         canAutoApply={update_.canAutoApply}
         onApply={update_.apply}
       />
-      <div className="stage__bar">
-        {/*
-          Leaving a game in progress must be one tap, not a tap into a drawer.
-          The autosave means nothing is lost by going, so the button does not
-          need to warn or confirm — it just goes.
-        */}
-        <Link className="icon-btn icon-btn--menu" to="/" aria-label="Về trang chủ">
-          <Icon name="home" size={19} />
+      {/*
+        Four targets, all 44px, all reachable.
+
+        Leaving a game in progress must be one tap, not a tap into a menu: the
+        autosave means nothing is lost by going, so the button just goes. The
+        hint is here rather than only inside the menu because it is the one
+        thing a stuck player wants and two taps is one too many when you are
+        already stuck.
+      */}
+      <div className="stage__bar flex w-full items-center gap-1">
+        <Link
+          to="/"
+          aria-label="Về trang chủ"
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-border bg-surface text-ink-dim transition-colors hover:bg-surface-2 hover:text-ink"
+        >
+          <Home size={19} />
         </Link>
-        <span className="turn">
-          <span className={`dot dot--${status.sideToMove}`} />
+
+        <span className="flex min-w-0 flex-1 items-center justify-center gap-2 px-1">
           {isOver ? (
-            <strong>{describeResult(status.status, status.reason)}</strong>
+            <strong className="truncate">{describeResult(status.status, status.reason)}</strong>
           ) : (
             <>
-              {status.sideToMove === 'r' ? 'Đỏ' : 'Đen'} đi
-              {status.inCheck && <strong className="badge badge--alarm">Chiếu tướng!</strong>}
+              <span
+                className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+                  status.sideToMove === 'r' ? 'bg-red-piece' : 'bg-black-piece'
+                }`}
+                aria-hidden="true"
+              />
+              <span className="truncate text-[0.95rem]">
+                {status.sideToMove === 'r' ? 'Đỏ' : 'Đen'} đi
+              </span>
+              {status.inCheck && (
+                <strong className="shrink-0 rounded-full bg-[color:var(--danger,#b3261e)] px-2.5 py-0.5 text-[0.78rem] text-white">
+                  Chiếu!
+                </strong>
+              )}
             </>
           )}
         </span>
+
         <button
           type="button"
-          className="icon-btn icon-btn--menu"
+          onClick={() => void onHint()}
+          disabled={isOver || thinking || hintBusy || hintsLeft <= 0}
+          aria-label="Gợi ý nước đi"
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-border bg-surface text-ink-dim transition-colors hover:bg-surface-2 hover:text-ink disabled:opacity-40"
+        >
+          <Lightbulb size={19} />
+        </button>
+        <button
+          type="button"
           onClick={() => setMenuOpen(true)}
           aria-label="Mở bảng điều khiển"
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-border bg-surface text-ink-dim transition-colors hover:bg-surface-2 hover:text-ink"
         >
-          <Icon name="menu" size={20} />
+          <Menu size={20} />
         </button>
       </div>
 
@@ -651,7 +683,6 @@ export function PlayPage() {
 
       {settings.voice && !isOver && (
         <div className="commentary" role="status">
-          <Icon name="speaker" size={15} />
           <span className="commentary__text">{spokenLine?.text ?? ''}</span>
         </div>
       )}
@@ -663,16 +694,16 @@ export function PlayPage() {
       {voiceMode === 'silent' && <CommentaryFeed entries={feed} />}
 
       {isOver && !resultOpen && (
-        <div className="stage__end card">
+        <div className="stage__end grid gap-2 rounded-2xl border border-border bg-surface p-3 text-center">
           <strong>{describeResult(status.status, status.reason)}</strong>
-          {savedNote && <div className="muted">{savedNote}</div>}
-          <div className="btn-row" style={{ marginTop: 10 }}>
-            <button type="button" className="btn btn--primary" onClick={() => setResultOpen(true)}>
+          {savedNote && <span className="text-sm text-ink-dim">{savedNote}</span>}
+          <div className="grid grid-cols-2 gap-2">
+            <Button variant="primary" onClick={() => setResultOpen(true)}>
               Kết quả
-            </button>
-            <Link className="btn" to="/history">
-              Xem lịch sử
-            </Link>
+            </Button>
+            <Button asChild>
+              <Link to="/history">Lịch sử</Link>
+            </Button>
           </div>
         </div>
       )}
@@ -690,8 +721,8 @@ export function PlayPage() {
       />
 
       {hint && !isOver && (
-        <p className="stage__hint muted">
-          Gợi ý: <strong>{hint.text ?? hint.iccs}</strong> · còn {hintsLeft} lượt
+        <p className="stage__hint text-center text-sm text-ink-dim">
+          Gợi ý: <strong className="text-ink">{hint.text ?? hint.iccs}</strong> · còn {hintsLeft}
         </p>
       )}
 
