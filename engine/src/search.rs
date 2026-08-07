@@ -774,6 +774,37 @@ impl Searcher {
         }
         result.best_move = root_moves[0];
 
+        /*
+         * One legal move is not a decision.
+         *
+         * A forced recapture, or a King with a single square to run to, has
+         * nothing to think about — and yet the search would sit there burning
+         * the entire time budget before playing the only thing it could. At the
+         * top level that was forty seconds of the player watching a spinner to
+         * be told what they already knew.
+         *
+         * A shallow search still runs, and deliberately: the interface reads
+         * the score and the principal variation off this result to draw the
+         * position chart and to let the commentator look ahead. Returning a
+         * bare move with a zero score would snap the win bar to even every time
+         * a piece was recaptured. Six plies costs a few milliseconds and keeps
+         * all of that honest.
+         */
+        if root_moves.len() == 1 {
+            let forced_depth = limits.max_depth.min(6).max(1);
+            self.negamax(pos, forced_depth as i32, -INFINITY, INFINITY, true, true);
+            result.score = self.negamax(pos, 1, -INFINITY, INFINITY, true, true);
+            result.depth = forced_depth;
+            result.nodes = self.nodes;
+            result.best_move = root_moves[0];
+            result.pv = self.extract_pv();
+            if result.pv.first() != Some(&root_moves[0]) {
+                result.pv = vec![root_moves[0]];
+            }
+            result.time_ms = (self.now)().saturating_sub(start);
+            return result;
+        }
+
         let mut prev_score = 0;
         for depth in 1..=limits.max_depth.max(1) {
             // Aspiration windows: assume the score moves little between
@@ -978,6 +1009,45 @@ mod tests {
             ranked[0].score >= ranked[1].score && ranked[1].score >= ranked[2].score,
             "choices must come back best first"
         );
+    }
+
+    /// A position with one legal move answers instantly, not after the budget.
+    ///
+    /// The whole point of the short circuit: a player facing a forced recapture
+    /// should not wait forty seconds to be told the only thing that could
+    /// happen. The score still has to come back, because the interface draws
+    /// its chart from it.
+    #[test]
+    fn a_forced_move_does_not_burn_the_clock() {
+        // Black is in check from the Rook on e1 and can only interpose on e8;
+        // everything else leaves the King attacked.
+        let mut pos = Position::from_fen("4k4/4a4/9/9/9/9/9/9/9/4K3R").unwrap();
+        pos.set_root();
+        let legal = pos.legal_moves().len();
+
+        let mut engine = Searcher::new(8, zero_clock);
+        let result = engine.search(
+            &mut pos,
+            SearchLimits {
+                max_depth: 64,
+                // A budget it would certainly spend if it were going to think.
+                movetime_ms: 30_000,
+                randomness_cp: 0,
+                seed: 1,
+            },
+            None,
+        );
+
+        assert!(result.best_move != 0, "must still name a move");
+        assert!(!result.pv.is_empty(), "the interface reads the line off this");
+        assert_eq!(result.pv[0], result.best_move, "the line must start with the move");
+        if legal == 1 {
+            assert!(
+                result.depth <= 6,
+                "a forced move must not run the full search (depth {})",
+                result.depth
+            );
+        }
     }
 
     /// The scouting pass must not throw away the move that actually wins.

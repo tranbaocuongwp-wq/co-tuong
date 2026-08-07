@@ -123,7 +123,7 @@ export type Difficulty = 'easy' | 'medium' | 'hard' | 'master'
  *
  * ## What more time actually buys, measured
  *
- * On a real middlegame, on this machine:
+ * On a real middlegame, on a desktop:
  *
  * | budget | depth reached |
  * |--------|---------------|
@@ -133,14 +133,28 @@ export type Difficulty = 'easy' | 'medium' | 'hard' | 'master'
  * | 40s    | ~19           |
  *
  * Roughly one extra ply per doubling, which is what search behaves like once
- * the cheap wins are gone. So the gap between the rungs here is real but it is
- * not dramatic: Siêu khó is about three plies deeper than Dễ, not a different
- * species of opponent. The honest way to describe the top level is "will not
- * miss anything, and will take its time", and that is what the blurb says.
+ * the cheap wins are gone.
  *
- * A bigger transposition table was the other obvious lever and it was measured
- * too: 64 MB came out *worse* than 16 MB at every budget over a second, so the
- * table stays where it is. See `TT_MB` in `engine/worker.ts`.
+ * ## Why each level is a depth *and* a time, not just a time
+ *
+ * A budget on its own says "think for forty seconds" whatever the position is,
+ * so a forced recapture and a knife-edge middlegame cost the player exactly the
+ * same wait. It also means the level describes a *wait* rather than an
+ * opponent: the same forty seconds reaches three plies deeper on a laptop than
+ * on a phone, so "Siêu khó" was quietly a different player on every device.
+ *
+ * Naming a depth fixes both. The search stops at whichever comes first, so:
+ *
+ * * **A simple position finishes early** — the target is reached and the engine
+ *   stops, on any device. Most endgame moves now answer in well under a second.
+ * * **A fast machine finishes early** — same strength, less waiting.
+ * * **A slow machine is protected** — the time cap still ends it, exactly as
+ *   before. Nothing gets worse on a phone; it simply stops being the only case
+ *   the numbers were tuned for.
+ *
+ * The targets are set so a desktop usually reaches them inside the cap and a
+ * phone usually does not, which is the honest division: the cap is what a
+ * slower device falls back to, not what everyone waits for.
  */
 export const DIFFICULTY_PRESETS: Record<
   Difficulty,
@@ -148,10 +162,10 @@ export const DIFFICULTY_PRESETS: Record<
 > = {
   easy: {
     label: 'Dễ',
-    blurb: 'Nghĩ 5 giây mỗi nước, chơi hết sức. Đây là mức thấp nhất, và nó không hiền.',
+    blurb: 'Nhìn trước 16 nước — đúng bằng mức Siêu khó của bản trước. Thấp nhất, và không hiền.',
     options: {
-      maxDepth: 64,
-      movetimeMs: 5_000,
+      maxDepth: 16,
+      movetimeMs: 6_000,
       randomnessCp: 0,
       useBook: true,
       useExperience: true,
@@ -159,10 +173,10 @@ export const DIFFICULTY_PRESETS: Record<
   },
   medium: {
     label: 'Vừa',
-    blurb: 'Nghĩ 10 giây mỗi nước. Sâu hơn Dễ một tầng, và một tầng là đủ để thấy khác.',
+    blurb: 'Nhìn trước 18 nước. Sâu hơn Dễ hai tầng, và hai tầng là đủ để thấy khác.',
     options: {
-      maxDepth: 64,
-      movetimeMs: 10_000,
+      maxDepth: 18,
+      movetimeMs: 15_000,
       randomnessCp: 0,
       useBook: true,
       useExperience: true,
@@ -170,10 +184,10 @@ export const DIFFICULTY_PRESETS: Record<
   },
   hard: {
     label: 'Khó',
-    blurb: 'Nghĩ 20 giây mỗi nước. Đến đây thì hầu như không còn nước hớ nào lọt qua.',
+    blurb: 'Nhìn trước 20 nước. Đến đây thì hầu như không còn nước hớ nào lọt qua.',
     options: {
-      maxDepth: 64,
-      movetimeMs: 20_000,
+      maxDepth: 20,
+      movetimeMs: 30_000,
       randomnessCp: 0,
       useBook: true,
       useExperience: true,
@@ -181,10 +195,10 @@ export const DIFFICULTY_PRESETS: Record<
   },
   master: {
     label: 'Siêu khó',
-    blurb: 'Nghĩ 40 giây mỗi nước. Nó sẽ không bỏ sót gì cả — và bạn sẽ phải chờ.',
+    blurb: 'Nhìn trước 22 nước, tối đa 45 giây. Nó sẽ không bỏ sót gì cả.',
     options: {
-      maxDepth: 64,
-      movetimeMs: 40_000,
+      maxDepth: 22,
+      movetimeMs: 45_000,
       randomnessCp: 0,
       useBook: true,
       useExperience: true,
