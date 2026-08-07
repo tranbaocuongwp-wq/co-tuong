@@ -166,24 +166,20 @@ export function VoicePack() {
             Đang tải… đã xét {progress?.done ?? 0}/{total} câu. Giữ màn hình mở cho tới khi xong.
           </span>
         )}
-        {phase === 'idle' && total > 0 && (
-          <span>
-            {held === 0
-              ? 'Tải sẵn lời bình để nghe được khi mất mạng. Chỉ tải một lần.'
-              : 'Tải tiếp những câu còn thiếu.'}
-          </span>
+        {phase === 'idle' && total > 0 && held === 0 && (
+          <span>Tải sẵn để nghe được khi mất mạng.</span>
         )}
       </p>
 
       {error && <p className="mb-3 text-sm text-[color:var(--danger,#b3261e)]">{error}</p>}
 
-      <div className="grid gap-2">
+      <div className="flex gap-2">
         {phase === 'running' ? (
-          <Button className="w-full" onClick={pause}>
+          <Button className="flex-1" onClick={pause}>
             <Pause size={17} /> Tạm dừng
           </Button>
         ) : (
-          <Button variant="primary" className="w-full" onClick={() => void run()}>
+          <Button variant="primary" className="flex-1" onClick={() => void run()}>
             {phase === 'paused' || phase === 'offline' ? (
               <>
                 <Play size={17} /> Tiếp tục
@@ -197,8 +193,13 @@ export function VoicePack() {
         )}
 
         {held > 0 && phase !== 'running' && (
-          <Button variant="danger" className="w-full" onClick={() => void wipe()}>
-            <Trash2 size={17} /> Xoá gói · {status ? megabytes(status.bytes) : ''}
+          <Button
+            variant="danger"
+            size="icon"
+            aria-label={`Xoá gói tiếng nói${status ? ` · ${megabytes(status.bytes)}` : ''}`}
+            onClick={() => void wipe()}
+          >
+            <Trash2 size={17} />
           </Button>
         )}
       </div>

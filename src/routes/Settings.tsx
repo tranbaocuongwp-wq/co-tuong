@@ -13,7 +13,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Download, HardDrive, Save, Trash2, Upload } from 'lucide-react'
+import { Download, Eraser, HardDrive, Trash2, Upload } from 'lucide-react'
 
 import { VersionPanel } from '../components/VersionPanel'
 import { VoicePack } from '../components/VoicePack'
@@ -154,16 +154,34 @@ export function SettingsPage() {
 
       <VoicePack />
 
+      <VersionPanel release={release} />
+
+      {/*
+        Backup and wiping used to be two cards with two headings, which is two
+        cards' worth of chrome around four buttons. They are the same subject —
+        the games and what the engine learned from them — so they are one card,
+        and the destructive pair is set apart by colour rather than by a border.
+      */}
       <Card>
         <CardTitle>
-          <Save size={15} /> Sao lưu
+          <HardDrive size={15} /> Dữ liệu
         </CardTitle>
+        <p className="mb-3 text-sm text-ink-dim">
+          Lưu {storeKind}
+          {experienceSize !== null && experienceSize > 0 && ` · máy nhớ ${experienceSize} nước`}
+        </p>
         <div className="grid grid-cols-2 gap-2">
           <Button onClick={() => void exportAll()}>
             <Download size={17} /> Lưu tệp
           </Button>
           <Button onClick={() => fileRef.current?.click()}>
             <Upload size={17} /> Khôi phục
+          </Button>
+          <Button variant="danger" onClick={() => void clearExperience()}>
+            <Eraser size={17} /> Xoá trí nhớ
+          </Button>
+          <Button variant="danger" onClick={() => void clearHistory()}>
+            <Trash2 size={17} /> Xoá lịch sử
           </Button>
         </div>
         <input
@@ -178,24 +196,6 @@ export function SettingsPage() {
             e.target.value = ''
           }}
         />
-      </Card>
-
-      <VersionPanel release={release} />
-
-      <Card>
-        <CardTitle>
-          <HardDrive size={15} /> Dữ liệu
-        </CardTitle>
-        <p className="mb-3 text-sm text-ink-dim">
-          Lưu {storeKind}
-          {experienceSize !== null && experienceSize > 0 && ` · máy nhớ ${experienceSize} nước`}
-        </p>
-        <div className="grid gap-2">
-          <Button onClick={() => void clearExperience()}>Xoá kinh nghiệm của máy</Button>
-          <Button variant="danger" onClick={() => void clearHistory()}>
-            <Trash2 size={17} /> Xoá toàn bộ lịch sử
-          </Button>
-        </div>
       </Card>
     </div>
   )

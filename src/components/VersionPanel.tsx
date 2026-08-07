@@ -1,33 +1,28 @@
 /**
- * Exactly which build is running, and whether it is the newest one.
+ * Which build is running, and whether it is the newest one.
  *
- * The About page used to say "Phiên bản 0.3.0" and stop there. That is the
- * release number, which is the one fact that does *not* settle an argument: two
- * people can both be on 0.3.0 and be running different code, because the app
- * updates over the air in two independent parts and a browser can hold either
- * of them stale.
+ * The first version of this laid out five labelled rows, one of which was the
+ * full hashed filename of the .wasm — `co_tuong_engine_wasm_bg-BuJ8vpnn.wasm`,
+ * long enough to wrap onto two lines on a phone. Every one of those facts is
+ * real and occasionally useful, but showing them all at once answers a question
+ * nobody asked. The question is "am I up to date", and it has a one-word answer.
  *
- * So this shows all of it side by side:
+ * So the card is now that answer, the release number, and a button. Everything
+ * else is behind a summary the curious can open — and the .wasm is identified by
+ * its hash alone, because the rest of that filename is the same for everyone and
+ * carries no information.
  *
- * * **Phiên bản** — the release, from the engine binary itself.
- * * **Bản giao diện** — the app build id compiled into this bundle.
- * * **Bản lõi cờ** — the hashed filename of the very .wasm this page imported.
- * * **Đang chạy dưới dạng** — installed app, installed web app, or a tab, which
- *   is what decides how an update reaches them at all.
- *
- * And then the part that actually answers the question: what the server has
- * right now, compared against those. "Đang là bản mới nhất" is a claim worth
- * making only when it has been checked, so there is a button to check.
- *
- * All of it degrades to something honest offline: the running identities are
- * local facts and always available, and the comparison simply says it could not
- * reach the server rather than guessing.
+ * It still degrades honestly offline: the running identities are local facts, so
+ * they are always there, and the comparison says it could not reach the server
+ * rather than guessing.
  */
 
 import { useCallback, useEffect, useState } from 'react'
+import { RefreshCw, Download } from 'lucide-react'
 
 import { fetchManifest, platform, runningVersion, type VersionManifest } from '../update'
-import { Icon } from './Icon'
+import { Button } from './ui/button'
+import { Card } from './ui/card'
 
 export interface VersionPanelProps {
   /** The release number, from the engine. */
@@ -36,25 +31,32 @@ export interface VersionPanelProps {
 
 const PLATFORM_LABEL: Record<ReturnType<typeof platform>, string> = {
   desktop: 'Ứng dụng máy tính',
-  pwa: 'Ứng dụng đã cài (PWA)',
+  pwa: 'Ứng dụng đã cài',
   browser: 'Trình duyệt',
 }
 
-const PLATFORM_NOTE: Record<ReturnType<typeof platform>, string> = {
-  desktop: 'Cập nhật qua bộ cài, không qua mạng.',
-  pwa: 'Bản cài giữ sẵn tệp để chạy ngoại tuyến, nên đôi khi chậm hơn máy chủ một nhịp.',
-  browser: 'Lấy thẳng từ máy chủ mỗi lần mở.',
-}
-
-/** "14:22 · 07/08/2026" — a build time nobody has to decode. */
+/** "14:22 · 07/08" — a build time nobody has to decode. */
 function when(iso: string): string {
   const d = new Date(iso)
   if (Number.isNaN(d.getTime())) return iso
   const two = (n: number) => String(n).padStart(2, '0')
-  return `${two(d.getHours())}:${two(d.getMinutes())} · ${two(d.getDate())}/${two(d.getMonth() + 1)}/${d.getFullYear()}`
+  return `${two(d.getHours())}:${two(d.getMinutes())} · ${two(d.getDate())}/${two(d.getMonth() + 1)}`
+}
+
+/** The hash out of `co_tuong_engine_wasm_bg-BuJ8vpnn.wasm`. The rest is constant. */
+function short(name: string): string {
+  return name.replace(/^.*-/, '').replace(/\.\w+$/, '') || name
 }
 
 type Check = 'idle' | 'checking' | 'offline' | 'fresh' | 'stale'
+
+const SAYS: Record<Check, string> = {
+  idle: '',
+  checking: 'Đang kiểm tra…',
+  offline: 'Không hỏi được máy chủ.',
+  fresh: 'Đang là bản mới nhất.',
+  stale: 'Có bản mới hơn.',
+}
 
 export function VersionPanel({ release }: VersionPanelProps) {
   const here = runningVersion()
@@ -84,74 +86,48 @@ export function VersionPanel({ release }: VersionPanelProps) {
   const stale = check === 'stale'
 
   return (
-    <div className="card">
-      <h2 style={{ fontSize: '1rem', marginTop: 0 }}>Bản này</h2>
-
-      <dl className="ver">
-        <div className="ver__row">
-          <dt className="ver__label">Phiên bản</dt>
-          <dd className="ver__value">{release}</dd>
+    <Card>
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <strong className="block leading-tight">Phiên bản {release}</strong>
+          <span className={stale ? 'text-sm text-accent' : 'text-sm text-ink-dim'}>
+            {SAYS[check]}
+          </span>
         </div>
-        <div className="ver__row">
-          <dt className="ver__label">Bản giao diện</dt>
-          <dd className="ver__value ver__mono">
-            {here.app}
-            {server && server.app !== here.app && (
-              <span className="ver__newer"> (mới: {server.app})</span>
-            )}
-          </dd>
-        </div>
-        <div className="ver__row">
-          <dt className="ver__label">Bản lõi cờ</dt>
-          <dd className="ver__value ver__mono">
-            {here.core}
-            {server && server.core !== here.core && (
-              <span className="ver__newer"> (mới: {server.core})</span>
-            )}
-          </dd>
-        </div>
-        <div className="ver__row">
-          <dt className="ver__label">Đang chạy dưới dạng</dt>
-          <dd className="ver__value">{PLATFORM_LABEL[where]}</dd>
-        </div>
-        {server && (
-          <div className="ver__row">
-            <dt className="ver__label">Máy chủ dựng lúc</dt>
-            <dd className="ver__value">{when(server.builtAt)}</dd>
-          </div>
-        )}
-      </dl>
-
-      <p className="ver__note muted">{PLATFORM_NOTE[where]}</p>
-
-      <div className={`ver__state${stale ? ' ver__state--stale' : ''}`}>
-        {check === 'checking' && 'Đang kiểm tra…'}
-        {check === 'offline' && 'Không hỏi được máy chủ. Ván cờ vẫn chạy bình thường.'}
-        {check === 'fresh' && 'Đang là bản mới nhất.'}
-        {stale && (
-          <>
-            Máy chủ đã có bản mới hơn
-            {server && server.core !== here.core ? ' — gồm cả lõi cờ.' : '.'}
-          </>
-        )}
-      </div>
-
-      <div className="btn-row">
-        <button type="button" className="btn" onClick={() => void compare()}>
-          <Icon name="engine" size={16} /> Kiểm tra lại
-        </button>
-        {stale && (
-          <button
-            type="button"
-            className="btn btn--primary"
+        {stale ? (
+          <Button
+            variant="primary"
+            size="sm"
             // A plain reload is the whole update: every asset carries a content
             // hash, so nothing stale can survive one.
             onClick={() => window.location.reload()}
           >
-            <Icon name="download" size={16} /> Cập nhật ngay
-          </button>
+            <Download size={16} /> Cập nhật
+          </Button>
+        ) : (
+          <Button size="sm" onClick={() => void compare()} aria-label="Kiểm tra lại">
+            <RefreshCw size={16} />
+          </Button>
         )}
       </div>
-    </div>
+
+      <details className="mt-3">
+        <summary className="cursor-pointer text-sm text-ink-dim">Chi tiết bản dựng</summary>
+        <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+          <dt className="text-ink-dim">Giao diện</dt>
+          <dd className="text-right font-mono">{here.app}</dd>
+          <dt className="text-ink-dim">Lõi cờ</dt>
+          <dd className="text-right font-mono">{short(here.core)}</dd>
+          <dt className="text-ink-dim">Chạy dạng</dt>
+          <dd className="text-right">{PLATFORM_LABEL[where]}</dd>
+          {server && (
+            <>
+              <dt className="text-ink-dim">Máy chủ dựng</dt>
+              <dd className="text-right">{when(server.builtAt)}</dd>
+            </>
+          )}
+        </dl>
+      </details>
+    </Card>
   )
 }

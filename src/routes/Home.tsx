@@ -29,6 +29,7 @@ import {
 } from 'lucide-react'
 
 import { Author } from '../components/Author'
+import { PromoBanner } from '../components/PromoBanner'
 import { Button } from '../components/ui/button'
 import { Segmented } from '../components/ui/segmented'
 import type { Difficulty, Side } from '../engine/types'
@@ -200,6 +201,13 @@ export function HomePage() {
           </Link>
         ))}
       </nav>
+
+      {/*
+        Under every control on the page, on purpose. The strip at the top is
+        part of the launcher; this is an advertisement, and an advertisement
+        that pushes the Start button down is a bad trade at any size.
+      */}
+      <PromoBanner />
 
       <footer className="flex items-center justify-center gap-1 pt-1 pb-2 text-sm text-ink-dim">
         <BookOpen size={13} aria-hidden="true" />

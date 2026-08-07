@@ -36,6 +36,7 @@ import type { Piece, PieceKind, SearchInfo, Side } from '../engine/types'
 import { Author } from './Author'
 import { MoveList } from './MoveList'
 import { PieceIcon } from './PieceIcon'
+import { PromoBanner } from './PromoBanner'
 import { Button } from './ui/button'
 import { Sheet } from './ui/sheet'
 
@@ -201,6 +202,16 @@ export function GameMenu({
             </NavLink>
           ))}
         </nav>
+
+        {/*
+          The drawer, and deliberately not the board.
+
+          A banner beside a live game would be something to look past on every
+          single move. Down here it only appears when the player has already
+          stopped playing to open the menu, and it is the last thing in a panel
+          they scrolled to the bottom of.
+        */}
+        <PromoBanner />
 
         <div className="flex justify-center pb-1">
           <Author />
