@@ -171,39 +171,46 @@
       env(safe-area-inset-left);
   }
 
-  .page {
-    flex: 1;
+  /*
+   * The main area of the shell.
+   *
+   * `.page` and `.page--bare` used to do this job, and they had to do it for
+   * the whole window because there was nothing else — no rail beside them, no
+   * column after them. Now the shell owns the frame and this owns only what is
+   * inside it, which is why the width limit lives here and the height rules do
+   * not.
+   */
+  .shell__main {
     width: 100%;
-    max-width: 1100px;
-    margin: 0 auto;
-    padding: 20px 16px 40px;
-  }
-
-  /* The playing screen: no site chrome, minimal padding, board-first. */
-  .app--bare {
-    min-height: 100dvh;
   }
 
   /*
-   * The playing screen starts at the top and stays there.
+   * The play screen's pane, and the one line that made the board survive being
+   * put inside a frame.
    *
-   * It used to centre itself vertically on anything under 760px tall, and a
-   * centred column moves whenever anything in it changes height — a longer line
-   * of commentary, the readings panel opening, the result card appearing. Each
-   * of those slid the board up or down under the player's finger mid-game.
+   * The board is sized from the height available to it, and it used to read that
+   * height off the viewport: `calc((100dvh - 150px) * 0.902)`, with the 150
+   * standing for the bar and the caption around it. Inside a shell that is no
+   * longer true — the pane is shorter than the window by however much the header
+   * and the bottom bar take — so `100dvh` overestimates and the bottom rank goes
+   * off the end. Which is precisely the bug the height-bound rule was written to
+   * fix in the first place.
    *
-   * Anchored to the top, the board is at the same place on the screen for the
-   * whole game and the slack falls to the bottom, where it reads as margin. The
-   * board is bounded by the window height now (see `.stage__board`), so it never
-   * runs off the end of a short screen either.
+   * `container-type: size` makes this element a query container, so the board can
+   * ask *it* how tall it is with `cqh` instead of guessing from the window and
+   * subtracting a number somebody has to keep up to date. The same technique is
+   * already used for the glyphs on the pieces (`5.2cqw`).
+   *
+   * It goes on a class used only by `/play`. Size containment means an element's
+   * height can no longer come from its contents, so putting it on every main
+   * area would leave Settings unable to scroll.
    */
-  .page--bare {
-    padding: 10px 10px 24px;
-    max-width: none;
+  .shell__stage {
+    container-type: size;
     display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: flex-start;
+    justify-content: center;
+    padding: 10px 10px 12px;
+    overflow: hidden;
   }
 
   .page__title {
@@ -772,10 +779,55 @@
       gap: 12px 20px;
     }
 
+    /*
+     * Solo, sideways: a column that gives the board whatever height is left.
+     *
+     * A grid with `1fr` for the board row is not enough on its own. The board
+     * keeps its own aspect ratio from its width, so a row that is 700px tall and
+     * 900px wide still produces a board 997px tall — it overflows the row and the
+     * bottom rank goes under the edge of the pane. Which is what happened the
+     * first time, and is visible in a screenshot as a board with nine ranks.
+     *
+     * Flex, with the board area allowed to shrink (`min-height: 0`) and the board
+     * inside it taking its height from the row rather than its width, makes the
+     * height the governing dimension. No number to keep in sync with the bar and
+     * the caption above and below it — whatever they take, the board gets the
+     * rest.
+     */
+    .stage--solo {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      max-width: 100%;
+      height: 100%;
+    }
+
+    .stage--solo .stage__board {
+      flex: 1;
+      min-height: 0;
+      max-width: none;
+      display: flex;
+      justify-content: center;
+    }
+
+    /*
+     * The one rule in the app that sizes the board by its height.
+     *
+     * `width: auto` is the load-bearing half: with `aspect-ratio` set and a
+     * definite height, the browser derives the width — but only if the width is
+     * not already fixed, and `.board` sets `width: 100%`.
+     */
+    .stage--solo .stage__board > .board {
+      width: auto;
+      height: 100%;
+      max-width: 100%;
+    }
+
     .stage__board {
       width: 100%;
       /* Nothing above or below it in this layout, so only the padding is owed. */
       max-width: calc((100dvh - 44px) * 0.902);
+
       /*
        * Pinned to the top of its column rather than stretched down it.
        *
@@ -794,6 +846,26 @@
       -webkit-line-clamp: 6;
       line-clamp: 6;
     }
+  }
+
+  /*
+   * The board on its own, because everything else went to the shell's column.
+   *
+   * Without this the landscape grid still reserves 240–340px for a panel that is
+   * no longer there, and the board is sized to what is left — so moving the
+   * readings out would have made the board *smaller* rather than bigger, which
+   * is the opposite of the point.
+   */
+  .stage--solo {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'update'
+      'bar'
+      'board'
+      'caption'
+      'end'
+      'hint';
+    grid-template-rows: auto auto auto auto auto auto;
   }
 
   .stage__bar {
@@ -818,13 +890,18 @@
     position: relative;
     width: 100%;
     /*
-     * Bounded by the window's height, not only by its width.
+     * Bounded by the height of its pane, not only by its width.
      *
      * The board is taller than it is wide, so on most screens it is height that
      * runs out first — and a width-only limit means the bottom rank goes off the
      * end of the page. 0.902 is 9.2/10.2, the board's own ratio, so this is
-     * exactly the width at which the full ten ranks fit in the height left over
-     * after the bar, the caption and the page padding.
+     * exactly the width at which all ten ranks fit in the height available.
+     *
+     * `cqh` is a percentage of the query container's height, which is the pane
+     * the shell gave this screen — exact in every orientation and at any nesting
+     * depth, with no subtrahend for anyone to keep in sync. The `dvh` fallback
+     * below keeps the old behaviour on browsers without size containers, where
+     * the number has to be guessed.
      *
      * It lives on the board rather than on `.stage` so the panel beside it keeps
      * the full column: an earlier version narrowed everything together, which
@@ -1025,6 +1102,27 @@
   @media (prefers-reduced-motion: reduce) {
     .insight__fill {
       transition: none;
+    }
+  }
+
+  /*
+   * The container-query form, and the only reason both exist.
+   *
+   * `@supports (container-type: size)` rather than replacing the `dvh` rules
+   * outright: a browser that does not understand size containers would be left
+   * with no width limit at all, and an unbounded board is worse than a slightly
+   * conservative one. Safari has had these since 16, Chrome since 105 — this is
+   * a fallback for the long tail, not for anything current.
+   */
+  @supports (container-type: size) {
+    .shell__stage .stage__board {
+      max-width: min(100%, calc(100cqh * 0.902));
+    }
+
+    @media (min-width: 700px) and (orientation: landscape) {
+      .shell__stage .stage__board {
+        max-width: min(100%, calc(100cqh * 0.902));
+      }
     }
   }
 

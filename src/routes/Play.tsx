@@ -18,7 +18,7 @@ import { Link } from 'react-router'
 import { primeSounds, setSoundEnabled } from '../audio/sfx'
 import { primeVoice, setVoiceMode, stopVoice } from '../audio/voice'
 import { linesOf } from '../commentary/lines'
-import { Home, Lightbulb, Menu } from 'lucide-react'
+import { Home, Lightbulb, ListOrdered, Menu } from 'lucide-react'
 
 import { Board } from '../components/Board'
 import { CommentaryFeed, type FeedEntry } from '../components/CommentaryFeed'
@@ -27,6 +27,7 @@ import { Button } from '../components/ui/button'
 import { GameMenu } from '../components/GameMenu'
 import { HintDialog } from '../components/HintDialog'
 import { MatchInsight } from '../components/MatchInsight'
+import { MoveList } from '../components/MoveList'
 import { ThinkingToast } from '../components/ThinkingToast'
 import { UpdateNotice } from '../components/UpdateNotice'
 import { getEngineClient } from '../engine/client'
@@ -36,6 +37,8 @@ import { engineVersion } from '../engine/wasm'
 import { useCommentary } from '../game/useCommentary'
 import { ENGINE_MOVE_MS, MOVE_MS } from '../game/usePieceLayout'
 import { useGame } from '../game/useGame'
+import { ROOMY } from '../components/shell/breakpoints'
+import { useShellColumn, useShellPanel } from '../components/shell/ShellContext'
 import { useMediaQuery } from '../useMediaQuery'
 import { useSettings } from '../settings'
 import { getHistoryStore } from '../storage'
@@ -134,7 +137,17 @@ export function PlayPage() {
    * exactly the shape of screen that has a spare column. On a phone the board
    * needs every pixel and there is nowhere to put it.
    */
-  const roomForFeed = useMediaQuery('(min-width: 700px)')
+  const roomForFeed = useMediaQuery(ROOMY)
+
+  /**
+   * Whether the shell is giving this screen a column of its own.
+   *
+   * When it is, the readings and the feed go *there* — beside the board, at the
+   * shell's level — and the board grid drops back to a single column, which is
+   * what lets the board grow into the space they used to take. When it is not,
+   * everything stays exactly where it was.
+   */
+  const inColumn = useShellColumn()
 
   /**
    * Off, written, or spoken.
@@ -522,6 +535,57 @@ export function PlayPage() {
     return m ? { fromRow: m.fromRow, fromCol: m.fromCol, toRow: m.toRow, toCol: m.toCol } : null
   }, [hint, projection.legalMoves])
 
+  /*
+   * What goes in the shell's column, on a screen wide enough to have one.
+   *
+   * The order is the order it is read in. The commentary first, because it is
+   * the only part that changes every move and the only part with something new
+   * to say; the readings under it, because they are a reference you glance at
+   * rather than follow; the move list last, because it is history.
+   *
+   * `useMemo` is not decoration here. This screen re-renders on every commentary
+   * line and every search update, and the panel is published through a context
+   * that would otherwise treat each of those as a new node and re-render the
+   * shell with it.
+   */
+  const panel = useMemo(
+    () =>
+      inColumn
+        ? {
+            node: (
+              <>
+                <CommentaryFeed entries={feed} />
+                <MatchInsight
+                  info={lastInfo}
+                  engineSide={
+                    settings.mode === 'pvp' ? null : settings.playerSide === 'r' ? 'b' : 'r'
+                  }
+                  pieces={projection.pieces}
+                  moveCount={projection.movesIccs.length}
+                />
+                <section>
+                  <h3 className="mb-2 flex items-center gap-1.5 text-xs font-medium tracking-wide text-ink-dim uppercase">
+                    <ListOrdered size={14} /> Nước đi
+                  </h3>
+                  <MoveList moves={projection.movesText} limit={12} />
+                </section>
+              </>
+            ),
+          }
+        : null,
+    [
+      inColumn,
+      feed,
+      lastInfo,
+      settings.mode,
+      settings.playerSide,
+      projection.pieces,
+      projection.movesIccs.length,
+      projection.movesText,
+    ]
+  )
+  useShellPanel(panel)
+
   if (game.error) {
     return <div className="banner banner--error">Không khởi động được engine: {game.error}</div>
   }
@@ -556,7 +620,9 @@ export function PlayPage() {
   const safeToUpdate = isOver || projection.movesIccs.length === 0 || (!thinking && !game.engineToMove)
 
   return (
-    <div className="stage">
+    // `stage--solo` when the readings have moved out to the shell's column: the
+    // grid then has nothing to put beside the board and gives it the whole width.
+    <div className={inColumn ? 'stage stage--solo' : 'stage'}>
       <UpdateNotice
         available={update_.available}
         kind={update_.kind}
@@ -674,12 +740,14 @@ export function PlayPage() {
         )}
       </div>
 
-      <MatchInsight
-        info={lastInfo}
-        engineSide={settings.mode === 'pvp' ? null : settings.playerSide === 'r' ? 'b' : 'r'}
-        pieces={projection.pieces}
-        moveCount={projection.movesIccs.length}
-      />
+      {!inColumn && (
+        <MatchInsight
+          info={lastInfo}
+          engineSide={settings.mode === 'pvp' ? null : settings.playerSide === 'r' ? 'b' : 'r'}
+          pieces={projection.pieces}
+          moveCount={projection.movesIccs.length}
+        />
+      )}
 
       {settings.voice && !isOver && (
         <div className="commentary" role="status">
@@ -691,7 +759,7 @@ export function PlayPage() {
         With the sound off but room to spare, the commentary becomes a feed.
         Same remarks, same pacing, no audio — see `CommentaryFeed`.
       */}
-      {voiceMode === 'silent' && <CommentaryFeed entries={feed} />}
+      {voiceMode === 'silent' && !inColumn && <CommentaryFeed entries={feed} />}
 
       {isOver && !resultOpen && (
         <div className="stage__end grid gap-2 rounded-2xl border border-border bg-surface p-3 text-center">
