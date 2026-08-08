@@ -33,6 +33,7 @@ fn main() {
             movetime_ms: budget_ms,
             randomness_cp: 0,
             seed: 42,
+            ..Default::default()
         };
         let r = searcher.search(&mut pos, limits, None);
         // A search that finished inside a millisecond reports 0 ms, so guard the

@@ -163,6 +163,7 @@ async fn engine_search(
             movetime_ms: options.movetime_ms,
             randomness_cp: options.randomness_cp.max(0),
             seed: options.seed as u64,
+            ..Default::default()
         };
 
         let experience = state.experience.lock().map_err(|e| e.to_string())?;
@@ -214,6 +215,7 @@ async fn engine_hints(
             movetime_ms: options.movetime_ms,
             randomness_cp: 0,
             seed: options.seed as u64,
+            ..Default::default()
         };
 
         let experience = state.experience.lock().map_err(|e| e.to_string())?;

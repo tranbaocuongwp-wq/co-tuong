@@ -671,6 +671,7 @@ impl Engine {
             movetime_ms: opts.movetime_ms,
             randomness_cp: opts.randomness_cp.max(0),
             seed: opts.seed as u64,
+            ..Default::default()
         };
         let ctx = SearchContext {
             book: opts.use_book.then_some(&self.book),
@@ -715,6 +716,7 @@ impl Engine {
             movetime_ms: opts.movetime_ms,
             randomness_cp: 0,
             seed: opts.seed as u64,
+            ..Default::default()
         };
         let ctx = SearchContext {
             book: None,

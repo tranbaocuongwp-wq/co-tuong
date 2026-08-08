@@ -33,6 +33,59 @@ pub struct SearchContext<'a> {
 /// engine itself needs no platform clock.
 pub type NowFn = fn() -> u64;
 
+/// How the clock is spent, as opposed to how much of it there is.
+///
+/// `movetime_ms` is a ceiling, and until now it was also the plan: the search
+/// used all of it on every move, including the ones with a single sensible
+/// reply. That is the wrong shape for a game. A person given forty-five seconds
+/// does not spend forty-five seconds recapturing a pawn — they spend two, and
+/// keep the rest for the position where it matters.
+///
+/// So the budget is a target rather than a quota. It is cut short when the
+/// answer is plainly settled, and extended when the search says it is not yet
+/// sure. Both directions are bounded: never below `min_depth`, never past
+/// `panic_pct` of the ceiling.
+///
+/// These are percentages rather than milliseconds because they have to hold at
+/// every level of the ladder — the same policy governs a six-second "Dễ" move
+/// and a forty-five-second "Siêu khó" one.
+#[derive(Clone, Copy, Debug)]
+pub struct TimePolicy {
+    /// The budget actually aimed at, as a percentage of `movetime_ms`.
+    pub soft_pct: u32,
+    /// The ceiling every extension is clamped to. Leaves headroom under the
+    /// hard deadline so a granted extension can actually be used.
+    pub panic_pct: u32,
+    /// Added to the soft budget for each iteration that looks unsettled.
+    pub instability_pct: u32,
+    /// Iterations the best move must survive unchanged before stopping early.
+    pub easy_stable_iters: u32,
+    /// How far ahead of the second-best move the best one must be, in
+    /// centipawns, before the choice counts as made.
+    pub easy_margin_cp: i32,
+    /// No early exit below this depth, however settled it looks. A position can
+    /// look quiet for six plies and be lost on the seventh.
+    pub min_depth: u32,
+    /// Below this budget, behave exactly as before. Hint ranking slices the
+    /// clock into 8ms and 60ms pieces, and adaptive timing at that scale is
+    /// noise rather than judgement.
+    pub min_adaptive_ms: u64,
+}
+
+impl Default for TimePolicy {
+    fn default() -> Self {
+        TimePolicy {
+            soft_pct: 45,
+            panic_pct: 85,
+            instability_pct: 60,
+            easy_stable_iters: 4,
+            easy_margin_cp: 200,
+            min_depth: 8,
+            min_adaptive_ms: 300,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct SearchLimits {
     /// Hard depth ceiling.
@@ -44,6 +97,12 @@ pub struct SearchLimits {
     pub randomness_cp: i32,
     /// Seed for that noise, so a given game is reproducible when replayed.
     pub seed: u64,
+    /// How to spend `movetime_ms`. See `TimePolicy`.
+    pub policy: TimePolicy,
+    /// When false, the budget is spent exactly as it was before adaptive timing
+    /// existed. Kept so a regression can be bisected against the old behaviour
+    /// without rebuilding.
+    pub adaptive: bool,
 }
 
 impl Default for SearchLimits {
@@ -53,6 +112,8 @@ impl Default for SearchLimits {
             movetime_ms: 3_000,
             randomness_cp: 0,
             seed: 0x1234_5678,
+            policy: TimePolicy::default(),
+            adaptive: true,
         }
     }
 }
@@ -644,6 +705,7 @@ impl Searcher {
             // No noise: the whole point is to compare these honestly.
             randomness_cp: 0,
             seed: limits.seed,
+            ..Default::default()
         };
 
         let mut scouted = Vec::with_capacity(moves.len());
@@ -680,6 +742,7 @@ impl Searcher {
             },
             randomness_cp: 0,
             seed: limits.seed,
+            ..Default::default()
         };
 
         let mut out = Vec::with_capacity(shortlist);
@@ -998,6 +1061,7 @@ mod tests {
             movetime_ms: 0,
             randomness_cp: 0,
             seed: 1,
+            ..Default::default()
         };
         let mut engine = Searcher::new(8, zero_clock);
         let best = engine.search(&mut pos, limits, None).best_move;
@@ -1034,6 +1098,7 @@ mod tests {
                 movetime_ms: 30_000,
                 randomness_cp: 0,
                 seed: 1,
+                ..Default::default()
             },
             None,
         );
@@ -1073,6 +1138,7 @@ mod tests {
             movetime_ms: 0,
             randomness_cp: 0,
             seed: 1,
+            ..Default::default()
         };
         let mut engine = Searcher::new(16, zero_clock);
         let best = engine.search(&mut pos, limits, None).best_move;
@@ -1094,6 +1160,7 @@ mod tests {
                 movetime_ms: 0,
                 randomness_cp: 0,
                 seed: 1,
+                ..Default::default()
             },
             &SearchContext::default(),
             3,
@@ -1115,6 +1182,7 @@ mod tests {
             movetime_ms: 0,
             randomness_cp: 0,
             seed: 1,
+            ..Default::default()
         };
         search_position(&mut pos, limits, 8, zero_clock)
     }
@@ -1232,6 +1300,7 @@ mod tests {
             movetime_ms: 0,
             randomness_cp: 0,
             seed: 1,
+            ..Default::default()
         };
 
         // What does the engine play with no memory?
@@ -1280,6 +1349,7 @@ mod tests {
             movetime_ms: 0,
             randomness_cp: 0,
             seed: 1,
+            ..Default::default()
         };
         let empty = Experience::new();
 
@@ -1313,6 +1383,7 @@ mod tests {
             movetime_ms: 0,
             randomness_cp: 0,
             seed: 1,
+            ..Default::default()
         };
         let mut pos = Position::from_fen(fen).unwrap();
         let mut s = Searcher::new(8, zero_clock);
