@@ -5,6 +5,7 @@
 //! live here and only here — the UI asks this engine what is legal rather than
 //! reimplementing the rules in TypeScript, which is how the two ever drift.
 
+pub mod bench;
 pub mod board;
 pub mod book;
 pub mod eval;
@@ -16,6 +17,7 @@ pub mod see;
 pub mod types;
 pub mod zobrist;
 
+pub use bench::{calibrate, Calibration, CALIBRATION_FEN};
 pub use board::{Forcing, Formation, Intent, MoveReport, Position, RepKind, START_FEN};
 pub use book::Book;
 pub use eval::{evaluate, INFINITY, MATE_BOUND, MATE_VALUE};
@@ -24,5 +26,6 @@ pub use movegen::{MoveList, MAX_MOVES};
 pub use search::{
     RootChoice,
     search_position, InfoFn, NowFn, SearchContext, SearchLimits, SearchResult, Searcher,
+    StopFlag, StopReason, TimePolicy,
 };
 pub use types::{iccs_to_move, move_to_iccs, Move, BLACK, RED};

@@ -64,7 +64,38 @@ export interface SearchInfo {
   fromExperience: boolean
   /** Plies to mate when the score is a forced mate, else null. */
   mateIn: number | null
+  /** The clock ran out mid-iteration; that iteration's work was discarded. */
+  stoppedEarly: boolean
+  /** Which stopping condition fired. */
+  stopReason: StopReason
+  /**
+   * How many times the best move changed while thinking.
+   *
+   * The honest counterweight to a depth number. "Depth 18" says nothing about
+   * whether the engine was still changing its mind at depth 18 or had been sure
+   * since depth 9, and those are exactly the two cases worth telling apart.
+   */
+  bestChanges: number
+  /** The budget it aimed at after any extension, as opposed to the ceiling. */
+  softMs: number
 }
+
+/**
+ * Why the search stopped. Mirrors `StopReason` in the engine.
+ *
+ * `easy` is the one worth surfacing: it means the engine settled on its move and
+ * stopped rather than running the clock down, which is the difference between an
+ * opponent that is thinking and one that is stalling.
+ */
+export type StopReason =
+  | 'depth'
+  | 'soft'
+  | 'hard'
+  | 'mate'
+  | 'easy'
+  | 'forced'
+  | 'cancelled'
+  | 'book'
 
 /**
  * One option offered by the hint, with everything needed to explain it.
@@ -103,6 +134,25 @@ export interface SearchOptions {
   seed?: number
   useBook?: boolean
   useExperience?: boolean
+  /**
+   * The budget to aim at, in milliseconds. Omit to let the engine take its own
+   * share of `movetimeMs`.
+   */
+  softMs?: number
+  /**
+   * Off spends `movetimeMs` the way the engine did before adaptive timing
+   * existed. Only for bisecting a regression; nothing in the app sets it.
+   */
+  adaptive?: boolean
+}
+
+/** What a device measured itself at. See `engine/src/bench.rs`. */
+export interface Calibration {
+  /** Nodes per second. */
+  nps: number
+  /** How deep it reached in the measuring budget. For display only. */
+  depth: number
+  ms: number
 }
 
 export type Difficulty = 'easy' | 'medium' | 'hard' | 'master'

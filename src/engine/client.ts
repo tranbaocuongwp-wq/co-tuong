@@ -7,7 +7,7 @@
  * this file knows or cares which is active.
  */
 
-import type { HintInfo, SearchInfo, SearchOptions } from './types'
+import type { Calibration, HintInfo, SearchInfo, SearchOptions } from './types'
 import type { WorkerRequest, WorkerResponse } from './worker'
 
 export interface EngineClient {
@@ -39,6 +39,21 @@ export interface EngineClient {
   loadExperience(text: string): Promise<number>
   experienceText(): Promise<string>
   reset(): Promise<void>
+  /** Measure this machine's search rate. See `engine/src/bench.rs`. */
+  calibrate(budgetMs: number): Promise<Calibration>
+  /**
+   * Stop the search that is running now.
+   *
+   * Honest about what it can do, which differs by host. On the desktop it is a
+   * real mid-search cancel: the search has a thread of its own and something
+   * else can still raise a flag. In a browser it is not — a worker sitting
+   * inside a search never returns to its event loop to receive the message — so
+   * there the only way to actually stop is to destroy the worker, which costs
+   * the transposition table. Pass `hard` when that price is worth paying:
+   * starting a new game, or leaving the board. For an ordinary abandoned search
+   * the caller's own token already prevents a stale move from being played.
+   */
+  cancel(hard?: boolean): void
   dispose(): void
 }
 
@@ -74,6 +89,11 @@ class WorkerEngineClient implements EngineClient {
 
   constructor() {
     this.worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' })
+    this.attach()
+  }
+
+  /** Wire up a worker. Called again whenever a hard cancel replaces one. */
+  private attach() {
     this.worker.onmessage = (event: MessageEvent<WorkerResponse>) => {
       const msg = event.data
       const entry = this.pending.get(msg.id)
@@ -140,6 +160,23 @@ class WorkerEngineClient implements EngineClient {
     await this.call<null>({ type: 'reset' })
   }
 
+  calibrate(budgetMs: number) {
+    return this.call<Calibration>({ type: 'calibrate', budgetMs })
+  }
+
+  cancel(hard = false) {
+    if (!hard) return
+    // The worker is inside the search and cannot hear a message, so the only
+    // way out is to end it. Everything waiting on it has to be told, or those
+    // promises never settle.
+    const dead = new Error('engine restarted')
+    for (const [, entry] of this.pending) entry.reject(dead)
+    this.pending.clear()
+    this.worker.terminate()
+    this.worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' })
+    this.attach()
+  }
+
   dispose() {
     this.worker.terminate()
     this.pending.clear()
@@ -183,6 +220,16 @@ class NativeEngineClient implements EngineClient {
 
   async reset() {
     await this.invoke<void>('engine_reset', {})
+  }
+
+  calibrate(budgetMs: number) {
+    return this.invoke<Calibration>('engine_benchmark', { budgetMs })
+  }
+
+  cancel() {
+    // Fire and forget: the caller is abandoning this search either way, and a
+    // failed cancel only means it runs to its deadline as it used to.
+    void this.invoke<void>('engine_cancel', {}).catch(() => undefined)
   }
 
   dispose() {

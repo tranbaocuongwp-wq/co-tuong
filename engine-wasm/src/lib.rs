@@ -185,6 +185,23 @@ pub struct SearchInfo {
     pub from_experience: bool,
     /// Set when the score is a forced mate; the value is the distance in plies.
     pub mate_in: Option<i32>,
+    /// The search ran out of clock mid-iteration rather than finishing.
+    pub stopped_early: bool,
+    /// Which stopping condition fired. See `StopReason` in the engine.
+    pub stop_reason: String,
+    /// How many times the best move changed while thinking. A high number is
+    /// the honest signal that the position was not as settled as it looks.
+    pub best_changes: u32,
+    /// The budget it aimed at after any extension, as opposed to the ceiling.
+    pub soft_ms: f64,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CalibrationInfo {
+    pub nps: f64,
+    pub depth: u32,
+    pub ms: f64,
 }
 
 #[derive(Deserialize)]
@@ -196,6 +213,13 @@ pub struct SearchOptions {
     pub seed: f64,
     pub use_book: bool,
     pub use_experience: bool,
+    /// The budget to aim at, in milliseconds. Zero means "work it out from
+    /// `movetime_ms`", which is what every caller does — this exists for the
+    /// calibration path, which wants an exact number rather than a percentage.
+    pub soft_ms: u64,
+    /// Off means spend `movetime_ms` the way the engine did before adaptive
+    /// timing existed. Kept so a regression can be bisected without rebuilding.
+    pub adaptive: bool,
 }
 
 impl Default for SearchOptions {
@@ -207,8 +231,33 @@ impl Default for SearchOptions {
             seed: 1.0,
             use_book: true,
             use_experience: true,
+            soft_ms: 0,
+            adaptive: true,
         }
     }
+}
+
+/// One place that turns the interface's options into the engine's limits.
+///
+/// It existed twice, once for search and once for hints, and the two had already
+/// begun to differ. `soft_ms` is expressed as a percentage of the ceiling because
+/// that is the only form the engine accepts — a caller naming an absolute figure
+/// gets it converted here rather than the engine growing a second way to say the
+/// same thing.
+fn limits_from(opts: &SearchOptions) -> SearchLimits {
+    let mut limits = SearchLimits {
+        max_depth: opts.max_depth.clamp(1, 64),
+        movetime_ms: opts.movetime_ms,
+        randomness_cp: opts.randomness_cp.max(0),
+        seed: opts.seed as u64,
+        adaptive: opts.adaptive,
+        ..Default::default()
+    };
+    if opts.soft_ms > 0 && opts.movetime_ms > 0 {
+        let pct = (opts.soft_ms * 100 / opts.movetime_ms).clamp(10, 100) as u32;
+        limits.policy.soft_pct = pct;
+    }
+    limits
 }
 
 fn glyph_for(pc: u8) -> &'static str {
@@ -253,6 +302,10 @@ fn describe_search(source: &Position, r: &co_tuong_engine::SearchResult) -> Sear
         from_book: r.from_book,
         from_experience: r.from_experience,
         mate_in,
+        stopped_early: r.stopped_early,
+        stop_reason: r.stop_reason.as_str().to_string(),
+        best_changes: r.best_changes,
+        soft_ms: r.soft_ms as f64,
     }
 }
 
@@ -588,6 +641,16 @@ impl Engine {
 
     /// Forget everything learned and cached. Used when starting a fresh game
     /// at a different difficulty.
+    /// Measure how fast this browser searches.
+    ///
+    /// The result scales the difficulty ladder's *time caps* so a level means
+    /// the same strength here as on a laptop — see `engine/src/bench.rs` for why
+    /// it must not scale the depths instead.
+    pub fn benchmark(&mut self, budget_ms: u32) -> Result<JsValue, JsValue> {
+        let c = co_tuong_engine::calibrate(wasm_now_ms, budget_ms as u64, 16);
+        to_js(&CalibrationInfo { nps: c.nps as f64, depth: c.depth, ms: c.ms as f64 })
+    }
+
     pub fn reset(&mut self) {
         self.searcher.clear();
     }
@@ -666,13 +729,7 @@ impl Engine {
 
         // Work on a copy so a search can never mutate the caller's game.
         let mut pos = game.pos.clone();
-        let limits = SearchLimits {
-            max_depth: opts.max_depth.clamp(1, 64),
-            movetime_ms: opts.movetime_ms,
-            randomness_cp: opts.randomness_cp.max(0),
-            seed: opts.seed as u64,
-            ..Default::default()
-        };
+        let limits = limits_from(&opts);
         let ctx = SearchContext {
             book: opts.use_book.then_some(&self.book),
             experience: opts.use_experience.then_some(&self.experience),

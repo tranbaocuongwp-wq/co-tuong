@@ -19,8 +19,8 @@ use co_tuong_engine::search::system_now_ms;
 use co_tuong_engine::types::{iccs_to_move, move_to_iccs, Move, BLACK, RED};
 use co_tuong_engine::notation::move_to_vietnamese;
 use co_tuong_engine::{
-    Book, Experience, Position, SearchContext, SearchLimits, Searcher, MATE_BOUND, MATE_VALUE,
-    START_FEN,
+    Book, Experience, Position, SearchContext, SearchLimits, Searcher, StopFlag, MATE_BOUND,
+    MATE_VALUE, START_FEN,
 };
 
 /// Transposition table size for the desktop build. Generous compared with the
@@ -42,6 +42,14 @@ pub struct SearchInfo {
     pub from_book: bool,
     pub from_experience: bool,
     pub mate_in: Option<i32>,
+    /// The search ran out of clock mid-iteration rather than finishing.
+    pub stopped_early: bool,
+    /// Which stopping condition fired. See `StopReason` in the engine.
+    pub stop_reason: String,
+    /// How many times the best move changed while thinking.
+    pub best_changes: u32,
+    /// The budget it aimed at after any extension, as opposed to the ceiling.
+    pub soft_ms: f64,
 }
 
 /// One option offered by the hint, with everything needed to explain it.
@@ -89,6 +97,27 @@ fn kind_name(kind: u8) -> &'static str {
     }
 }
 
+/// One place that turns the interface's options into the engine's limits.
+///
+/// Mirrors `limits_from` in the WebAssembly build. The two engines must be
+/// given the same instructions or a level means two different things depending
+/// on whether the player is on the desktop app or the web one.
+fn limits_from(opts: &SearchOptions, randomness_cp: i32) -> SearchLimits {
+    let mut limits = SearchLimits {
+        max_depth: opts.max_depth.clamp(1, 64),
+        movetime_ms: opts.movetime_ms,
+        randomness_cp,
+        seed: opts.seed as u64,
+        adaptive: opts.adaptive,
+        ..Default::default()
+    };
+    if opts.soft_ms > 0 && opts.movetime_ms > 0 {
+        let pct = (opts.soft_ms * 100 / opts.movetime_ms).clamp(10, 100) as u32;
+        limits.policy.soft_pct = pct;
+    }
+    limits
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct SearchOptions {
@@ -98,6 +127,12 @@ pub struct SearchOptions {
     pub seed: f64,
     pub use_book: bool,
     pub use_experience: bool,
+    /// The budget to aim at, in milliseconds. Zero means "work it out from
+    /// `movetime_ms`".
+    pub soft_ms: u64,
+    /// Off means spend `movetime_ms` the way the engine did before adaptive
+    /// timing existed.
+    pub adaptive: bool,
 }
 
 impl Default for SearchOptions {
@@ -109,11 +144,17 @@ impl Default for SearchOptions {
             seed: 1.0,
             use_book: true,
             use_experience: true,
+            soft_ms: 0,
+            adaptive: true,
         }
     }
 }
 
 pub struct EngineState {
+    /// Raised by the interface thread, read by the search inside its blocking
+    /// task. This is the one host where cancelling actually works: the search
+    /// has a thread of its own, so something else can still be listening.
+    cancel: StopFlag,
     searcher: Mutex<Searcher>,
     book: Book,
     experience: Mutex<Experience>,
@@ -122,6 +163,7 @@ pub struct EngineState {
 impl EngineState {
     fn new() -> Self {
         EngineState {
+            cancel: StopFlag::new(),
             searcher: Mutex::new(Searcher::new(TT_MB, system_now_ms)),
             book: Book::new(),
             experience: Mutex::new(Experience::new()),
@@ -158,13 +200,7 @@ async fn engine_search(
         let state = app.state::<EngineState>();
         let (mut pos, _) = replay(&start_fen, &moves)?;
 
-        let limits = SearchLimits {
-            max_depth: options.max_depth.clamp(1, 64),
-            movetime_ms: options.movetime_ms,
-            randomness_cp: options.randomness_cp.max(0),
-            seed: options.seed as u64,
-            ..Default::default()
-        };
+        let limits = limits_from(&options, options.randomness_cp.max(0));
 
         let experience = state.experience.lock().map_err(|e| e.to_string())?;
         let ctx = SearchContext {
@@ -172,6 +208,10 @@ async fn engine_search(
             experience: options.use_experience.then_some(&*experience),
         };
         let mut searcher = state.searcher.lock().map_err(|e| e.to_string())?;
+        // A flag left raised by a previous cancel would stop this search before
+        // it began.
+        state.cancel.clear();
+        searcher.set_cancel(Some(state.cancel.clone()));
         let r = searcher.search_with(&mut pos, limits, &ctx, None);
 
         let mate_in = if r.score.abs() >= MATE_BOUND {
@@ -191,10 +231,43 @@ async fn engine_search(
             from_book: r.from_book,
             from_experience: r.from_experience,
             mate_in,
+            stopped_early: r.stopped_early,
+            stop_reason: r.stop_reason.as_str().to_string(),
+            best_changes: r.best_changes,
+            soft_ms: r.soft_ms as f64,
         })
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+/// Stop the search that is running now, if there is one.
+///
+/// Not `async`, and deliberately: the point is to set the flag *while* a search
+/// is blocking, and an async command queued behind it would be no use at all.
+#[tauri::command]
+fn engine_cancel(app: tauri::AppHandle) {
+    app.state::<EngineState>().cancel.raise();
+}
+
+/// Measure how fast this machine searches, so a difficulty level can mean the
+/// same strength on a laptop and on a phone.
+#[tauri::command]
+async fn engine_benchmark(budget_ms: u64) -> Result<Calibration, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let c = co_tuong_engine::calibrate(system_now_ms, budget_ms, TT_MB);
+        Ok(Calibration { nps: c.nps as f64, depth: c.depth, ms: c.ms as f64 })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Calibration {
+    pub nps: f64,
+    pub depth: u32,
+    pub ms: f64,
 }
 
 /// The best few moves for the side to move, best first, each with its reasons.
@@ -210,13 +283,7 @@ async fn engine_hints(
         let state = app.state::<EngineState>();
         let (mut pos, _) = replay(&start_fen, &moves)?;
 
-        let limits = SearchLimits {
-            max_depth: options.max_depth.clamp(1, 64),
-            movetime_ms: options.movetime_ms,
-            randomness_cp: 0,
-            seed: options.seed as u64,
-            ..Default::default()
-        };
+        let limits = limits_from(&options, 0);
 
         let experience = state.experience.lock().map_err(|e| e.to_string())?;
         let ctx = SearchContext {
@@ -363,6 +430,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             engine_search,
+            engine_cancel,
+            engine_benchmark,
             engine_hints,
             engine_learn,
             engine_experience_text,

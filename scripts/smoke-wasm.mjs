@@ -96,7 +96,18 @@ const elapsed = Date.now() - t0
 check('honours the time budget', elapsed < 1500, `took ${elapsed}ms`)
 check('still returns a legal move',
   timed.legalMoves().some((m) => m.iccs === r.iccs))
-console.log(`       depth ${r.depth}, ${Math.round(r.nodes / 1000)}k nodes in ${r.timeMs}ms`)
+check('reports why it stopped', typeof r.stopReason === 'string' && r.stopReason.length > 0,
+  `stopReason=${r.stopReason}`)
+check('reports the budget it aimed at', typeof r.softMs === 'number')
+console.log(`       depth ${r.depth}, ${Math.round(r.nodes / 1000)}k nodes in ${r.timeMs}ms, ` +
+  `dừng vì ${r.stopReason}`)
+
+// --- device calibration ---------------------------------------------------
+console.log('\ndevice calibration')
+const cal = engine.benchmark(150)
+check('measures a positive rate', cal.nps > 0, `${Math.round(cal.nps / 1000)}k n/s`)
+check('completes at least one iteration', cal.depth >= 1, `depth ${cal.depth}`)
+console.log(`       ${Math.round(cal.nps / 1000)}k n/s, depth ${cal.depth} in ${cal.ms}ms`)
 
 // --- learning -------------------------------------------------------------
 console.log('\nexperience book')

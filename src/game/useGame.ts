@@ -313,7 +313,13 @@ export function useGame(config: GameConfig) {
     const game = gameRef.current
     if (!game) return
     // Abandon any in-flight search: its result is about to be stale.
+    //
+    // The token alone stops the answer being used, which is the part that
+    // matters for correctness. Cancelling as well stops the machine burning
+    // through the rest of a forty-five-second budget nobody is waiting for —
+    // and until now it did exactly that, on a phone, on a battery.
     searchTokenRef.current++
+    getEngineClient().cancel()
     setThinking(false)
     setManualEnd(null)
     /*

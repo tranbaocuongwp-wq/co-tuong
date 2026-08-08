@@ -41,6 +41,7 @@ export type WorkerRequest =
   | { id: number; type: 'loadExperience'; text: string }
   | { id: number; type: 'experienceText' }
   | { id: number; type: 'reset' }
+  | { id: number; type: 'calibrate'; budgetMs: number }
 
 export type WorkerResponse =
   | { id: number; ok: true; result: unknown }
@@ -90,6 +91,9 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
         break
       case 'reset':
         engine.reset()
+        break
+      case 'calibrate':
+        result = engine.benchmark(msg.budgetMs)
         break
     }
 
