@@ -45,6 +45,14 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '0.7.1',
+    date: '2026-08-09',
+    headline: 'Xem trước nước gợi ý thôi bị cắt ngang.',
+    fixed: [
+      'Khi **xem trước một nước gợi ý**, khung phía dưới bị cắt mất nửa dòng và để lại một mảng trắng. Giờ nó chỉ hiện đúng nước đang xem, kèm hai nút **Xem phương án khác** và **Đi nước này**.',
+    ],
+  },
+  {
     version: '0.7.0',
     date: '2026-08-09',
     headline: 'Có trang **Có gì mới**, và chuyển trang thôi đứng hình.',

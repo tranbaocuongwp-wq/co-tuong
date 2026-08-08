@@ -88,6 +88,8 @@ export function HintDialog({
 }: HintDialogProps) {
   const best = choices[0]
   const hopeless = !busy && choices.length > 0 && best.score <= HOPELESS
+  /** The move being drawn on the board, when one is. */
+  const preview = previewing ? choices.find((c) => c.iccs === previewing) : undefined
 
   return (
     /*
@@ -135,9 +137,15 @@ export function HintDialog({
            * destination landed on the panel instead. Offsetting it by the bar's
            * height moved the box without making it any shorter.
            *
-           * `max-h-44` is the 11rem that was visible anyway, and with no
-           * translation the box ends where it appears to end. `bottom-14` then
-           * puts it above the bar rather than over it.
+           * Clamping the height was the second attempt and it looked broken:
+           * `max-h-44` cut the option list mid-row, leaving half a line of text
+           * with a band of white under it. A height that does not match its
+           * contents always shows.
+           *
+           * So previewing changes the *contents* instead. The list becomes the
+           * one move being previewed, and the panel is whatever height that
+           * needs — see the `previewing` branch in the body below. Nothing is
+           * clipped because nothing is being hidden.
            *
            * The comment lives out here rather than inside `cn()` because the
            * build's class checker reads every string in that call as a class
@@ -152,16 +160,16 @@ export function HintDialog({
             // bottom edge at the same height. Sliding a centred dialog by its own
             // height would have left it half off the screen, because its resting
             // position is already a translate.
-            previewing && 'max-h-44 translate-y-0 bottom-14',
+            previewing && 'translate-y-0 bottom-14',
             previewing &&
-              'min-[700px]:top-auto min-[700px]:bottom-4 min-[700px]:max-h-44 min-[700px]:translate-y-0'
+              'min-[700px]:top-auto min-[700px]:bottom-4 min-[700px]:translate-y-0'
           )}
         >
           <div className="mx-auto mt-2 h-1 w-10 shrink-0 rounded-full bg-border min-[700px]:hidden" />
 
           <div className="flex shrink-0 items-center justify-between px-4 pt-3 pb-1">
             <Dialog.Title className="flex items-center gap-2 text-base font-semibold">
-              <Lightbulb size={17} /> Nên đi nước nào
+              <Lightbulb size={17} /> {previewing ? 'Đang xem trước' : 'Nên đi nước nào'}
             </Dialog.Title>
             <Dialog.Close
               className="grid h-10 w-10 place-items-center rounded-xl text-ink-dim hover:bg-surface-2"
@@ -175,24 +183,62 @@ export function HintDialog({
           </Dialog.Description>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-1 pb-4">
+            {/*
+              Previewing shows one move, not a truncated list.
+              
+              The point of previewing is the board, so the panel shrinks to the
+              least it can say and still be useful: which move is drawn up there,
+              why, and the two things to do about it. Everything else would only
+              be covering the position the player is trying to look at.
+            */}
+            {previewing && preview && (
+              <div className="flex flex-col gap-2">
+                <div className="rounded-2xl border border-ok bg-ok/10 p-3">
+                  <div className="flex items-center gap-3">
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-ok text-white">
+                      <Check size={17} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-semibold">{preview.text}</span>
+                      <span className="mt-0.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-ink-dim">
+                        {reasons(preview).map(({ icon: ReasonIcon, text }) => (
+                          <span key={text} className="inline-flex items-center gap-1">
+                            <ReasonIcon size={12} /> {text}
+                          </span>
+                        ))}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-xs text-ink-dim">{verdict(preview.score)}</span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button onClick={() => onPreview(null)}>Xem phương án khác</Button>
+                  <Button variant="primary" onClick={() => onPick(preview.iccs)}>
+                    Đi nước này
+                  </Button>
+                </div>
+              </div>
+            )}
+
             {busy && <p className="py-6 text-center text-sm text-ink-dim">Đang cân nhắc…</p>}
 
-            {!busy && choices.length === 0 && (
+            {!previewing && !busy && choices.length === 0 && (
               <p className="py-6 text-center text-sm text-ink-dim">Không còn nước nào để đi.</p>
             )}
 
-            {hopeless && (
+            {!previewing && hopeless && (
               <p className="mb-3 rounded-xl border border-border bg-surface-2 p-3 text-sm">
                 Thế cờ đã bế tắc. Mấy nước dưới đây là đỡ nhất, chứ không gỡ được.
               </p>
             )}
 
-            {!busy && choices.length > 0 && (
+            {!previewing && !busy && choices.length > 0 && (
               <p className="mb-2 text-xs text-ink-dim">Chạm để xem trước · chạm lần nữa để đi</p>
             )}
 
             <div className="flex flex-col gap-2">
-              {!busy &&
+              {!previewing &&
+                !busy &&
                 choices.map((choice, i) => {
                   const shown = previewing === choice.iccs
                   return (
