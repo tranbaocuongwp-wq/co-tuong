@@ -52,6 +52,14 @@ pub type NowFn = fn() -> u64;
 #[derive(Clone, Copy, Debug)]
 pub struct TimePolicy {
     /// The budget actually aimed at, as a percentage of `movetime_ms`.
+    ///
+    /// Higher than the 50% the old fixed rule worked out to, and deliberately:
+    /// that rule guessed the next iteration would cost twice the last, while
+    /// this one measures it, so it can afford to cut things finer without
+    /// starting an iteration it cannot finish. Measured at 45 and at 65 on the
+    /// bench positions it made no difference at all — the early exit is what
+    /// stops a settled search. What this number governs is the *unsettled* one,
+    /// where it is the only thing keeping the search from wandering to the wall.
     pub soft_pct: u32,
     /// The ceiling every extension is clamped to. Leaves headroom under the
     /// hard deadline so a granted extension can actually be used.
@@ -61,10 +69,13 @@ pub struct TimePolicy {
     /// Iterations the best move must survive unchanged before stopping early.
     pub easy_stable_iters: u32,
     /// How far ahead of the second-best move the best one must be, in
-    /// centipawns, before the choice counts as made.
+    /// centipawns, before the choice counts as made. A whole piece: measured at
+    /// two pawns, the exit fired on ordinary middlegames and cost seven plies.
     pub easy_margin_cp: i32,
     /// No early exit below this depth, however settled it looks. A position can
-    /// look quiet for six plies and be lost on the seventh.
+    /// look quiet for twelve plies and be lost on the thirteenth — and the
+    /// ladder aims at depths of sixteen and up, so an exit at eight is not a
+    /// saving, it is half the strength the level promised.
     pub min_depth: u32,
     /// Below this budget, behave exactly as before. Hint ranking slices the
     /// clock into 8ms and 60ms pieces, and adaptive timing at that scale is
@@ -75,12 +86,12 @@ pub struct TimePolicy {
 impl Default for TimePolicy {
     fn default() -> Self {
         TimePolicy {
-            soft_pct: 45,
+            soft_pct: 60,
             panic_pct: 85,
             instability_pct: 60,
             easy_stable_iters: 4,
-            easy_margin_cp: 200,
-            min_depth: 8,
+            easy_margin_cp: 400,
+            min_depth: 12,
             min_adaptive_ms: 300,
         }
     }
@@ -118,6 +129,104 @@ impl Default for SearchLimits {
     }
 }
 
+/// Whether the next iteration is worth starting.
+///
+/// The rule this replaces assumed each iteration costs exactly twice the last
+/// one. With principal-variation search, null-move pruning and late-move
+/// reductions all working to make deeper iterations cheaper than they sound,
+/// that number is neither 2 nor constant: it runs low on a quiet position,
+/// where the old rule stopped with half the budget unspent, and high on a
+/// tactical one, where the old rule started an iteration it could not finish
+/// and then threw the work away.
+///
+/// So measure it. `last_iter / prev_iter` is the branching factor this search
+/// is actually seeing, on this position, on this machine.
+///
+/// Clamped because the first iterations take microseconds and their ratio is
+/// noise — an unclamped estimate from two sub-millisecond samples can predict
+/// anything at all.
+pub(crate) fn should_start_iteration(elapsed: u64, last_iter: u64, prev_iter: u64, soft: u64) -> bool {
+    if soft == 0 {
+        return true;
+    }
+    let ebf = if prev_iter > 0 && last_iter > 0 {
+        ((last_iter as f64 / prev_iter as f64).clamp(1.3, 4.0) * 100.0) as u64
+    } else {
+        // No usable sample yet. Two is the old assumption and a fair prior.
+        200
+    };
+    elapsed + last_iter * ebf / 100 <= soft
+}
+
+/// Why the search stopped.
+///
+/// Worth reporting rather than inferring. "Depth 18" tells a player nothing
+/// about whether the engine was still unsure at depth 18 or had been certain
+/// since depth 9 — and those are the two cases where a person would most like
+/// to know what the machine was doing.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum StopReason {
+    /// Ran out of depth. The budget was never the constraint.
+    #[default]
+    Depth,
+    /// Reached the budget it aimed at, having finished an iteration.
+    SoftBudget,
+    /// Hit the wall mid-iteration; that iteration's work was discarded.
+    HardDeadline,
+    /// A forced mate; nothing deeper can improve on it.
+    Mate,
+    /// The move was settled and stayed settled. See `TimePolicy`.
+    EasyPosition,
+    /// Only one legal move existed.
+    Forced,
+    /// The host asked it to stop.
+    Cancelled,
+    /// The opening book answered; no search ran.
+    Book,
+}
+
+impl StopReason {
+    /// A stable identifier for the hosts to hand to the interface.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            StopReason::Depth => "depth",
+            StopReason::SoftBudget => "soft",
+            StopReason::HardDeadline => "hard",
+            StopReason::Mate => "mate",
+            StopReason::EasyPosition => "easy",
+            StopReason::Forced => "forced",
+            StopReason::Cancelled => "cancelled",
+            StopReason::Book => "book",
+        }
+    }
+}
+
+/// A flag the host can raise to stop a search in progress.
+///
+/// Shared rather than owned because whoever wants the search stopped is by
+/// definition not the thread running it. On the desktop that works: the search
+/// runs in a blocking task and the interface thread can set the flag. In a
+/// browser it does not — a worker sitting inside a search never returns to its
+/// event loop to receive the message — so there the flag is only ever set
+/// before a search starts. The type is honest either way.
+#[derive(Clone, Default)]
+pub struct StopFlag(std::sync::Arc<std::sync::atomic::AtomicBool>);
+
+impl StopFlag {
+    pub fn new() -> Self {
+        Self::default()
+    }
+    pub fn raise(&self) {
+        self.0.store(true, std::sync::atomic::Ordering::Relaxed);
+    }
+    pub fn clear(&self) {
+        self.0.store(false, std::sync::atomic::Ordering::Relaxed);
+    }
+    pub fn raised(&self) -> bool {
+        self.0.load(std::sync::atomic::Ordering::Relaxed)
+    }
+}
+
 /// One option a hint can offer, with what it is worth.
 #[derive(Clone, Copy, Debug)]
 pub struct RootChoice {
@@ -143,6 +252,14 @@ pub struct SearchResult {
     /// The experience book overrode the search's first choice among moves it
     /// judged equivalent.
     pub from_experience: bool,
+    /// Which of the stopping conditions actually fired.
+    pub stop_reason: StopReason,
+    /// How many times the best move changed between iterations. A high count on
+    /// a settled-looking position is the honest signal that it was not settled.
+    pub best_changes: u32,
+    /// The budget the search aimed at, after any extensions it granted itself.
+    /// Differs from `movetime_ms`, which is only the ceiling.
+    pub soft_ms: u64,
 }
 
 const TT_EXACT: u8 = 1;
@@ -172,7 +289,14 @@ pub struct Searcher {
     pv_len: [usize; MAX_PLY],
     nodes: u64,
     stop: bool,
+    /// The wall. Crossing it abandons the current iteration.
     deadline: u64,
+    /// The target. Crossing it stops *starting* new iterations, so the work
+    /// already done is always kept. Moves outward when the position looks
+    /// unsettled, never past `panic_deadline`.
+    soft_deadline: u64,
+    panic_deadline: u64,
+    cancel: Option<StopFlag>,
     now: NowFn,
     rng: u64,
 }
@@ -195,6 +319,9 @@ impl Searcher {
             nodes: 0,
             stop: false,
             deadline: 0,
+            soft_deadline: 0,
+            panic_deadline: 0,
+            cancel: None,
             now,
             rng: 0x2545_F491_4F6C_DD1D,
         }
@@ -264,9 +391,22 @@ impl Searcher {
 
     // -- time ---------------------------------------------------------------
 
+    /// Hand the searcher a flag the host may raise while it is running.
+    pub fn set_cancel(&mut self, flag: Option<StopFlag>) {
+        self.cancel = flag;
+    }
+
+    #[inline]
+    fn cancelled(&self) -> bool {
+        self.cancel.as_ref().is_some_and(|f| f.raised())
+    }
+
     #[inline]
     fn check_time(&mut self) {
         if self.deadline != 0 && (self.now)() >= self.deadline {
+            self.stop = true;
+        }
+        if self.cancelled() {
             self.stop = true;
         }
     }
@@ -813,8 +953,34 @@ impl Searcher {
         let start = (self.now)();
         self.nodes = 0;
         self.stop = false;
+        /*
+         * Three clocks, not one.
+         *
+         * `deadline` is the wall the search must never cross, and crossing it
+         * costs the current iteration. `soft_deadline` is the time it actually
+         * aims at; stopping there means every iteration it ran is kept. The gap
+         * between them is the room an extension has to move into, and
+         * `panic_deadline` is how far into that room it is allowed to go.
+         *
+         * Below `min_adaptive_ms` none of this applies. Hint ranking slices the
+         * clock into pieces of eight and sixty milliseconds, and judgement about
+         * how to spend eight milliseconds is not judgement, it is noise.
+         */
+        let policy = limits.policy;
+        let adaptive = limits.adaptive && limits.movetime_ms >= policy.min_adaptive_ms;
         self.deadline = if limits.movetime_ms > 0 {
             start + limits.movetime_ms
+        } else {
+            0
+        };
+        let soft_base = if adaptive {
+            limits.movetime_ms * policy.soft_pct as u64 / 100
+        } else {
+            limits.movetime_ms
+        };
+        self.soft_deadline = if limits.movetime_ms > 0 { start + soft_base } else { 0 };
+        self.panic_deadline = if limits.movetime_ms > 0 {
+            start + limits.movetime_ms * policy.panic_pct as u64 / 100
         } else {
             0
         };
@@ -865,11 +1031,25 @@ impl Searcher {
                 result.pv = vec![root_moves[0]];
             }
             result.time_ms = (self.now)().saturating_sub(start);
+            result.stop_reason = StopReason::Forced;
             return result;
         }
 
         let mut prev_score = 0;
+        let mut prev_best = NULL_MOVE;
+        let mut stable = 0u32;
+        let mut last_iter_ms = 0u64;
+        let mut prev_iter_ms = 0u64;
+        let mut reason = StopReason::Depth;
+
         for depth in 1..=limits.max_depth.max(1) {
+            let iter_start = (self.now)();
+            // A fail-low at the root is the single most valuable reason in this
+            // engine to spend more time: it means the move about to be played is
+            // worse than it was believed to be. The aspiration loop below used to
+            // absorb it silently.
+            let mut failed_low = false;
+
             // Aspiration windows: assume the score moves little between
             // iterations and re-search wider only when it does.
             let (mut lo, mut hi) = if depth >= 4 {
@@ -884,6 +1064,7 @@ impl Searcher {
                     break s;
                 }
                 if s <= lo {
+                    failed_low = true;
                     lo = (lo - 200).max(-INFINITY);
                 } else if s >= hi {
                     hi = (hi + 200).min(INFINITY);
@@ -894,6 +1075,11 @@ impl Searcher {
 
             if self.stop {
                 result.stopped_early = true;
+                reason = if self.cancelled() {
+                    StopReason::Cancelled
+                } else {
+                    StopReason::HardDeadline
+                };
                 break;
             }
 
@@ -905,26 +1091,109 @@ impl Searcher {
             result.depth = depth;
             result.nodes = self.nodes;
             result.pv = pv;
-            result.time_ms = (self.now)().saturating_sub(start);
+            let now = (self.now)();
+            result.time_ms = now.saturating_sub(start);
+
+            prev_iter_ms = last_iter_ms;
+            last_iter_ms = now.saturating_sub(iter_start);
+
+            // Did this iteration change its mind, and how far?
+            let changed = prev_best != NULL_MOVE && result.best_move != prev_best;
+            if changed {
+                result.best_changes += 1;
+                stable = 0;
+            } else {
+                stable += 1;
+            }
+            prev_best = result.best_move;
+            let dropped = depth > 1 && score < prev_score - 50;
+            let unsettled = changed || failed_low || dropped;
             prev_score = score;
 
             if let Some(cb) = on_info.as_deref_mut() {
                 cb(&result);
             }
 
-            // A forced mate is found; no deeper search can improve on it.
-            if score.abs() >= MATE_BOUND {
+            /*
+             * A forced mate ends it — but only one the engine is delivering.
+             *
+             * The old rule stopped on `score.abs()`, which also stopped the
+             * moment the engine saw that it was *being* mated. That is exactly
+             * backwards: a deeper search finds a longer defence, and mate in
+             * seven is a strictly better outcome than mate in three. There is
+             * nothing to gain by hurrying towards your own loss.
+             */
+            if score >= MATE_BOUND || (!adaptive && score <= -MATE_BOUND) {
+                reason = StopReason::Mate;
                 break;
             }
-            // Stop if the next iteration plainly cannot finish in time.
-            if self.deadline != 0 {
-                let elapsed = (self.now)().saturating_sub(start);
-                if elapsed * 2 >= limits.movetime_ms {
+
+            if !adaptive {
+                // The behaviour before any of this existed, kept intact so a
+                // regression can be bisected against it.
+                if self.deadline != 0 {
+                    let elapsed = now.saturating_sub(start);
+                    if elapsed * 2 >= limits.movetime_ms {
+                        reason = StopReason::SoftBudget;
+                        break;
+                    }
+                }
+                continue;
+            }
+
+            // Unsettled positions buy themselves more of the ceiling.
+            if unsettled && self.soft_deadline != 0 {
+                let grant = soft_base * policy.instability_pct as u64 / 100;
+                self.soft_deadline = (self.soft_deadline + grant).min(self.panic_deadline);
+            }
+
+            /*
+             * The move is made. Stop asking.
+             *
+             * Four conditions, and all of them have to hold, because the first
+             * version of this rule was measured cutting the engine off at its
+             * knees. It also stopped once the score passed a Rook, on the theory
+             * that a piece up is a won game — and on the endgame position it did
+             * exactly that: stopped at depth 8 a Rook ahead, where the old code
+             * had gone to depth 15 and found a forced mate. Being ahead is
+             * precisely when a search should keep looking, because that is when
+             * there is something to convert. That clause is gone.
+             *
+             * What is left: depth, because a position can look quiet for twelve
+             * plies and be lost on the thirteenth. Time, because an exit that can
+             * fire in eleven milliseconds is not saving anyone from a wait.
+             * Stability, because one iteration agreeing with the last is a
+             * coincidence and four is a pattern. And a clear margin over the
+             * runner-up — a whole piece, not the two pawns first tried — because
+             * when the alternative is nearly as good it does not matter how sure
+             * the engine is: either move will do.
+             */
+            let worked = self.soft_deadline == 0
+                || now.saturating_sub(start) >= self.soft_deadline.saturating_sub(start) / 4;
+            if depth >= policy.min_depth
+                && worked
+                && !unsettled
+                && stable >= policy.easy_stable_iters
+                && self
+                    .root_gap(pos, &root_moves, result.best_move, score)
+                    .is_some_and(|gap| gap >= policy.easy_margin_cp)
+            {
+                reason = StopReason::EasyPosition;
+                break;
+            }
+
+            if self.soft_deadline != 0 {
+                let elapsed = now.saturating_sub(start);
+                let soft = self.soft_deadline.saturating_sub(start);
+                if !should_start_iteration(elapsed, last_iter_ms, prev_iter_ms, soft) {
+                    reason = StopReason::SoftBudget;
                     break;
                 }
             }
         }
 
+        result.stop_reason = reason;
+        result.soft_ms = self.soft_deadline.saturating_sub(start);
         result.nodes = self.nodes;
         result.time_ms = (self.now)().saturating_sub(start);
 
@@ -944,6 +1213,37 @@ impl Searcher {
             result.best_move = self.pick_noisy_root_move(pos, &root_moves, limits.randomness_cp);
         }
         result
+    }
+
+    /// How far the best root move is ahead of the next best, in centipawns.
+    ///
+    /// Read off the transposition table rather than searched for, on the same
+    /// reasoning `apply_experience` already relies on: every root move worth
+    /// considering was just searched, so its entry is present and current.
+    ///
+    /// `None` when no rival has a usable entry — and `None` costs nothing, since
+    /// its only effect is that the search keeps thinking. A wrong `Some` would
+    /// stop a search that should have continued, which is why only exact entries
+    /// count: most table entries are alpha/beta *bounds*, and a bound treated as
+    /// a score can make a move look further behind than it was ever proven to be.
+    fn root_gap(&mut self, pos: &mut Position, roots: &[Move], best: Move, score: i32) -> Option<i32> {
+        let mut runner_up: Option<i32> = None;
+        for &m in roots {
+            if m == best {
+                continue;
+            }
+            if !pos.make_move(m) {
+                continue;
+            }
+            let child = self.tt_probe(pos.key).and_then(|e| {
+                (e.flag == TT_EXACT).then(|| -Self::tt_score(e.score as i32, pos.ply))
+            });
+            pos.undo_move();
+            if let Some(c) = child {
+                runner_up = Some(runner_up.map_or(c, |best_so_far: i32| best_so_far.max(c)));
+            }
+        }
+        runner_up.map(|r| score - r)
     }
 
     /// Re-pick among root moves the search considers near-equivalent, adding the
