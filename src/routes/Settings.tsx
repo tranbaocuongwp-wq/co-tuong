@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Download, Eraser, HardDrive, Trash2, Upload } from 'lucide-react'
 
+import { DevicePanel } from '../components/DevicePanel'
 import { VersionPanel } from '../components/VersionPanel'
 import { VoicePack } from '../components/VoicePack'
 import { Button } from '../components/ui/button'
@@ -153,6 +154,8 @@ export function SettingsPage() {
       </Card>
 
       <VoicePack />
+
+      <DevicePanel />
 
       <VersionPanel release={release} />
 

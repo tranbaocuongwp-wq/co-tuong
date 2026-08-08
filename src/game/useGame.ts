@@ -11,6 +11,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { playMoveOutcome } from '../audio/sfx'
 import type { MoveReport } from '../commentary/facts'
+import { cachedProfile, scalePreset } from '../engine/calibration'
 import { getEngineClient } from '../engine/client'
 import type {
   Difficulty,
@@ -252,6 +253,10 @@ export function useGame(config: GameConfig) {
 
     const token = ++searchTokenRef.current
     const preset = DIFFICULTY_PRESETS[config.difficulty]
+    // Stretch the time cap to this device, never the depth. A level names a
+    // strength; the cap is only how long a slow machine is allowed to take
+    // reaching it. See `engine/calibration.ts`.
+    const options = scalePreset(preset.options, cachedProfile())
     setThinking(true)
     setProgress(null)
 
@@ -260,7 +265,7 @@ export function useGame(config: GameConfig) {
         game.startFen(),
         game.movesIccs(),
         {
-          ...preset.options,
+          ...options,
           seed: seedRef.current + game.moveCount(),
         },
         (info) => {
