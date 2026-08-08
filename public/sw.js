@@ -1,121 +1,218 @@
 /*
  * Service worker — offline support for the web build.
  *
- * Strategy is split by what the resource is, because one strategy cannot serve
- * both cases well:
+ * ## What changed, and why it mattered
  *
- *   - Build output (JS, CSS, .wasm) is content-hashed and therefore immutable,
- *     so it is cache-first. This is what makes a second visit start instantly
- *     and what lets the game run with no network at all.
- *   - The HTML entry point is network-first with a cache fallback, so a new
- *     deploy is picked up on the next online load instead of being pinned to
- *     whatever was cached first.
+ * There used to be one cache, `co-tuong-v4`, and `activate` deleted every cache
+ * whose name was not that. The voice pack lives in a cache of its own,
+ * `co-tuong-voice-v1`, and is downloaded by the player over their own data —
+ * megabytes of it. So every deploy that bumped the version number silently threw
+ * it away. That is the bug this file was rewritten to fix, and the fix is one
+ * rule: **sweep by prefix, and never touch a prefix this build does not own.**
  *
- * The engine's .wasm is ~170 KB and is required before a single move can be
- * played, so getting it into the cache is the whole point of the exercise.
+ * The precache list used to be hand-written, which meant it could only name
+ * files with stable names — so the .wasm, the JavaScript and the CSS, the three
+ * things actually needed to play, were left to be picked up by luck on the way
+ * past. It now comes from `assets.json`, which the build generates by walking
+ * its own output, so the list cannot drift from what shipped.
+ *
+ * ## Strategy, by what the resource is
+ *
+ * - Build output is content-hashed and therefore immutable: cache-first. This is
+ *   what makes a second visit start instantly and what lets the game run with no
+ *   network at all.
+ * - The HTML entry point is network-first with a cache fallback, so a new deploy
+ *   is picked up on the next online load instead of being pinned to whatever was
+ *   cached first.
+ * - `version.json` and `assets.json` are never cached. They are how staleness is
+ *   detected; a cached copy of them is a client that can never learn it is out of
+ *   date.
+ *
+ * The worker is a fast path, not the only path. `src/assets/manager.ts` does the
+ * same job from the page, where progress can be shown and where it works before
+ * this file has even activated. They agree because they read the same manifest.
  */
 
-const CACHE = 'co-tuong-v4'
+/** Prefixes this build owns. Anything else in Cache Storage is somebody else's. */
+const OWNED = ['co-tuong-shell-', 'co-tuong-engine-', 'co-tuong-media-']
 
-/* Stable-named files worth having before the first offline load. */
-const APP_SHELL = [
-  './',
-  './index.html',
-  './manifest.webmanifest',
-  './icon.svg',
-  './icon-192.png',
-  './icon-512.png',
-  /*
-   * The sound effects. Their names are not content-hashed, and the whole point
-   * of shipping them with the app is that a piece lands with a sound whether or
-   * not there is a network — so they belong in the first cache, not in whatever
-   * happens to have been played once.
-   */
-  './sfx/move.mp3',
-  './sfx/capture.mp3',
-  './sfx/select.mp3',
-  './sfx/check.mp3',
-  './sfx/win.mp3',
-  './sfx/loss.mp3',
-  './sfx/draw.mp3',
-  // Capture sounds named after the piece that was taken.
-  './sfx/cap-r.mp3',
-  './sfx/cap-c.mp3',
-  './sfx/cap-h.mp3',
-  './sfx/cap-e.mp3',
-  './sfx/cap-a.mp3',
-  './sfx/cap-p.mp3',
-]
+/**
+ * The single cache every previous build used, by its exact name.
+ *
+ * Already on every existing installation, and now dead weight — a few hundred
+ * kilobytes of an app nobody is running any more. Named exactly rather than by
+ * prefix so the sweep can never mistake `co-tuong-voice-v1` for one of these.
+ */
+const LEGACY = ['co-tuong-v1', 'co-tuong-v2', 'co-tuong-v3', 'co-tuong-v4']
+
+/** Where the inventory lives. Same file the page reads. */
+const MANIFEST = './assets.json'
+
+/** Fetch the manifest, bypassing every cache. */
+async function loadManifest() {
+  const res = await fetch(new Request(MANIFEST, { cache: 'reload' }))
+  if (!res.ok) throw new Error(`assets.json: ${res.status}`)
+  return res.json()
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches
-      .open(CACHE)
-      // `reload` bypasses the HTTP cache so a stale copy is not baked in.
-      .then((cache) =>
-        cache.addAll(APP_SHELL.map((url) => new Request(url, { cache: 'reload' })))
-      )
-      // A missing shell file must not abort installation; runtime caching will
-      // pick it up on first use.
-      .catch(() => undefined)
-      .then(() => self.skipWaiting())
+    (async () => {
+      try {
+        const manifest = await loadManifest()
+        // Only what the game cannot start without. Sound effects and banners are
+        // fetched on the way past; nobody should wait on them to play chess.
+        const wanted = manifest.assets.filter(
+          (a) => a.required && (a.category === 'shell' || a.category === 'engine')
+        )
+        // One cache per category, so a deploy that only changes the interface
+        // leaves the 210 KB engine binary exactly where it is.
+        for (const category of ['shell', 'engine']) {
+          const name = manifest.caches[category]
+          if (!name) continue
+          const cache = await caches.open(name)
+          const urls = wanted.filter((a) => a.category === category).map((a) => a.url)
+          // Individually rather than `addAll`, which is all-or-nothing: one
+          // missing file used to mean nothing at all was precached.
+          await Promise.all(
+            urls.map((url) =>
+              cache.add(new Request(url, { cache: 'reload' })).catch(() => undefined)
+            )
+          )
+        }
+      } catch {
+        // No manifest, no precache. The runtime cache below still fills up on
+        // first use, which is exactly how this worked before.
+      }
+      await self.skipWaiting()
+    })()
   )
 })
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
-      .then(() => self.clients.claim())
+    (async () => {
+      let keep = new Set()
+      try {
+        const manifest = await loadManifest()
+        keep = new Set(Object.values(manifest.caches))
+      } catch {
+        // Without the manifest there is no way to tell current from stale, and
+        // deleting on a guess is how the voice pack was lost. Delete nothing.
+      }
+      if (keep.size > 0) {
+        const names = await caches.keys()
+        await Promise.all(
+          names
+            // Only older versions of prefixes this build owns. A name that does
+            // not start with one of them belongs to something else — the voice
+            // pack, or a future feature — and is left alone.
+            .filter(
+              (n) =>
+                (LEGACY.includes(n) || OWNED.some((p) => n.startsWith(p))) && !keep.has(n)
+            )
+            .map((n) => caches.delete(n))
+        )
+      }
+      await self.clients.claim()
+    })()
   )
 })
+
+/** The cache a runtime response should go in, or null to not store it. */
+function cacheFor(pathname, manifestCaches) {
+  if (pathname.endsWith('.wasm')) return manifestCaches.engine
+  if (/\.(js|css|html)$/.test(pathname) || pathname.endsWith('.webmanifest')) {
+    return manifestCaches.shell
+  }
+  return manifestCaches.media
+}
+
+/** Cached lazily; the manifest changes only when the worker is replaced. */
+let manifestPromise = null
+function manifestOnce() {
+  if (!manifestPromise) manifestPromise = loadManifest().catch(() => null)
+  return manifestPromise
+}
 
 self.addEventListener('fetch', (event) => {
   const request = event.request
   if (request.method !== 'GET') return
 
   const url = new URL(request.url)
-  // Never touch cross-origin requests; the app makes none, and proxying them
-  // would only add a way to get things wrong.
+  // Never touch cross-origin requests. The voice API and the promotional banners
+  // are on other hosts and manage their own storage; proxying them here would
+  // duplicate their caches and hide their failures.
   if (url.origin !== self.location.origin) return
 
-  // The version manifest is how the app notices a new deployment. Serving it
-  // from cache would pin it to the build it shipped with and updates would
-  // never be detected at all.
-  if (url.pathname.endsWith('/version.json')) return
+  // The two files that answer "am I out of date". A cached answer to that is
+  // worse than no answer.
+  if (url.pathname.endsWith('/version.json') || url.pathname.endsWith('/assets.json')) return
 
   if (request.mode === 'navigate') {
     event.respondWith(
-      // `reload` bypasses the browser's own HTTP cache. Without it the worker
-      // can "refresh" the page and still be handed the previous build, which
-      // is one way an auto-update turns into a reload loop.
-      fetch(request, { cache: 'reload' })
-        .then((response) => {
-          const copy = response.clone()
-          void caches.open(CACHE).then((cache) => cache.put('./index.html', copy))
-          return response
-        })
-        .catch(() =>
-          caches
-            .match('./index.html')
-            .then((cached) => cached ?? new Response('Ngoại tuyến', { status: 503 }))
-        )
+      (async () => {
+        try {
+          const fresh = await fetch(new Request(request, { cache: 'reload' }))
+          const manifest = await manifestOnce()
+          if (manifest) {
+            const cache = await caches.open(manifest.caches.shell)
+            void cache.put('./index.html', fresh.clone())
+          }
+          return fresh
+        } catch {
+          const cached = await caches.match('./index.html')
+          return cached ?? new Response('Ngoại tuyến', { status: 503 })
+        }
+      })()
     )
     return
   }
 
   event.respondWith(
-    caches.match(request).then((cached) => {
+    (async () => {
+      const cached = await caches.match(request)
       if (cached) return cached
-      return fetch(request).then((response) => {
-        // Only cache successful, non-opaque responses.
-        if (response.ok && response.type === 'basic') {
-          const copy = response.clone()
-          void caches.open(CACHE).then((cache) => cache.put(request, copy))
+      const response = await fetch(request)
+      if (response.ok && response.type === 'basic') {
+        const manifest = await manifestOnce()
+        if (manifest) {
+          const name = cacheFor(url.pathname, manifest.caches)
+          if (name) {
+            const copy = response.clone()
+            void caches.open(name).then((cache) => cache.put(request, copy))
+          }
         }
-        return response
-      })
-    })
+      }
+      return response
+    })()
+  )
+})
+
+/*
+ * The page asking what is held.
+ *
+ * Used by the first-run screen so it can show a real bar instead of a spinner,
+ * and by Settings so "cập nhật rồi mà vẫn lỗi" has an answer that is not a guess.
+ */
+self.addEventListener('message', (event) => {
+  const data = event.data
+  if (!data || data.type !== 'status') return
+  event.waitUntil(
+    (async () => {
+      const manifest = await manifestOnce()
+      const names = manifest ? Object.values(manifest.caches) : []
+      const held = {}
+      for (const name of names) {
+        try {
+          const cache = await caches.open(name)
+          held[name] = (await cache.keys()).length
+        } catch {
+          held[name] = 0
+        }
+      }
+      const clients = await self.clients.matchAll()
+      for (const client of clients) client.postMessage({ type: 'status', held })
+    })()
   )
 })

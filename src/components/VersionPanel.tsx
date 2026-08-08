@@ -43,9 +43,14 @@ function when(iso: string): string {
   return `${two(d.getHours())}:${two(d.getMinutes())} · ${two(d.getDate())}/${two(d.getMonth() + 1)}`
 }
 
-/** The hash out of `co_tuong_engine_wasm_bg-BuJ8vpnn.wasm`. The rest is constant. */
+/**
+ * The hash out of `co_tuong_engine_wasm_bg-BuJ8vpnn.wasm`. The rest is constant.
+ *
+ * Non-greedy from the first dash. `^.*-` runs to the *last* one, and Vite's
+ * hashes can contain a dash themselves — so it was quietly showing half of it.
+ */
 function short(name: string): string {
-  return name.replace(/^.*-/, '').replace(/\.\w+$/, '') || name
+  return name.replace(/^[^-]*-/, '').replace(/\.\w+$/, '') || name
 }
 
 type Check = 'idle' | 'checking' | 'offline' | 'fresh' | 'stale'
