@@ -30,7 +30,7 @@
 
 import { useState } from 'react'
 
-import { cn } from '../lib/utils'
+import { Banner } from './Banner'
 
 const BASE = 'https://pub-e385dba0fb714f4a823e2e2956ef52f6.r2.dev/banner'
 
@@ -65,33 +65,18 @@ export function PromoBanner({ className }: PromoBannerProps) {
   // Chosen once per mount rather than per render, or it would flicker through
   // all five every time anything else on the page changed.
   const [pick] = useState(() => BANNERS[Math.floor(Math.random() * BANNERS.length)])
-  const [failed, setFailed] = useState(false)
 
-  if (failed) return null
-
+  // Removing itself on a failed load is `Banner`'s job now, which is the only
+  // place it needs doing.
   return (
-    <img
+    <Banner
       src={`${BASE}/${pick.file}.webp`}
       alt={pick.alt}
-      width={1600}
-      height={900}
-      decoding="async"
-      // Eager, but at the lowest priority the browser offers.
-      //
-      // `loading="lazy"` was the obvious choice and it did not work: measured in
-      // Chrome, the image sat at the bottom of the launcher, inside the viewport,
-      // and was never requested at all — a lazy *and* low-priority image below
-      // everything else is one the browser feels free to put off forever. Eager
-      // plus low priority gets the same outcome the lazy attribute was for:
-      // 30 KB that loads after everything the game actually needs.
-      fetchPriority="low"
-      onError={() => setFailed(true)}
-      className={cn('w-full rounded-xl', className)}
-      // The box is reserved from the first frame, so the page does not jump when
-      // the image arrives. `display: none` until loaded was the first attempt and
-      // it deadlocks with a lazy image: it has to be in view to fetch, and an
-      // element with no box never is.
-      style={{ aspectRatio: '16 / 9' }}
+      ratio="16 / 9"
+      // Capped rather than filled. A 16:9 banner across a 1280px pane stands
+      // 720px tall and swallows the launcher whole.
+      maxWidth="max-w-[520px]"
+      className={className}
     />
   )
 }

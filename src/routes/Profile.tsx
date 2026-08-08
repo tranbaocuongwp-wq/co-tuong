@@ -140,7 +140,6 @@ export function ProfilePage() {
   if (all.played === 0 && all.unfinished === 0) {
     return (
       <div className="mx-auto flex w-full max-w-md flex-col gap-3">
-        <h1 className="pt-1 text-xl font-bold">Hồ sơ</h1>
         <p className="text-sm text-ink-dim">Chưa có ván nào để tổng kết.</p>
         <Button asChild variant="primary" size="lg" className="w-full">
           <Link to="/">Chơi một ván</Link>
@@ -154,7 +153,6 @@ export function ProfilePage() {
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-3">
-      <h1 className="pt-1 text-xl font-bold">Hồ sơ</h1>
 
       <Card>
         <div className="mb-3 flex items-end justify-between gap-3">

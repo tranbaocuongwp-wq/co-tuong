@@ -17,18 +17,10 @@
 
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
-import {
-  BookOpen,
-  Bot,
-  History,
-  Info,
-  Play,
-  Settings,
-  UserRound,
-  Users,
-} from 'lucide-react'
+import { BookOpen, Bot, Info, Play, Users } from 'lucide-react'
 
 import { Author } from '../components/Author'
+import { Banner } from '../components/Banner'
 import { PromoBanner } from '../components/PromoBanner'
 import { Button } from '../components/ui/button'
 import { Segmented } from '../components/ui/segmented'
@@ -49,12 +41,6 @@ const SIDES = [
   { value: 'b' as Side, label: 'Đen', glyph: '將' },
 ]
 
-const LINKS = [
-  { to: '/profile', label: 'Hồ sơ', icon: UserRound },
-  { to: '/history', label: 'Lịch sử', icon: History },
-  { to: '/settings', label: 'Cài đặt', icon: Settings },
-  { to: '/about', label: 'Giới thiệu', icon: Info },
-]
 
 export function HomePage() {
   const { settings, update } = useSettings()
@@ -79,8 +65,22 @@ export function HomePage() {
   const canResume = resumable !== null && resumable.moveCount > 0
 
   return (
-    <div className="mx-auto flex w-full max-w-md flex-col gap-4">
-      <header className="flex items-center gap-3 pt-1">
+    /*
+     * One column on a phone, two from 700px up.
+     *
+     * A 448px strip in the middle of a 1280px desktop is what this was, and it
+     * looked like a phone screenshot someone had forgotten to finish. The phone
+     * layout is untouched — every reason in the comment block at the top of this
+     * file still holds at that size — and the wide one simply stops pretending
+     * the extra room is not there.
+     *
+     * The split is deliberate: everything you *do* on the left, everything you
+     * *choose* on the right. Start is the thing this screen exists for, so it
+     * keeps a whole column to itself rather than being pushed into a corner by
+     * three rows of settings.
+     */
+    <div className="mx-auto grid w-full max-w-md grid-cols-1 gap-4 min-[700px]:max-w-[900px] min-[700px]:grid-cols-2 min-[700px]:gap-6 min-[1024px]:max-w-[1040px]">
+      <header className="flex items-center gap-3 pt-1 min-[700px]:col-span-2">
         <span
           className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-accent text-2xl text-white"
           aria-hidden="true"
@@ -105,21 +105,24 @@ export function HomePage() {
         Eager, not lazy: it is the first thing on screen, and a lazy image at
         the top of a page just means the player watches it pop in.
 
-        It still disappears below 760px of viewport height, and that number is
-        measured rather than chosen. On a 375x667 phone the banner costs 153px
-        and puts Start 28px under the fold — 84px under it if there is a game to
-        resume. A picture is worth less than the button, every time, so on a
-        short screen the picture is what goes.
+        It still disappears on a short screen, and that number is measured
+        rather than chosen. On a 375x667 phone the banner costs 153px and puts
+        Start 28px under the fold — 84px under it if there is a game to resume. A
+        picture is worth less than the button, every time.
+
+        Height *and* width, which the first version got wrong: a height-only rule
+        also hid the hero on a 1024x768 tablet held sideways, where there is
+        obviously room for it.
       */}
-      <img
-        src="./banner/trang-chu.webp"
-        alt="Mười hai triệu thế cờ cho mỗi nước bạn đi — ở ngay mức dễ nhất."
-        width={1280}
-        height={512}
-        decoding="async"
-        className="w-full rounded-xl [@media(max-height:759px)]:hidden"
-        style={{ aspectRatio: '2.5' }}
-      />
+      <div className="flex flex-col gap-4">
+        <Banner
+          src="./banner/trang-chu.webp"
+          alt="Mười hai triệu thế cờ cho mỗi nước bạn đi — ở ngay mức dễ nhất."
+          ratio="2.5"
+          priority
+          maxWidth="max-w-full"
+          className="[@media(max-height:759px)_and_(max-width:699px)]:hidden"
+        />
 
       {canResume && (
         <Link
@@ -141,6 +144,9 @@ export function HomePage() {
         </Link>
       )}
 
+      </div>
+
+      <div className="flex flex-col gap-4">
       <Segmented
         label="Đối thủ"
         options={MODES}
@@ -189,27 +195,39 @@ export function HomePage() {
         {canResume ? 'Ván mới' : 'Bắt đầu'}
       </Button>
 
-      <nav className="grid grid-cols-4 gap-2" aria-label="Các mục khác">
-        {LINKS.map(({ to, label, icon: Icon }) => (
-          <Link
-            key={to}
-            to={to}
-            className="flex min-h-[68px] flex-col items-center justify-center gap-1.5 rounded-2xl border border-border bg-surface text-xs text-ink-dim transition-colors hover:bg-surface-2 hover:text-ink"
-          >
-            <Icon size={19} />
-            {label}
-          </Link>
-        ))}
-      </nav>
+      </div>
+
+      {/*
+        One link, where there used to be four tiles.
+        
+        The tiles listed Hồ sơ, Lịch sử and Cài đặt — all three of which are now
+        one tap away in the navigation that is on screen at the same time. A
+        destination offered twice on one screen is not twice as reachable; it is
+        one of them wondering which is the real one.
+        
+        Giới thiệu is the exception, and the reason it was left out of the
+        primary navigation: it is read once and then never again, which does not
+        earn a permanent slot beside the board.
+      */}
+      <div className="flex justify-center min-[700px]:col-span-2">
+        <Link
+          to="/about"
+          className="flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm text-ink-dim no-underline transition-colors hover:bg-surface-2 hover:text-ink"
+        >
+          <Info size={16} /> Giới thiệu
+        </Link>
+      </div>
 
       {/*
         Under every control on the page, on purpose. The strip at the top is
         part of the launcher; this is an advertisement, and an advertisement
         that pushes the Start button down is a bad trade at any size.
       */}
-      <PromoBanner />
+      <div className="flex justify-center min-[700px]:col-span-2">
+        <PromoBanner />
+      </div>
 
-      <footer className="flex items-center justify-center gap-1 pt-1 pb-2 text-sm text-ink-dim">
+      <footer className="flex items-center justify-center gap-1 pt-1 pb-2 text-sm text-ink-dim min-[700px]:col-span-2">
         <BookOpen size={13} aria-hidden="true" />
         <Author />
       </footer>

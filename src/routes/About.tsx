@@ -23,34 +23,10 @@ import { Link } from 'react-router'
 import { HardDrive, Heart, Shield, Swords, Volume2 } from 'lucide-react'
 
 import { Author } from '../components/Author'
+import { Banner } from '../components/Banner'
 import { PieceIcon, PIECE_ORDER } from '../components/PieceIcon'
 import { Card, CardTitle } from '../components/ui/card'
 import { engineVersion, loadEngineWasm } from '../engine/wasm'
-
-/**
- * Three of the promotional banners, reused as card headers.
- *
- * They already say — in one picture each — what the paragraph underneath spends
- * three sentences on, and a page of nothing but text cards is a page nobody
- * scrolls to the end of. WebP at 960px wide is about 20 KB apiece, which is
- * cheap enough that they can be part of the page rather than something the page
- * waits for.
- *
- * `loading="lazy"` because none of them is above the fold, and a fixed
- * `aspect-ratio` so the card does not jump when one arrives.
- */
-function Banner({ src, alt, ratio }: { src: string; alt: string; ratio: string }) {
-  return (
-    <img
-      src={src}
-      alt={alt}
-      loading="lazy"
-      decoding="async"
-      className="mb-3 w-full rounded-xl object-cover"
-      style={{ aspectRatio: ratio }}
-    />
-  )
-}
 
 const RULES = [
   'Cản mã, chân tượng, ngòi pháo, tốt qua sông mới đi ngang.',
@@ -70,7 +46,6 @@ export function AboutPage() {
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-3">
       <header className="pt-1">
-        <h1 className="text-xl font-bold">Giới thiệu</h1>
         <p className="text-sm text-ink-dim">Đệ Nhất Cờ Tướng — chơi được cả khi không có mạng.</p>
       </header>
 
@@ -86,6 +61,7 @@ export function AboutPage() {
 
       <Card>
         <Banner
+          maxWidth="max-w-full"
           src="./banner/vi-sao.webp"
           alt="Bàn cờ nghìn năm tuổi, đối thủ của ngày mai"
           ratio="16 / 9"
@@ -112,6 +88,7 @@ export function AboutPage() {
 
       <Card>
         <Banner
+          maxWidth="max-w-full"
           src="./banner/may-choi-co.webp"
           alt="Mỗi nước đi, máy cân nhắc hơn mười hai triệu thế cờ"
           ratio="16 / 9"
@@ -145,6 +122,7 @@ export function AboutPage() {
 
       <Card>
         <Banner
+          maxWidth="max-w-full"
           src="./banner/binh-luan-vien.webp"
           alt="Có người ngồi cạnh, bình từng nước cho bạn nghe"
           ratio="4 / 3"

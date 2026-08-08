@@ -141,7 +141,6 @@ export function ReviewPage() {
 
   return (
     <>
-      <h1 className="page__title">Xem lại ván đấu</h1>
       <p className="page__lede">
         {describeResult(game.result === 'unfinished' ? 'playing' : game.result, game.reason)} ·{' '}
         {new Date(game.createdAt).toLocaleString('vi-VN')} · {game.moveCount} nước
