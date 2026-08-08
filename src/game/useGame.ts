@@ -348,9 +348,49 @@ export function useGame(config: GameConfig) {
     [refresh, rebuild, config.mode, config.playerSide]
   )
 
+  /*
+   * The game stops when nobody is watching it.
+   *
+   * Two situations, one cost. Leaving the play screen used to leave the search
+   * running: the worker carried on to a budget of up to a minute while the
+   * player was already on Settings, so a phone was loading a new route and
+   * playing chess at the same time — which is why moving between pages felt
+   * slow. Backgrounding the app did the same, on a battery.
+   *
+   * A hard cancel is the honest one here. In a browser a search cannot be
+   * interrupted politely — the worker is inside it and never returns to its
+   * event loop — so the only way to give the processor back is to end the
+   * worker. That costs the transposition table, which matters while a game is
+   * being played and does not while it is being left.
+   *
+   * Nothing is lost but time: the position lives in the move list, and the
+   * search restarts from it when the screen comes back.
+   */
+  const [paused, setPaused] = useState(false)
+
+  useEffect(() => {
+    const update = () => {
+      const hidden = document.visibilityState === 'hidden'
+      setPaused(hidden)
+      if (hidden) {
+        searchTokenRef.current++
+        setThinking(false)
+        setProgress(null)
+        getEngineClient().cancel(true)
+      }
+    }
+    document.addEventListener('visibilitychange', update)
+    return () => {
+      document.removeEventListener('visibilitychange', update)
+      // Leaving the screen altogether. Whatever is running is not wanted.
+      searchTokenRef.current++
+      getEngineClient().cancel(true)
+    }
+  }, [])
+
   // Let the engine move when it is its turn.
   useEffect(() => {
-    if (!ready || !engineToMove || thinking) return
+    if (paused || !ready || !engineToMove || thinking) return
     const game = gameRef.current
     if (!game) return
 
@@ -415,7 +455,7 @@ export function useGame(config: GameConfig) {
           setProgress(null)
         }
       })
-  }, [ready, engineToMove, thinking, config.difficulty, playMove])
+  }, [paused, ready, engineToMove, thinking, config.difficulty, playMove])
 
   const undo = useCallback(() => {
     const game = gameRef.current

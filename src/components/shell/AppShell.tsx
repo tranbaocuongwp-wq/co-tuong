@@ -44,7 +44,7 @@ function ShellBody({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation()
   const compact = useMediaQuery(COMPACT)
   const expanded = useMediaQuery(EXPANDED)
-  const { panel, header, hasColumn } = useShell()
+  const { setHeaderEl, setPanelEl, hasColumn } = useShell()
 
   /*
    * Folded or not, and it remembers.
@@ -80,8 +80,9 @@ function ShellBody({ children }: { children: React.ReactNode }) {
   const playing = pathname === '/play'
 
   // Whether there is room is decided in `ShellContext`, so screens and shell
-  // cannot disagree about it. All that is left here is whether anyone filled it.
-  const sideColumn = panel !== null && hasColumn
+  // cannot disagree about it. Whether anything was put in is decided by CSS:
+  // an empty column hides itself, so the shell needs no opinion about it.
+  const sideColumn = hasColumn
 
   const title = titleOf(pathname)
 
@@ -141,11 +142,18 @@ function ShellBody({ children }: { children: React.ReactNode }) {
           A screen with something to say puts it here; a screen with only a name
           gets its name.
         */}
-        {(header || (!playing && title)) && (
-          <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-3">
-            {header ?? <h1 className="truncate text-lg font-semibold">{title}</h1>}
-          </header>
-        )}
+        {/*
+          One header row for every screen.
+          
+          The slot comes first in the DOM so CSS can hide the title when a screen
+          has filled it — a following-sibling selector only looks forward, and
+          this is the one arrangement that lets `:empty` do the work without any
+          JavaScript deciding anything.
+        */}
+        <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-3">
+          <div ref={setHeaderEl} className="shell__slot contents" />
+          <h1 className="shell__title truncate text-lg font-semibold">{title}</h1>
+        </header>
 
         <div className="flex min-h-0 flex-1">
           <main
@@ -158,22 +166,26 @@ function ShellBody({ children }: { children: React.ReactNode }) {
             {children}
           </main>
 
+          {/*
+            `empty:hidden` rather than a `:empty` rule in the stylesheet.
+            Tailwind's utilities sit in a later cascade layer than the app's own
+            components, so `display: flex` from `flex` beat a `display: none`
+            written there — the column stayed a 320px empty box on every screen
+            that had nothing to put in it.
+
+            The comment is out here because the class checker reads every string
+            inside `className` as a class name.
+          */}
           {sideColumn && (
             <aside
+              ref={setPanelEl}
               className={
                 expanded
-                  ? 'shell__panel flex w-80 shrink-0 flex-col gap-2 overflow-y-auto border-l border-border p-3'
-                  : 'shell__panel flex w-72 shrink-0 flex-col gap-2 overflow-y-auto border-l border-border p-3'
+                  ? 'shell__panel flex w-80 shrink-0 flex-col gap-2 overflow-y-auto border-l border-border p-3 empty:hidden'
+                  : 'shell__panel flex w-72 shrink-0 flex-col gap-2 overflow-y-auto border-l border-border p-3 empty:hidden'
               }
-              aria-label={panel.title ?? 'Bảng bên'}
-            >
-              {panel.title && (
-                <h2 className="text-xs font-medium tracking-wide text-ink-dim uppercase">
-                  {panel.title}
-                </h2>
-              )}
-              {panel.node}
-            </aside>
+              aria-label="Bảng bên"
+            />
           )}
         </div>
       </div>

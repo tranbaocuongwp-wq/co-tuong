@@ -1,52 +1,55 @@
 /**
- * How a screen tells the shell what belongs in the side column.
+ * How a screen puts things into the shell's header and side column.
  *
- * Context rather than react-router's `handle` + `useMatches`, and the reason is
- * the play screen: what goes in its side column is the commentary feed and the
- * live readings, which change on every move. A route handle is static data
- * declared where the route is defined, which cannot express that.
+ * ## Portals, after state made the app hang
  *
- * A screen with nothing to put there simply never calls this, and the shell
- * renders no column at all rather than an empty one.
+ * The first version had the screen publish a React node into context state, and
+ * the shell rendered whatever was there. It deadlocked the browser.
+ *
+ * The loop: `useGame` returns a fresh object literal on every render, so the
+ * `useCallback`s that close over it are new functions each time, so the `useMemo`
+ * that built the header row produced a new element each time, so the effect that
+ * published it called `setHeader`, which re-rendered the provider, which
+ * re-rendered the screen, which built another new element. Measured on the play
+ * screen: tapping a destination changed the URL and nothing else, and a script
+ * sent into the page could not run at all for thirty seconds because the main
+ * thread never came free. From the outside it looked exactly like "navigation is
+ * very slow".
+ *
+ * A portal has no such cycle. The shell renders empty containers once; a screen
+ * renders its content *into* them from its own tree. Nothing is stored, nothing
+ * is published, and no amount of re-rendering inside the screen can re-render
+ * the shell.
+ *
+ * What is left in context is `hasColumn`, which is a media query and changes
+ * only when the window does.
  */
 
 import {
   createContext,
   useContext,
-  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from 'react'
+import { createPortal } from 'react-dom'
 
 import { EXPANDED, LANDSCAPE, MEDIUM } from './breakpoints'
 import { useMediaQuery } from '../../useMediaQuery'
 
-export interface ShellPanel {
-  /** Heading above the column. Omit for a column that is all controls. */
-  title?: string
-  node: ReactNode
-}
-
 interface ShellState {
-  panel: ShellPanel | null
-  setPanel: (panel: ShellPanel | null) => void
+  /** Where a screen's header row goes. Null until the shell has mounted. */
+  headerEl: HTMLElement | null
+  setHeaderEl: (el: HTMLElement | null) => void
+  /** Where a screen's side panel goes. */
+  panelEl: HTMLElement | null
+  setPanelEl: (el: HTMLElement | null) => void
   /**
-   * What a screen puts in the shell's header instead of a plain title.
-   *
-   * The play screen's status row lives here rather than inside its own layout,
-   * and that is what puts the board at the very top of the pane: with the bar
-   * gone from the grid there is nothing above the board to push it down.
-   */
-  header: ReactNode | null
-  setHeader: (node: ReactNode | null) => void
-  /**
-   * Whether the shell has a side column to put a panel in.
+   * Whether the shell has a side column at all.
    *
    * Screens need this, not just the shell: the play screen lays its readings out
-   * *inside* the board grid when there is no column, and must not draw them
-   * twice when there is. Deciding it here rather than re-running the media
-   * queries in each screen is what keeps the two answers from disagreeing.
+   * inside the board grid when there is no column, and must not draw them twice
+   * when there is.
    */
   hasColumn: boolean
 }
@@ -54,8 +57,8 @@ interface ShellState {
 const Ctx = createContext<ShellState | null>(null)
 
 export function ShellProvider({ children }: { children: ReactNode }) {
-  const [panel, setPanel] = useState<ShellPanel | null>(null)
-  const [header, setHeader] = useState<ReactNode | null>(null)
+  const [headerEl, setHeaderEl] = useState<HTMLElement | null>(null)
+  const [panelEl, setPanelEl] = useState<HTMLElement | null>(null)
   const medium = useMediaQuery(MEDIUM)
   const expanded = useMediaQuery(EXPANDED)
   const landscape = useMediaQuery(LANDSCAPE)
@@ -71,46 +74,30 @@ export function ShellProvider({ children }: { children: ReactNode }) {
   const hasColumn = expanded || (medium && landscape)
 
   const value = useMemo(
-    () => ({ panel, setPanel, header, setHeader, hasColumn }),
-    [panel, header, hasColumn]
+    () => ({ headerEl, setHeaderEl, panelEl, setPanelEl, hasColumn }),
+    [headerEl, panelEl, hasColumn]
   )
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }
 
-/** Read by the shell itself. */
 export function useShell(): ShellState {
   const ctx = useContext(Ctx)
   if (!ctx) throw new Error('useShell must be used inside ShellProvider')
   return ctx
 }
 
-/**
- * Publish this screen's side panel.
- *
- * Pass `null` when there is nothing to show. The panel is withdrawn on unmount,
- * so navigating away can never leave the previous screen's controls sitting
- * beside the new one.
- */
-/** Publish this screen's header row. Withdrawn on unmount. */
-export function useShellHeader(node: ReactNode | null): void {
-  const { setHeader } = useShell()
-  useEffect(() => {
-    setHeader(node ?? null)
-    return () => setHeader(null)
-  }, [setHeader, node])
-}
-
 export function useShellColumn(): boolean {
   return useShell().hasColumn
 }
 
-export function useShellPanel(panel: ShellPanel | null): void {
-  const { setPanel } = useShell()
-  const node = panel?.node
-  const title = panel?.title
+/** A screen's header row, rendered into the shell's bar. */
+export function ShellHeader({ children }: { children: ReactNode }) {
+  const { headerEl } = useShell()
+  return headerEl ? createPortal(children, headerEl) : null
+}
 
-  useEffect(() => {
-    setPanel(node ? { title, node } : null)
-    return () => setPanel(null)
-  }, [setPanel, node, title])
+/** A screen's side panel, rendered into the shell's column. */
+export function ShellPanel({ children }: { children: ReactNode }) {
+  const { panelEl } = useShell()
+  return panelEl ? createPortal(children, panelEl) : null
 }

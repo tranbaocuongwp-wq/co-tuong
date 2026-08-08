@@ -44,7 +44,7 @@ import { useCommentary } from '../game/useCommentary'
 import { ENGINE_MOVE_MS, MOVE_MS } from '../game/usePieceLayout'
 import { useGame } from '../game/useGame'
 import { ROOMY } from '../components/shell/breakpoints'
-import { useShellColumn, useShellHeader, useShellPanel } from '../components/shell/ShellContext'
+import { ShellHeader, ShellPanel, useShellColumn } from '../components/shell/ShellContext'
 import { Badge } from '../components/ui/badge'
 import { useMediaQuery } from '../useMediaQuery'
 import { useSettings } from '../settings'
@@ -542,112 +542,6 @@ export function PlayPage() {
     return m ? { fromRow: m.fromRow, fromCol: m.fromCol, toRow: m.toRow, toCol: m.toCol } : null
   }, [hint, projection.legalMoves])
 
-  /*
-   * What goes in the shell's column, on a screen wide enough to have one.
-   *
-   * The order is the order it is read in. The commentary first, because it is
-   * the only part that changes every move and the only part with something new
-   * to say; the readings under it, because they are a reference you glance at
-   * rather than follow; the move list last, because it is history.
-   *
-   * `useMemo` is not decoration here. This screen re-renders on every commentary
-   * line and every search update, and the panel is published through a context
-   * that would otherwise treat each of those as a new node and re-render the
-   * shell with it.
-   */
-  const panel = useMemo(
-    () =>
-      inColumn
-        ? {
-            node: (
-              <>
-                {/*
-                  The feed is in the column whether the voice is on or off. It
-                  is the same remarks either way; the voice decides whether they
-                  are also spoken, not whether they are worth showing.
-                */}
-                <CommentaryFeed entries={feed} />
-                <MatchInsight
-                  info={lastInfo}
-                  engineSide={
-                    settings.mode === 'pvp' ? null : settings.playerSide === 'r' ? 'b' : 'r'
-                  }
-                  pieces={projection.pieces}
-                  moveCount={projection.movesIccs.length}
-                />
-                <section>
-                  <h3 className="mb-2 flex items-center gap-1.5 text-xs font-medium tracking-wide text-ink-dim uppercase">
-                    <ListOrdered size={14} /> Nước đi
-                  </h3>
-                  <MoveList moves={projection.movesText} limit={12} />
-                </section>
-              </>
-            ),
-          }
-        : null,
-    [
-      inColumn,
-      feed,
-      lastInfo,
-      settings.mode,
-      settings.playerSide,
-      projection.pieces,
-      projection.movesIccs.length,
-      projection.movesText,
-    ]
-  )
-  useShellPanel(panel)
-
-  /*
-   * The status row, published to the shell rather than drawn above the board.
-   *
-   * The Home button that used to start it is gone: the rail and the bottom bar
-   * both carry Trang chủ, and a third copy on the same screen is not a third
-   * way home, it is one more thing between the player and the board.
-   */
-  const headerRow = useMemo(
-    () => (
-      <>
-        <span className="flex min-w-0 flex-1 items-center gap-2">
-          {isOver ? (
-            <strong className="truncate">{describeResult(status.status, status.reason)}</strong>
-          ) : (
-            <>
-              <span
-                className={status.sideToMove === 'r' ? DOT.red : DOT.black}
-                aria-hidden="true"
-              />
-              <span className="truncate text-[0.95rem]">
-                {status.sideToMove === 'r' ? 'Đỏ' : 'Đen'} đi
-              </span>
-              {status.inCheck && <Badge tone="alert">Chiếu!</Badge>}
-            </>
-          )}
-        </span>
-
-        <button
-          type="button"
-          onClick={() => void onHint()}
-          disabled={isOver || thinking || hintBusy || hintsLeft <= 0}
-          aria-label="Gợi ý nước đi"
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-ink-dim transition-colors hover:bg-surface-2 hover:text-ink disabled:opacity-40"
-        >
-          <Lightbulb size={19} />
-        </button>
-        <button
-          type="button"
-          onClick={() => setMenuOpen(true)}
-          aria-label="Mở bảng điều khiển"
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-ink-dim transition-colors hover:bg-surface-2 hover:text-ink"
-        >
-          <Menu size={20} />
-        </button>
-      </>
-    ),
-    [isOver, status.status, status.reason, status.sideToMove, status.inCheck,
-     thinking, hintBusy, hintsLeft, onHint]
-  )
-  useShellHeader(headerRow)
 
   /*
    * Only a failure to *start* takes the screen away.
@@ -700,6 +594,62 @@ export function PlayPage() {
     // `stage--solo` when the readings have moved out to the shell's column: the
     // grid then has nothing to put beside the board and gives it the whole width.
     <div className={inColumn ? 'stage stage--solo' : 'stage'}>
+      {/*
+        Header and side panel, rendered through the shell rather than published
+        to it. See `ShellContext` for why — the published version deadlocked the
+        main thread.
+      */}
+      <ShellHeader>
+        <span className="flex min-w-0 flex-1 items-center gap-2">
+          {isOver ? (
+            <strong className="truncate">{describeResult(status.status, status.reason)}</strong>
+          ) : (
+            <>
+              <span className={status.sideToMove === 'r' ? DOT.red : DOT.black} aria-hidden="true" />
+              <span className="truncate text-[0.95rem]">
+                {status.sideToMove === 'r' ? 'Đỏ' : 'Đen'} đi
+              </span>
+              {status.inCheck && <Badge tone="alert">Chiếu!</Badge>}
+            </>
+          )}
+        </span>
+        <button
+          type="button"
+          onClick={() => void onHint()}
+          disabled={isOver || thinking || hintBusy || hintsLeft <= 0}
+          aria-label="Gợi ý nước đi"
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-ink-dim transition-colors hover:bg-surface-2 hover:text-ink disabled:opacity-40"
+        >
+          <Lightbulb size={19} />
+        </button>
+        <button
+          type="button"
+          onClick={() => setMenuOpen(true)}
+          aria-label="Mở bảng điều khiển"
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-ink-dim transition-colors hover:bg-surface-2 hover:text-ink"
+        >
+          <Menu size={20} />
+        </button>
+      </ShellHeader>
+
+      {inColumn && (
+        <ShellPanel>
+          <CommentaryFeed entries={feed} />
+          <MatchInsight
+            info={lastInfo}
+            engineSide={settings.mode === 'pvp' ? null : settings.playerSide === 'r' ? 'b' : 'r'}
+            pieces={projection.pieces}
+            moveCount={projection.movesIccs.length}
+          />
+          <section>
+            <h3 className="mb-2 flex items-center gap-1.5 text-xs font-medium tracking-wide text-ink-dim uppercase">
+              <ListOrdered size={14} /> Nước đi
+            </h3>
+            <MoveList moves={projection.movesText} limit={12} />
+          </section>
+        </ShellPanel>
+      )}
+
       <UpdateNotice
         available={update_.available}
         kind={update_.kind}

@@ -1187,6 +1187,18 @@
     background: var(--surface);
   }
 
+  /*
+   * The header's own title steps aside when a screen fills the slot.
+   *
+   * `:empty` and a following-sibling selector do the whole job, which is why the
+   * slot is first in the DOM — a screen that portals a status row in gets its
+   * row, a screen that does not gets its name, and nothing in JavaScript has to
+   * know which.
+   */
+  .shell__slot:not(:empty) + .shell__title {
+    display: none;
+  }
+
   /* --- thinking toast ------------------------------------------------------- */
 
   /*
