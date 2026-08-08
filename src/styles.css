@@ -1198,10 +1198,23 @@
    * is always in the one spot the player is already looking at, and the river is
    * the only band of the board with no pieces on it.
    */
+  /*
+   * Pinned to the middle of the board, and given a width it cannot exceed.
+   *
+   * It used to be `left: 0; right: 0` on the board with the pill sizing itself
+   * from `78vw` — two different ideas of "how wide" that only agreed by luck.
+   * Once the board grew (the status bar moved out of the layout and the board
+   * took the space) the pill was wider than the board it sits on, so the last
+   * words of a long line were cut off at the edge.
+   *
+   * Insetting the layer instead makes the board the only thing that decides how
+   * wide the pill can be, and the text wraps inside it rather than running past
+   * it.
+   */
   .toast-layer {
     position: absolute;
-    left: 0;
-    right: 0;
+    left: 6%;
+    right: 6%;
     top: 50%;
     transform: translateY(-50%);
     display: flex;
@@ -1214,8 +1227,9 @@
     position: relative;
     display: inline-flex;
     align-items: center;
-    padding: 10px 22px 10px 28px;
-    border-radius: 999px;
+    max-width: 100%;
+    padding: 9px 18px 9px 24px;
+    border-radius: 20px;
     background: var(--surface);
     border: 1px solid var(--border);
     box-shadow: var(--shadow);
@@ -1271,8 +1285,8 @@
     display: flex;
     align-items: center;
     gap: 9px;
-    /* The commentary is a sentence, not a status: let it wrap on a phone. */
-    max-width: min(78vw, 460px);
+    /* Bounded by the pill, which is bounded by the board. One rule, not three. */
+    min-width: 0;
   }
 
   /* Three pulsing dots, so the pill reads as "still working" even mid-sentence. */
@@ -1322,7 +1336,20 @@
 
   .toast__text {
     font-weight: 500;
-    line-height: 1.35;
+    /*
+     * Smaller than the surrounding interface, on purpose. This is an aside
+     * muttered while the machine thinks, not something the player has to read —
+     * and at the old size a long line took four wrapped rows across the middle
+     * of the board and hid the pieces it was talking about.
+     */
+    font-size: 0.84rem;
+    line-height: 1.3;
+    /* Three rows is a remark. Four is a paragraph sitting on the board. */
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    overflow: hidden;
     /* Keyed by line id in the component, so each new line fades in. */
     animation: toast-line 0.32s ease-out;
   }
@@ -1336,8 +1363,8 @@
 
   @media (max-width: 420px) {
     .toast {
-      padding: 9px 16px;
-      font-size: 0.86rem;
+      padding: 8px 14px;
+      font-size: 0.8rem;
     }
 
     .toast__body {

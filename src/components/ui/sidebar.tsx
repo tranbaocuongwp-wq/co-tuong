@@ -26,10 +26,23 @@ import { cn } from '../../lib/utils'
 export type SidebarShape = 'bar' | 'rail' | 'expanded'
 
 const CONTAINER: Record<SidebarShape, string> = {
+  /*
+   * In the flow, not fixed, and that is the whole of the iOS fix.
+   *
+   * A `position: fixed; bottom: 0` element is placed against the *layout*
+   * viewport, and in Safari on iOS the layout viewport extends underneath the
+   * browser's own toolbar. So the bar sat below the visible area with the last
+   * rows of every page hidden behind it — measured on an iPhone, where the
+   * "Tải tiếp" button in Settings could not be reached at all.
+   *
+   * `--browser-chrome` was an attempt to pad around that. Padding cannot move
+   * something that is anchored to the wrong box. Putting the bar in normal flow
+   * inside a shell that is exactly `100dvh` tall means the visible viewport is
+   * the box, which is the one that was wanted all along.
+   */
   bar:
-    'fixed inset-x-0 bottom-0 z-30 flex h-14 items-stretch justify-around ' +
-    'border-t border-border bg-surface ' +
-    'pb-[calc(env(safe-area-inset-bottom)+var(--browser-chrome))]',
+    'flex h-14 shrink-0 items-stretch justify-around border-t border-border bg-surface ' +
+    'pb-[env(safe-area-inset-bottom)]',
   rail: 'flex w-16 shrink-0 flex-col items-stretch gap-1 border-r border-border bg-surface p-2',
   expanded: 'flex w-60 shrink-0 flex-col items-stretch gap-1 border-r border-border bg-surface p-3',
 }

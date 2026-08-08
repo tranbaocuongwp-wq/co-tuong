@@ -204,16 +204,55 @@ export function useGame(config: GameConfig) {
     }
   }, [refresh])
 
-  // Create the game once the module is loaded.
+  /*
+   * Create the game once the module is loaded, and try twice.
+   *
+   * The second attempt exists because of a failure seen in the wild: the very
+   * first call into a brand-new `Game` came back with *"recursive use of an
+   * object detected"*. A fresh object cannot be recursively in use, so the
+   * borrow that call tripped over belonged to something else — some earlier
+   * call, on some other object, that panicked and unwound without releasing it.
+   * `wasm-bindgen` holds the borrow for the whole of every `&mut self` call and
+   * a panic leaks it, which marks the module poisoned for the rest of the page.
+   *
+   * A second `Game` built a tick later often clears it, because whatever held
+   * the borrow has by then been dropped. When it does not, the message is shown
+   * — but the first thing tried is the thing that costs nothing.
+   *
+   * This is a mitigation, not a diagnosis. The panic underneath is still worth
+   * finding, and it is still unfound: it has not reproduced once in the browser
+   * here across cold loads, fast play, hints mid-search, and repeated route
+   * changes.
+   */
   useEffect(() => {
     let cancelled = false
+
+    const build = (): boolean => {
+      const game = new WasmGame()
+      game.setRepetitionRule(REPEAT_LIMIT, ruleRef.current)
+      gameRef.current = game
+      setReady(true)
+      refresh()
+      return true
+    }
+
     loadEngineWasm()
       .then(() => {
         if (cancelled) return
-        gameRef.current = new WasmGame()
-        gameRef.current.setRepetitionRule(REPEAT_LIMIT, ruleRef.current)
-        setReady(true)
-        refresh()
+        try {
+          build()
+        } catch (first) {
+          // One retry, after the current task has finished unwinding.
+          setTimeout(() => {
+            if (cancelled) return
+            try {
+              build()
+              setError(null)
+            } catch {
+              setError(first instanceof Error ? first.message : String(first))
+            }
+          }, 0)
+        }
       })
       .catch((e: unknown) => {
         setError(e instanceof Error ? e.message : String(e))

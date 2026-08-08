@@ -101,18 +101,10 @@ function ShellBody({ children }: { children: React.ReactNode }) {
    * scrolls, which is what a long Settings page needs.
    */
   const OUTER = {
-    compactPlay: 'flex h-[100dvh] w-full flex-col overflow-hidden',
-    compactPage: 'flex min-h-[100dvh] w-full flex-col',
-    widePlay: 'flex h-[100dvh] w-full overflow-hidden',
-    widePage: 'flex min-h-[100dvh] w-full',
+    compact: 'flex h-[100dvh] w-full flex-col overflow-hidden',
+    wide: 'flex h-[100dvh] w-full overflow-hidden',
   }
-  const outer = compact
-    ? playing
-      ? OUTER.compactPlay
-      : OUTER.compactPage
-    : playing
-      ? OUTER.widePlay
-      : OUTER.widePage
+  const outer = compact ? OUTER.compact : OUTER.wide
 
   return (
     <div className={outer}>
@@ -130,7 +122,15 @@ function ShellBody({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      {/*
+        `min-h-0` is doing real work here, not decoration.
+        
+        A flex child refuses to shrink below its content by default, so without
+        it this column grew to the height of whatever was inside — and the nav
+        bar below it was pushed off the bottom of the screen. Measured on a
+        375x812 phone with Settings open: the bar sat at y=1360.
+      */}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         {/*
           One header row for every screen, which is what makes the board sit at
           the top of its pane.
@@ -178,19 +178,8 @@ function ShellBody({ children }: { children: React.ReactNode }) {
         </div>
       </div>
 
-      {/*
-        Bottom bar, and the spacer under it.
-
-        The bar is fixed, so without something occupying its height the last row
-        of every scrolling page sits underneath it — which on Settings meant the
-        delete buttons could not be reached.
-      */}
-      {compact && (
-        <>
-          <div className="h-14 shrink-0" aria-hidden="true" />
-          <Sidebar shape="bar" items={PRIMARY} />
-        </>
-      )}
+      {/* The bar takes its own height now, so nothing needs to be reserved. */}
+      {compact && <Sidebar shape="bar" items={PRIMARY} />}
     </div>
   )
 }
