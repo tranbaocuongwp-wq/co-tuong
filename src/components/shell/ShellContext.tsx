@@ -32,6 +32,15 @@ interface ShellState {
   panel: ShellPanel | null
   setPanel: (panel: ShellPanel | null) => void
   /**
+   * What a screen puts in the shell's header instead of a plain title.
+   *
+   * The play screen's status row lives here rather than inside its own layout,
+   * and that is what puts the board at the very top of the pane: with the bar
+   * gone from the grid there is nothing above the board to push it down.
+   */
+  header: ReactNode | null
+  setHeader: (node: ReactNode | null) => void
+  /**
    * Whether the shell has a side column to put a panel in.
    *
    * Screens need this, not just the shell: the play screen lays its readings out
@@ -46,6 +55,7 @@ const Ctx = createContext<ShellState | null>(null)
 
 export function ShellProvider({ children }: { children: ReactNode }) {
   const [panel, setPanel] = useState<ShellPanel | null>(null)
+  const [header, setHeader] = useState<ReactNode | null>(null)
   const medium = useMediaQuery(MEDIUM)
   const expanded = useMediaQuery(EXPANDED)
   const landscape = useMediaQuery(LANDSCAPE)
@@ -60,7 +70,10 @@ export function ShellProvider({ children }: { children: ReactNode }) {
    */
   const hasColumn = expanded || (medium && landscape)
 
-  const value = useMemo(() => ({ panel, setPanel, hasColumn }), [panel, hasColumn])
+  const value = useMemo(
+    () => ({ panel, setPanel, header, setHeader, hasColumn }),
+    [panel, header, hasColumn]
+  )
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }
 
@@ -78,6 +91,15 @@ export function useShell(): ShellState {
  * so navigating away can never leave the previous screen's controls sitting
  * beside the new one.
  */
+/** Publish this screen's header row. Withdrawn on unmount. */
+export function useShellHeader(node: ReactNode | null): void {
+  const { setHeader } = useShell()
+  useEffect(() => {
+    setHeader(node ?? null)
+    return () => setHeader(null)
+  }, [setHeader, node])
+}
+
 export function useShellColumn(): boolean {
   return useShell().hasColumn
 }

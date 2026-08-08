@@ -209,7 +209,14 @@
     container-type: size;
     display: flex;
     justify-content: center;
-    padding: 10px 10px 12px;
+    /*
+     * No padding at the top. The board starts where the pane starts.
+     *
+     * Ten pixels of breathing room reads as tidy on a desktop and as ten pixels
+     * of wasted board on a phone, where the board is the only thing that
+     * matters and every one of them is a piece drawn larger.
+     */
+    padding: 0 10px 10px;
     overflow: hidden;
   }
 
@@ -699,7 +706,6 @@
     gap: 12px;
     grid-template-areas:
       'update'
-      'bar'
       'board'
       'caption'
       'insight'
@@ -761,7 +767,6 @@
        */
       grid-template-areas:
         'board update'
-        'board bar'
         'board caption'
         'board feed'
         'board insight'
@@ -773,7 +778,7 @@
        * others share the leftover height and the panel floats in the middle of
        * the column. The last row absorbs it and everything sits at the top.
        */
-      grid-template-rows: auto auto auto auto auto auto auto 1fr;
+      grid-template-rows: auto auto auto auto auto auto 1fr;
       align-content: start;
       justify-content: center;
       gap: 12px 20px;
@@ -860,7 +865,6 @@
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
       'update'
-      'bar'
       'board'
       'caption'
       'end'
@@ -1160,6 +1164,27 @@
     background: transparent;
     color: inherit;
     cursor: pointer;
+  }
+
+  /*
+   * Headings that stay put while their card scrolls under them.
+   *
+   * The side column is one long scroll of commentary, readings and moves, and
+   * once it is past the first screenful nothing on it says what you are looking
+   * at any more. A heading that sticks costs nothing — it is already there —
+   * and it means the answer to "which of these am I reading" never leaves.
+   *
+   * `top: -1px` rather than `0` hides the seam a subpixel gap leaves above a
+   * stuck element on fractional device pixel ratios.
+   */
+  .shell__panel h2,
+  .shell__panel h3 {
+    position: sticky;
+    top: -1px;
+    z-index: 1;
+    padding-block: 6px;
+    margin-block: 0;
+    background: var(--surface);
   }
 
   /* --- thinking toast ------------------------------------------------------- */

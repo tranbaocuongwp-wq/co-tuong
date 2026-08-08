@@ -40,7 +40,7 @@ const ITEM: Record<SidebarShape, string> = {
     'text-ink-dim no-underline transition-colors ' +
     'aria-[current=page]:text-accent',
   rail:
-    'flex flex-col items-center justify-center gap-1 rounded-xl py-2 text-[0.68rem] ' +
+    'grid h-11 place-items-center rounded-xl ' +
     'text-ink-dim no-underline transition-colors hover:bg-surface-2 hover:text-ink ' +
     'aria-[current=page]:bg-accent-soft aria-[current=page]:text-accent',
   expanded:
@@ -83,12 +83,23 @@ export function Sidebar({ shape, items, onNavigate, className }: SidebarProps) {
           end={end}
           onClick={onNavigate}
           className={ITEM[shape]}
+          title={label}
           // The rail shows an icon and a word too small to read at a glance, so
           // the accessible name comes from the attribute rather than the glyph.
           aria-label={label}
         >
           <Icon size={shape === 'expanded' ? 18 : 20} aria-hidden="true" />
-          {label}
+          {/*
+            The rail is icons and nothing else.
+            
+            It carried a 0.68rem label under each one, which at that size is not
+            a word — it is a grey smudge that makes the rail wider and the icon
+            smaller without being readable. A folded rail is a deliberate choice
+            to trade names for space; printing the names anyway gives up the
+            space and keeps none of the benefit. The name is still there for
+            anyone who needs it, in `aria-label` and in the tooltip.
+          */}
+          {shape !== 'rail' && label}
         </NavLink>
       ))}
     </nav>

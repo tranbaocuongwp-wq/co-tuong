@@ -44,7 +44,7 @@ function ShellBody({ children }: { children: React.ReactNode }) {
   const { pathname } = useLocation()
   const compact = useMediaQuery(COMPACT)
   const expanded = useMediaQuery(EXPANDED)
-  const { panel, hasColumn } = useShell()
+  const { panel, header, hasColumn } = useShell()
 
   /*
    * Folded or not, and it remembers.
@@ -131,9 +131,19 @@ function ShellBody({ children }: { children: React.ReactNode }) {
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        {!playing && title && (
-          <header className="flex h-14 shrink-0 items-center border-b border-border px-4">
-            <h1 className="truncate text-lg font-semibold">{title}</h1>
+        {/*
+          One header row for every screen, which is what makes the board sit at
+          the top of its pane.
+          
+          The play screen used to carry its own status bar *inside* the layout
+          that holds the board, so the board started a bar's height down the
+          page and every screen had a different idea of where its top edge was.
+          A screen with something to say puts it here; a screen with only a name
+          gets its name.
+        */}
+        {(header || (!playing && title)) && (
+          <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-3">
+            {header ?? <h1 className="truncate text-lg font-semibold">{title}</h1>}
           </header>
         )}
 
@@ -152,8 +162,8 @@ function ShellBody({ children }: { children: React.ReactNode }) {
             <aside
               className={
                 expanded
-                  ? 'flex w-80 shrink-0 flex-col gap-3 overflow-y-auto border-l border-border p-3'
-                  : 'flex w-72 shrink-0 flex-col gap-3 overflow-y-auto border-l border-border p-3'
+                  ? 'shell__panel flex w-80 shrink-0 flex-col gap-2 overflow-y-auto border-l border-border p-3'
+                  : 'shell__panel flex w-72 shrink-0 flex-col gap-2 overflow-y-auto border-l border-border p-3'
               }
               aria-label={panel.title ?? 'Bảng bên'}
             >

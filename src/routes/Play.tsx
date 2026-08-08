@@ -18,7 +18,13 @@ import { Link } from 'react-router'
 import { primeSounds, setSoundEnabled } from '../audio/sfx'
 import { primeVoice, setVoiceMode, stopVoice } from '../audio/voice'
 import { linesOf } from '../commentary/lines'
-import { Home, Lightbulb, ListOrdered, Menu, X } from 'lucide-react'
+import { Lightbulb, ListOrdered, Menu, X } from 'lucide-react'
+
+/** Whole literals, so the build's class checker can see them. */
+const DOT = {
+  red: 'h-2.5 w-2.5 shrink-0 rounded-full bg-red-piece',
+  black: 'h-2.5 w-2.5 shrink-0 rounded-full bg-black-piece',
+}
 
 import { Board } from '../components/Board'
 import { CommentaryFeed, type FeedEntry } from '../components/CommentaryFeed'
@@ -38,7 +44,8 @@ import { useCommentary } from '../game/useCommentary'
 import { ENGINE_MOVE_MS, MOVE_MS } from '../game/usePieceLayout'
 import { useGame } from '../game/useGame'
 import { ROOMY } from '../components/shell/breakpoints'
-import { useShellColumn, useShellPanel } from '../components/shell/ShellContext'
+import { useShellColumn, useShellHeader, useShellPanel } from '../components/shell/ShellContext'
+import { Badge } from '../components/ui/badge'
 import { useMediaQuery } from '../useMediaQuery'
 import { useSettings } from '../settings'
 import { getHistoryStore } from '../storage'
@@ -592,6 +599,57 @@ export function PlayPage() {
   useShellPanel(panel)
 
   /*
+   * The status row, published to the shell rather than drawn above the board.
+   *
+   * The Home button that used to start it is gone: the rail and the bottom bar
+   * both carry Trang chủ, and a third copy on the same screen is not a third
+   * way home, it is one more thing between the player and the board.
+   */
+  const headerRow = useMemo(
+    () => (
+      <>
+        <span className="flex min-w-0 flex-1 items-center gap-2">
+          {isOver ? (
+            <strong className="truncate">{describeResult(status.status, status.reason)}</strong>
+          ) : (
+            <>
+              <span
+                className={status.sideToMove === 'r' ? DOT.red : DOT.black}
+                aria-hidden="true"
+              />
+              <span className="truncate text-[0.95rem]">
+                {status.sideToMove === 'r' ? 'Đỏ' : 'Đen'} đi
+              </span>
+              {status.inCheck && <Badge tone="alert">Chiếu!</Badge>}
+            </>
+          )}
+        </span>
+
+        <button
+          type="button"
+          onClick={() => void onHint()}
+          disabled={isOver || thinking || hintBusy || hintsLeft <= 0}
+          aria-label="Gợi ý nước đi"
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-ink-dim transition-colors hover:bg-surface-2 hover:text-ink disabled:opacity-40"
+        >
+          <Lightbulb size={19} />
+        </button>
+        <button
+          type="button"
+          onClick={() => setMenuOpen(true)}
+          aria-label="Mở bảng điều khiển"
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-ink-dim transition-colors hover:bg-surface-2 hover:text-ink"
+        >
+          <Menu size={20} />
+        </button>
+      </>
+    ),
+    [isOver, status.status, status.reason, status.sideToMove, status.inCheck,
+     thinking, hintBusy, hintsLeft, onHint]
+  )
+  useShellHeader(headerRow)
+
+  /*
    * Only a failure to *start* takes the screen away.
    *
    * Every engine error used to land here, so a hint that failed — or one search
@@ -658,57 +716,6 @@ export function PlayPage() {
         thing a stuck player wants and two taps is one too many when you are
         already stuck.
       */}
-      <div className="stage__bar flex w-full items-center gap-1">
-        <Link
-          to="/"
-          aria-label="Về trang chủ"
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-border bg-surface text-ink-dim transition-colors hover:bg-surface-2 hover:text-ink"
-        >
-          <Home size={19} />
-        </Link>
-
-        <span className="flex min-w-0 flex-1 items-center justify-center gap-2 px-1">
-          {isOver ? (
-            <strong className="truncate">{describeResult(status.status, status.reason)}</strong>
-          ) : (
-            <>
-              <span
-                className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-                  status.sideToMove === 'r' ? 'bg-red-piece' : 'bg-black-piece'
-                }`}
-                aria-hidden="true"
-              />
-              <span className="truncate text-[0.95rem]">
-                {status.sideToMove === 'r' ? 'Đỏ' : 'Đen'} đi
-              </span>
-              {status.inCheck && (
-                <strong className="shrink-0 rounded-full bg-[color:var(--danger,#b3261e)] px-2.5 py-0.5 text-[0.78rem] text-white">
-                  Chiếu!
-                </strong>
-              )}
-            </>
-          )}
-        </span>
-
-        <button
-          type="button"
-          onClick={() => void onHint()}
-          disabled={isOver || thinking || hintBusy || hintsLeft <= 0}
-          aria-label="Gợi ý nước đi"
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-border bg-surface text-ink-dim transition-colors hover:bg-surface-2 hover:text-ink disabled:opacity-40"
-        >
-          <Lightbulb size={19} />
-        </button>
-        <button
-          type="button"
-          onClick={() => setMenuOpen(true)}
-          aria-label="Mở bảng điều khiển"
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-border bg-surface text-ink-dim transition-colors hover:bg-surface-2 hover:text-ink"
-        >
-          <Menu size={20} />
-        </button>
-      </div>
-
       {game.error && (
         <div className="stage__fault" role="alert">
           <span>Máy vừa gặp lỗi: {game.error}</span>

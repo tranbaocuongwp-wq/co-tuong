@@ -20,7 +20,6 @@
  * them nothing.
  */
 
-import { NavLink } from 'react-router'
 import {
   FlipHorizontal2,
   Flag,
@@ -33,12 +32,11 @@ import {
 } from 'lucide-react'
 
 import type { Piece, PieceKind, SearchInfo, Side } from '../engine/types'
-import { Author } from './Author'
 import { MoveList } from './MoveList'
 import { PieceIcon } from './PieceIcon'
-import { PromoBanner } from './PromoBanner'
 import { Button } from './ui/button'
 import { Sheet } from './ui/sheet'
+import { useShellColumn } from './shell/ShellContext'
 
 export interface GameMenuProps {
   open: boolean
@@ -81,12 +79,6 @@ function capturedFrom(pieces: Piece[], side: Side): PieceKind[] {
   return gone
 }
 
-const NAV = [
-  { to: '/', label: 'Trang chủ', end: true },
-  { to: '/profile', label: 'Hồ sơ', end: false },
-  { to: '/history', label: 'Lịch sử', end: false },
-  { to: '/settings', label: 'Cài đặt', end: false },
-]
 
 export function GameMenu({
   open,
@@ -108,6 +100,7 @@ export function GameMenu({
   onFlip,
   onResign,
 }: GameMenuProps) {
+  const inColumn = useShellColumn()
   const redLost = capturedFrom(pieces, 'r')
   const blackLost = capturedFrom(pieces, 'b')
 
@@ -183,40 +176,24 @@ export function GameMenu({
           </p>
         )}
 
-        <section>
-          <h3 className="mb-2 flex items-center gap-1.5 text-xs font-medium tracking-wide text-ink-dim uppercase">
-            <ListOrdered size={14} /> Nước đi
-          </h3>
-          <MoveList moves={moves} limit={5} />
-        </section>
-
-        <nav className="grid grid-cols-4 gap-1.5" aria-label="Đi tới">
-          {NAV.map(({ to, label, end }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={end}
-              onClick={onClose}
-              className="grid min-h-11 place-items-center rounded-xl border border-border text-xs text-ink-dim transition-colors hover:bg-surface-2 hover:text-ink"
-            >
-              {label}
-            </NavLink>
-          ))}
-        </nav>
+        {/* Only where the side column is not already showing them. */}
+        {!inColumn && (
+          <section>
+            <h3 className="mb-2 flex items-center gap-1.5 text-xs font-medium tracking-wide text-ink-dim uppercase">
+              <ListOrdered size={14} /> Nước đi
+            </h3>
+            <MoveList moves={moves} limit={5} />
+          </section>
+        )}
 
         {/*
-          The drawer, and deliberately not the board.
-
-          A banner beside a live game would be something to look past on every
-          single move. Down here it only appears when the player has already
-          stopped playing to open the menu, and it is the last thing in a panel
-          they scrolled to the bottom of.
+          No navigation here, and no banner.
+          
+          The four links repeated what the rail and the bottom bar already show
+          on the same screen, and the banner was an advertisement inside a panel
+          someone opened to do something. What is left is the things that exist
+          nowhere else: the controls, what has been captured, and the moves.
         */}
-        <PromoBanner />
-
-        <div className="flex justify-center pb-1">
-          <Author />
-        </div>
       </div>
     </Sheet>
   )
