@@ -60,6 +60,10 @@ export const router = createHashRouter([
         lazy: async () => ({ Component: (await import('./routes/Settings')).SettingsPage }),
       },
       {
+        path: 'changelog',
+        lazy: async () => ({ Component: (await import('./routes/Changelog')).ChangelogPage }),
+      },
+      {
         path: 'about',
         lazy: async () => ({ Component: (await import('./routes/About')).AboutPage }),
       },

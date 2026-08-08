@@ -18,6 +18,7 @@ import {
   Home,
   Info,
   Play,
+  ScrollText,
   Settings,
   UserRound,
   type LucideIcon,
@@ -47,6 +48,7 @@ export const DESTINATIONS: Destination[] = [
   { to: '/history', label: 'Lịch sử', icon: History, primary: true },
   { to: '/settings', label: 'Cài đặt', icon: Settings, primary: true },
   { to: '/about', label: 'Giới thiệu', icon: Info, primary: false },
+  { to: '/changelog', label: 'Có gì mới', icon: ScrollText, primary: false },
 ]
 
 /** The five that fit on a rail or a bottom bar. */

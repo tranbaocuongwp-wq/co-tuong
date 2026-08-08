@@ -17,7 +17,7 @@
 
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
-import { BookOpen, Bot, Info, Play, Users } from 'lucide-react'
+import { BookOpen, Bot, Info, Play, ScrollText, Users } from 'lucide-react'
 
 import { Author } from '../components/Author'
 import { Banner } from '../components/Banner'
@@ -208,12 +208,18 @@ export function HomePage() {
         primary navigation: it is read once and then never again, which does not
         earn a permanent slot beside the board.
       */}
-      <div className="flex justify-center min-[700px]:col-span-2">
+      <div className="flex flex-wrap justify-center gap-1 min-[700px]:col-span-2">
         <Link
           to="/about"
           className="flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm text-ink-dim no-underline transition-colors hover:bg-surface-2 hover:text-ink"
         >
           <Info size={16} /> Giới thiệu
+        </Link>
+        <Link
+          to="/changelog"
+          className="flex min-h-11 items-center gap-2 rounded-xl px-4 text-sm text-ink-dim no-underline transition-colors hover:bg-surface-2 hover:text-ink"
+        >
+          <ScrollText size={16} /> Có gì mới
         </Link>
       </div>
 

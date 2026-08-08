@@ -20,6 +20,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { RefreshCw, Download } from 'lucide-react'
 
+import { Link } from 'react-router'
+
 import { fetchManifest, platform, runningVersion, type VersionManifest } from '../update'
 import { Button } from './ui/button'
 import { Card } from './ui/card'
@@ -115,6 +117,18 @@ export function VersionPanel({ release }: VersionPanelProps) {
           </Button>
         )}
       </div>
+
+      {/*
+        The number is only half the answer. Someone who has just noticed it
+        changed wants to know what changed with it, and this is the one place
+        they are already looking.
+      */}
+      <Link
+        to="/changelog"
+        className="mt-2 inline-block text-sm text-ink-dim no-underline hover:text-ink"
+      >
+        Xem có gì mới ở bản này
+      </Link>
 
       <details className="mt-3">
         <summary className="cursor-pointer text-sm text-ink-dim">Chi tiết bản dựng</summary>
