@@ -16,6 +16,8 @@
 
 import { useCallback, useEffect, useState } from 'react'
 
+import { fetchAssetManifest } from './assets/manifest'
+
 import wasmUrl from './wasm/co_tuong_engine_wasm_bg.wasm?url'
 
 /** Injected by Vite at build time; see `vite.config.ts`. */
@@ -184,12 +186,32 @@ export function useAppUpdate(): UpdateState {
     markTried()
     void (async () => {
       try {
-        // Every cache has to go, and the old worker with it: leaving the worker
-        // registered lets it answer the very next navigation from the copy we
-        // are trying to replace.
+        /*
+         * Only what this build owns, and never the voice pack.
+         *
+         * This used to delete every cache there was, on the reasoning that a
+         * clean slate cannot serve a stale file. True, and it also deleted
+         * `co-tuong-voice-v1` — megabytes the player downloaded over their own
+         * data — every single time anyone tapped "Cập nhật". Combined with the
+         * service worker doing the same thing on activate, the voice pack could
+         * not survive a deploy at all.
+         *
+         * The caches this build owns are named in `assets.json`, so ask it
+         * rather than guessing from prefixes here. If it cannot be reached,
+         * delete nothing: a stale asset is a nuisance, and deleting the wrong
+         * cache is a loss.
+         */
         if ('caches' in window) {
+          const manifest = await fetchAssetManifest()
+          const mine = manifest
+            ? new Set(
+                (['shell', 'engine', 'media'] as const)
+                  .map((c) => manifest.caches[c])
+                  .filter(Boolean)
+              )
+            : new Set<string>()
           const keys = await caches.keys()
-          await Promise.all(keys.map((k) => caches.delete(k)))
+          await Promise.all(keys.filter((k) => mine.has(k)).map((k) => caches.delete(k)))
         }
         const regs = (await navigator.serviceWorker?.getRegistrations()) ?? []
         await Promise.all(regs.map((r) => r.unregister()))

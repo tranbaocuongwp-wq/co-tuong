@@ -48,6 +48,27 @@ const LEGACY = ['co-tuong-v1', 'co-tuong-v2', 'co-tuong-v3', 'co-tuong-v4']
 /** Where the inventory lives. Same file the page reads. */
 const MANIFEST = './assets.json'
 
+/**
+ * How every cache lookup in this file is done, and it took an afternoon to learn.
+ *
+ * Cache Storage honours a stored response's `Vary` header. Vite's preview server
+ * and Cloudflare Pages both send `Vary: Origin` on static assets, and Vite marks
+ * its module script `crossorigin` — so the browser's own request for the app
+ * bundle carries an `Origin` header while the request that filled the cache did
+ * not. Same URL, same method, and `caches.match` correctly considered them
+ * different requests.
+ *
+ * The symptom was a blank page offline with everything present in the cache:
+ * fetching the bundle by hand from the page worked every time, and the page's
+ * own load of the identical URL failed every time.
+ *
+ * Ignoring `Vary` is right here rather than merely convenient. Every one of
+ * these files is content-hashed, so its URL already promises there is only one
+ * version of it — `Vary: Origin` is a CORS artefact of the server, not a
+ * statement that the bytes differ.
+ */
+const LOOKUP = { ignoreVary: true }
+
 /** Fetch the manifest, bypassing every cache. */
 async function loadManifest() {
   const res = await fetch(new Request(MANIFEST, { cache: 'reload' }))
@@ -161,7 +182,7 @@ self.addEventListener('fetch', (event) => {
           }
           return fresh
         } catch {
-          const cached = await caches.match('./index.html')
+          const cached = await caches.match('./index.html', LOOKUP)
           return cached ?? new Response('Ngoại tuyến', { status: 503 })
         }
       })()
@@ -171,9 +192,20 @@ self.addEventListener('fetch', (event) => {
 
   event.respondWith(
     (async () => {
-      const cached = await caches.match(request)
+      const cached = await caches.match(request, LOOKUP)
       if (cached) return cached
-      const response = await fetch(request)
+      let response
+      try {
+        response = await fetch(request)
+      } catch {
+        // Never let `respondWith` reject. A rejected promise becomes a bare
+        // network error the page cannot explain; a 504 with a reason at least
+        // shows up as itself in the console.
+        return new Response('Ngoại tuyến, và tệp này không có sẵn.', {
+          status: 504,
+          headers: { 'content-type': 'text/plain; charset=utf-8' },
+        })
+      }
       if (response.ok && response.type === 'basic') {
         const manifest = await manifestOnce()
         if (manifest) {

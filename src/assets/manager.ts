@@ -104,7 +104,10 @@ export async function assetStatus(
       if (!name) return
       try {
         const cache = await caches.open(name)
-        if (await cache.match(requestFor(entry))) {
+        // `ignoreVary` for the same reason the service worker needs it: the
+        // server sends `Vary: Origin` and the requests that filled the cache did
+        // not all carry an Origin header. Without this the count is wrong.
+        if (await cache.match(requestFor(entry), { ignoreVary: true })) {
           have += 1
           bytes += entry.bytes
         }
@@ -168,7 +171,7 @@ export async function ensureAssets(
       try {
         const cache = await caches.open(cacheName)
         const request = requestFor(entry)
-        if (await cache.match(request)) {
+        if (await cache.match(request, { ignoreVary: true })) {
           state.already += 1
           consecutiveFailures = 0
         } else {
