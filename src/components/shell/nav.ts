@@ -60,5 +60,10 @@ export const FROM_LAUNCHER: Destination[] = DESTINATIONS.filter((d) => d.to !== 
 /** What to call the current screen, for a bar too narrow to show the whole nav. */
 export function titleOf(pathname: string): string {
   if (pathname.startsWith('/review')) return 'Xem lại'
-  return DESTINATIONS.find((d) => d.to === pathname && d.to !== '/')?.label ?? ''
+  // Longest match first, so `/changelog/0.7.0` is still "Có gì mới" rather than
+  // falling through to a blank header.
+  const hit = DESTINATIONS.filter((d) => d.to !== '/')
+    .filter((d) => pathname === d.to || pathname.startsWith(`${d.to}/`))
+    .sort((a, b) => b.to.length - a.to.length)[0]
+  return hit?.label ?? ''
 }
