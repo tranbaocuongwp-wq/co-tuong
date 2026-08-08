@@ -41,8 +41,20 @@ const CONTAINER: Record<SidebarShape, string> = {
    * the box, which is the one that was wanted all along.
    */
   bar:
-    'flex h-14 shrink-0 items-stretch justify-around border-t border-border bg-surface ' +
-    'pb-[env(safe-area-inset-bottom)]',
+    'flex shrink-0 items-stretch justify-around border-t border-border bg-surface ' +
+    'min-h-14 ' +
+    // Lifts the icons clear of whatever the browser puts along the bottom.
+    //
+    // `--browser-chrome` is `100lvh - 100dvh`: exactly the height of Safari's
+    // own toolbar when it is showing, and zero when it is not. Without it the
+    // tap targets sat 27px from the bottom edge of a 812px screen, inside the
+    // strip iOS reserves for its own toolbar gesture — so the taps went to
+    // Safari rather than to the app, and the navigation looked dead.
+    //
+    // `max` of the two rather than a sum: the home-indicator inset and the
+    // toolbar occupy the same space, and adding them makes a bar half a thumb
+    // too tall on the phones that have both.
+    'pb-[max(env(safe-area-inset-bottom),var(--browser-chrome))]',
   rail: 'flex w-16 shrink-0 flex-col items-stretch gap-1 border-r border-border bg-surface p-2',
   expanded: 'flex w-60 shrink-0 flex-col items-stretch gap-1 border-r border-border bg-surface p-3',
 }

@@ -90,7 +90,26 @@ export function HintDialog({
   const hopeless = !busy && choices.length > 0 && best.score <= HOPELESS
 
   return (
-    <Dialog.Root open={open} onOpenChange={(next) => !next && onClose()}>
+    /*
+     * Not modal while a move is being previewed, and that is a bug fix.
+     *
+     * Previewing deliberately keeps this dialog open and slides it down until
+     * only its header shows, so the player can see the move drawn on the board.
+     * The board is visible, the panel is out of the way, and the screen looks
+     * entirely usable — but Radix, being a good modal, had put
+     * `pointer-events: none` on the body. Every control outside this dialog was
+     * dead: the navigation, the menu, the hint button itself. Measured on the
+     * play screen, tapping any of the bottom-bar destinations did nothing at all.
+     *
+     * `modal={false}` releases the body and stops trapping focus, which is
+     * exactly right for a panel whose whole purpose at that moment is to let you
+     * interact with what is behind it.
+     */
+    <Dialog.Root
+      open={open}
+      modal={!previewing}
+      onOpenChange={(next) => !next && onClose()}
+    >
       <Dialog.Portal>
         {/*
           While an option is being shown, the scrim fades out and stops taking
@@ -105,6 +124,25 @@ export function HintDialog({
           )}
         />
         <Dialog.Content
+          /*
+           * Previewing shrinks the panel rather than sliding it away.
+           *
+           * Sliding was the first attempt and it does not work: the panel is
+           * 85% of the screen tall, so translating it down leaves a box that
+           * still extends past the bottom edge — and the bottom bar sits inside
+           * that box. Measured on a 375x812 phone, the panel occupied
+           * y=580..970 with the navigation at 757, so every tap on a
+           * destination landed on the panel instead. Offsetting it by the bar's
+           * height moved the box without making it any shorter.
+           *
+           * `max-h-44` is the 11rem that was visible anyway, and with no
+           * translation the box ends where it appears to end. `bottom-14` then
+           * puts it above the bar rather than over it.
+           *
+           * The comment lives out here rather than inside `cn()` because the
+           * build's class checker reads every string in that call as a class
+           * name, and a sentence makes fourteen of them.
+           */
           className={cn(
             sheetPanel,
             'transition-transform duration-200',
@@ -114,7 +152,7 @@ export function HintDialog({
             // bottom edge at the same height. Sliding a centred dialog by its own
             // height would have left it half off the screen, because its resting
             // position is already a translate.
-            previewing && 'translate-y-[calc(100%-11rem)]',
+            previewing && 'max-h-44 translate-y-0 bottom-14',
             previewing &&
               'min-[700px]:top-auto min-[700px]:bottom-4 min-[700px]:max-h-44 min-[700px]:translate-y-0'
           )}
