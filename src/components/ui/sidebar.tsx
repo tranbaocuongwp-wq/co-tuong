@@ -40,21 +40,28 @@ const CONTAINER: Record<SidebarShape, string> = {
    * inside a shell that is exactly `100dvh` tall means the visible viewport is
    * the box, which is the one that was wanted all along.
    */
+  /*
+   * Flush with the bottom of the shell, and nothing more.
+   *
+   * There was a `--browser-chrome` pad here for one build — `100lvh - 100dvh`,
+   * the height of Safari's toolbar — on the theory that the tap targets were
+   * sitting inside the strip iOS reserves for its own gestures. It was a guess,
+   * it was wrong, and it showed: on an iPhone the bar grew by the toolbar's
+   * whole height and left a band of empty page below the icons.
+   *
+   * The variable exists for elements positioned against the *layout* viewport.
+   * This bar is in normal flow inside a shell that is exactly `100dvh` tall, and
+   * `100dvh` already excludes the toolbar — so there is nothing to compensate
+   * for. Only the home-indicator inset is real, and only on the phones that have
+   * one.
+   *
+   * What the navigation actually needed was the two fixes next door: the hint
+   * dialog was locking the body while previewing, and its panel was sitting on
+   * top of this bar. Both are measured; this was not.
+   */
   bar:
-    'flex shrink-0 items-stretch justify-around border-t border-border bg-surface ' +
-    'min-h-14 ' +
-    // Lifts the icons clear of whatever the browser puts along the bottom.
-    //
-    // `--browser-chrome` is `100lvh - 100dvh`: exactly the height of Safari's
-    // own toolbar when it is showing, and zero when it is not. Without it the
-    // tap targets sat 27px from the bottom edge of a 812px screen, inside the
-    // strip iOS reserves for its own toolbar gesture — so the taps went to
-    // Safari rather than to the app, and the navigation looked dead.
-    //
-    // `max` of the two rather than a sum: the home-indicator inset and the
-    // toolbar occupy the same space, and adding them makes a bar half a thumb
-    // too tall on the phones that have both.
-    'pb-[max(env(safe-area-inset-bottom),var(--browser-chrome))]',
+    'flex h-14 shrink-0 items-stretch justify-around border-t border-border bg-surface ' +
+    'pb-[env(safe-area-inset-bottom)]',
   rail: 'flex w-16 shrink-0 flex-col items-stretch gap-1 border-r border-border bg-surface p-2',
   expanded: 'flex w-60 shrink-0 flex-col items-stretch gap-1 border-r border-border bg-surface p-3',
 }
