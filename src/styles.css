@@ -1126,6 +1126,42 @@
     }
   }
 
+  /*
+   * A fault that did not end the game.
+   *
+   * Sits above the board rather than replacing it. Every engine error used to
+   * take the whole screen, which for a hint that failed on move twenty is a
+   * punishment out of all proportion to the crime.
+   */
+  .stage__fault {
+    grid-area: update;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: var(--radius);
+    border: 1px solid var(--danger, #b3261e);
+    background: color-mix(in srgb, var(--danger, #b3261e) 8%, var(--surface));
+    font-size: 0.88rem;
+  }
+
+  .stage__fault span {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .stage__fault button {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+  }
+
   /* --- thinking toast ------------------------------------------------------- */
 
   /*

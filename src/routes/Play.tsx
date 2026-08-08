@@ -18,7 +18,7 @@ import { Link } from 'react-router'
 import { primeSounds, setSoundEnabled } from '../audio/sfx'
 import { primeVoice, setVoiceMode, stopVoice } from '../audio/voice'
 import { linesOf } from '../commentary/lines'
-import { Home, Lightbulb, ListOrdered, Menu } from 'lucide-react'
+import { Home, Lightbulb, ListOrdered, Menu, X } from 'lucide-react'
 
 import { Board } from '../components/Board'
 import { CommentaryFeed, type FeedEntry } from '../components/CommentaryFeed'
@@ -554,6 +554,11 @@ export function PlayPage() {
         ? {
             node: (
               <>
+                {/*
+                  The feed is in the column whether the voice is on or off. It
+                  is the same remarks either way; the voice decides whether they
+                  are also spoken, not whether they are worth showing.
+                */}
                 <CommentaryFeed entries={feed} />
                 <MatchInsight
                   info={lastInfo}
@@ -586,7 +591,21 @@ export function PlayPage() {
   )
   useShellPanel(panel)
 
-  if (game.error) {
+  /*
+   * Only a failure to *start* takes the screen away.
+   *
+   * Every engine error used to land here, so a hint that failed — or one search
+   * that threw halfway through a game — replaced the board, the position and the
+   * move list with a red box, and there was no way back to a game that was still
+   * perfectly playable. It also called every one of them "không khởi động được
+   * engine", which for a game twenty moves in is not merely unhelpful, it is
+   * false.
+   *
+   * A failure before the engine is ready is fatal, because there is nothing to
+   * show. Anything after it is a passing fault: say so above the board, leave
+   * the board alone, and let it be dismissed.
+   */
+  if (game.error && !game.ready) {
     return <div className="banner banner--error">Không khởi động được engine: {game.error}</div>
   }
 
@@ -690,6 +709,15 @@ export function PlayPage() {
         </button>
       </div>
 
+      {game.error && (
+        <div className="stage__fault" role="alert">
+          <span>Máy vừa gặp lỗi: {game.error}</span>
+          <button type="button" onClick={game.clearError} aria-label="Bỏ qua">
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
       <div className={status.inCheck && !isOver ? 'stage__board stage__board--check' : 'stage__board'}>
         <Board
           pieces={projection.pieces}
@@ -749,7 +777,15 @@ export function PlayPage() {
         />
       )}
 
-      {settings.voice && !isOver && (
+      {/*
+        The spoken line, and only where the feed is not.
+        
+        With the shell column open both were on screen at once: the same remark
+        as a caption under the board and again as the newest row of the feed
+        beside it. Two copies of one sentence is not twice as much commentary,
+        it is a bug the eye notices before the mind does.
+      */}
+      {settings.voice && !isOver && !inColumn && (
         <div className="commentary" role="status">
           <span className="commentary__text">{spokenLine?.text ?? ''}</span>
         </div>

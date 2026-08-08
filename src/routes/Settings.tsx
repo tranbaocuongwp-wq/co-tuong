@@ -125,7 +125,7 @@ export function SettingsPage() {
   }, [])
 
   return (
-    <div className="mx-auto flex w-full max-w-md flex-col gap-3">
+    <div className="mx-auto grid w-full max-w-md grid-cols-1 gap-3 min-[700px]:max-w-[900px] min-[700px]:grid-cols-2 min-[700px]:gap-4 min-[1024px]:max-w-[1200px] min-[1024px]:grid-cols-3">
 
       {error && <div className="banner banner--error">{error}</div>}
       {notice && <div className="banner">{notice}</div>}

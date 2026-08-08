@@ -21,7 +21,6 @@ import { BookOpen, Bot, Info, Play, Users } from 'lucide-react'
 
 import { Author } from '../components/Author'
 import { Banner } from '../components/Banner'
-import { PromoBanner } from '../components/PromoBanner'
 import { Button } from '../components/ui/button'
 import { Segmented } from '../components/ui/segmented'
 import type { Difficulty, Side } from '../engine/types'
@@ -219,14 +218,15 @@ export function HomePage() {
       </div>
 
       {/*
-        Under every control on the page, on purpose. The strip at the top is
-        part of the launcher; this is an advertisement, and an advertisement
-        that pushes the Start button down is a bad trade at any size.
-      */}
-      <div className="flex justify-center min-[700px]:col-span-2">
-        <PromoBanner />
-      </div>
+        No second banner here.
 
+        There used to be one at the foot of this page as well as the strip at
+        the top, and two banners on one launcher is one banner too many — the
+        eye reads the second as a repeat of the first and stops looking at
+        either. The promotional set still appears in the game drawer, which is
+        somewhere a player has chosen to be rather than somewhere they are
+        passing through on the way to a game.
+      */}
       <footer className="flex items-center justify-center gap-1 pt-1 pb-2 text-sm text-ink-dim min-[700px]:col-span-2">
         <BookOpen size={13} aria-hidden="true" />
         <Author />

@@ -44,7 +44,7 @@ export function AboutPage() {
   }, [])
 
   return (
-    <div className="mx-auto flex w-full max-w-md flex-col gap-3">
+    <div className="mx-auto grid w-full max-w-md grid-cols-1 gap-3 min-[700px]:max-w-[900px] min-[700px]:grid-cols-2 min-[700px]:gap-4 min-[1024px]:max-w-[1200px] min-[1024px]:grid-cols-3">
       <header className="pt-1">
         <p className="text-sm text-ink-dim">Đệ Nhất Cờ Tướng — chơi được cả khi không có mạng.</p>
       </header>

@@ -139,7 +139,7 @@ export function ProfilePage() {
 
   if (all.played === 0 && all.unfinished === 0) {
     return (
-      <div className="mx-auto flex w-full max-w-md flex-col gap-3">
+      <div className="mx-auto grid w-full max-w-md grid-cols-1 gap-3 min-[700px]:max-w-[900px] min-[700px]:grid-cols-2 min-[700px]:gap-4 min-[1024px]:max-w-[1200px] min-[1024px]:grid-cols-3">
         <p className="text-sm text-ink-dim">Chưa có ván nào để tổng kết.</p>
         <Button asChild variant="primary" size="lg" className="w-full">
           <Link to="/">Chơi một ván</Link>
@@ -152,7 +152,7 @@ export function ProfilePage() {
   const of = (n: number) => `${(n / (all.played || 1)) * 100}%`
 
   return (
-    <div className="mx-auto flex w-full max-w-md flex-col gap-3">
+    <div className="mx-auto grid w-full max-w-md grid-cols-1 gap-3 min-[700px]:max-w-[900px] min-[700px]:grid-cols-2 min-[700px]:gap-4 min-[1024px]:max-w-[1200px] min-[1024px]:grid-cols-3">
 
       <Card>
         <div className="mb-3 flex items-end justify-between gap-3">

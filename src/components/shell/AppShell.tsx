@@ -30,6 +30,8 @@
  * `.shell__stage` in `styles.css` for the one thing that had to change.
  */
 
+import { useCallback, useEffect, useState } from 'react'
+import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { useLocation } from 'react-router'
 
 import { COMPACT, EXPANDED } from './breakpoints'
@@ -43,6 +45,35 @@ function ShellBody({ children }: { children: React.ReactNode }) {
   const compact = useMediaQuery(COMPACT)
   const expanded = useMediaQuery(EXPANDED)
   const { panel, hasColumn } = useShell()
+
+  /*
+   * Folded or not, and it remembers.
+   *
+   * A rail is 240px of permanent furniture, and on a laptop that is 240px the
+   * board is not getting. Whether that trade is worth it depends on the person
+   * and on what they are doing, which is exactly the kind of question the app
+   * should stop guessing at and let them answer once.
+   *
+   * Read synchronously from `localStorage` rather than in an effect, so the
+   * shell never draws itself wide and then snaps narrow a frame later.
+   */
+  const [folded, setFolded] = useState(() => {
+    try {
+      return localStorage.getItem(FOLD_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(FOLD_KEY, folded ? '1' : '0')
+    } catch {
+      // A browser refusing storage just forgets the preference.
+    }
+  }, [folded])
+
+  const toggleFold = useCallback(() => setFolded((f) => !f), [])
 
   // The board wants every pixel of height it can get and supplies its own
   // status bar, so it never gets the shell's header.
@@ -86,7 +117,17 @@ function ShellBody({ children }: { children: React.ReactNode }) {
   return (
     <div className={outer}>
       {!compact && (
-        <Sidebar shape={expanded ? 'expanded' : 'rail'} items={PRIMARY} />
+        <div className="relative flex">
+          <Sidebar shape={expanded && !folded ? 'expanded' : 'rail'} items={PRIMARY} />
+          <button
+            type="button"
+            onClick={toggleFold}
+            aria-label={folded ? 'Mở rộng menu' : 'Thu gọn menu'}
+            className="absolute right-1 bottom-2 grid h-9 w-9 place-items-center rounded-xl text-ink-dim transition-colors hover:bg-surface-2 hover:text-ink"
+          >
+            {folded ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+          </button>
+        </div>
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -101,7 +142,7 @@ function ShellBody({ children }: { children: React.ReactNode }) {
             className={
               playing
                 ? 'shell__main shell__stage min-w-0 flex-1'
-                : 'shell__main min-w-0 flex-1 overflow-y-auto p-4'
+                : 'shell__main min-w-0 flex-1 overflow-y-auto p-4 min-[700px]:p-6'
             }
           >
             {children}
@@ -143,6 +184,8 @@ function ShellBody({ children }: { children: React.ReactNode }) {
     </div>
   )
 }
+
+const FOLD_KEY = 'co-tuong.shell.folded'
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (

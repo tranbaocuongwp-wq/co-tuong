@@ -129,6 +129,7 @@ export function useGame(config: GameConfig) {
    */
   const [lastReport, setLastReport] = useState<MoveReport | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const clearError = useCallback(() => setError(null), [])
   /*
    * The rule is read through a ref so changing it mid-game does not rebuild
    * the board. Toggling it takes effect on the next game, which is the honest
@@ -145,6 +146,15 @@ export function useGame(config: GameConfig) {
     reason: EndReason
   } | null>(null)
 
+  /**
+   * The move list, kept outside the WebAssembly object.
+   *
+   * So the game can be rebuilt when that object stops answering — see
+   * `rebuild`. Reading it back off the object is exactly what is impossible in
+   * the situation it exists for.
+   */
+  const movesRef = useRef<{ startFen: string; moves: string }>({ startFen: '', moves: '' })
+
   const refresh = useCallback(() => {
     const game = gameRef.current
     if (!game) return
@@ -158,7 +168,41 @@ export function useGame(config: GameConfig) {
       fen: game.fen(),
       startFen: game.startFen(),
     })
+    movesRef.current = { startFen: game.startFen(), moves: iccs }
   }, [])
+
+  /**
+   * Rebuild the position from the move list after the engine object breaks.
+   *
+   * The failure this exists for is specific and, once seen, unmistakable: every
+   * call into the game starts returning *"recursive use of an object detected
+   * which would lead to unsafe aliasing in Rust"*. That message is the
+   * aftermath rather than the fault. `wasm-bindgen` holds a `RefCell` borrow for
+   * the duration of every `&mut self` call, and a panic inside one of them
+   * unwinds without releasing it — so the object is marked borrowed for the rest
+   * of the page's life and answers nothing ever again. One bad call bricks the
+   * game, and reloading is the only way out.
+   *
+   * The move list is plain text and lives in React, so a fresh object can be
+   * built from it. The player loses nothing: same position, same history.
+   *
+   * This does not stop the original panic, which is still worth finding — but it
+   * does mean that when it happens the game carries on instead of ending.
+   */
+  const rebuild = useCallback((): boolean => {
+    const { startFen, moves } = movesRef.current
+    try {
+      gameRef.current = moves
+        ? WasmGame.fromMoves(startFen, moves)
+        : new WasmGame()
+      gameRef.current.setRepetitionRule(REPEAT_LIMIT, ruleRef.current)
+      refresh()
+      setError(null)
+      return true
+    } catch {
+      return false
+    }
+  }, [refresh])
 
   // Create the game once the module is loaded.
   useEffect(() => {
@@ -167,7 +211,6 @@ export function useGame(config: GameConfig) {
       .then(() => {
         if (cancelled) return
         gameRef.current = new WasmGame()
-    gameRef.current.setRepetitionRule(REPEAT_LIMIT, ruleRef.current)
         gameRef.current.setRepetitionRule(REPEAT_LIMIT, ruleRef.current)
         setReady(true)
         refresh()
@@ -238,11 +281,32 @@ export function useGame(config: GameConfig) {
         refresh()
         return true
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e))
+        /*
+         * One retry, and only one.
+         *
+         * If the object was poisoned by an earlier panic this move never
+         * happened, so replaying the list rebuilds the exact position it was
+         * played from and the move can be tried again. If it fails a second
+         * time the fault is the move itself, and repeating would loop.
+         */
+        const message = e instanceof Error ? e.message : String(e)
+        if (message.includes('recursive use') && rebuild()) {
+          const again = gameRef.current
+          if (again) {
+            try {
+              again.play(iccs)
+              refresh()
+              return true
+            } catch {
+              // Fall through to reporting the original fault.
+            }
+          }
+        }
+        setError(message)
         return false
       }
     },
-    [refresh, config.mode, config.playerSide]
+    [refresh, rebuild, config.mode, config.playerSide]
   )
 
   // Let the engine move when it is its turn.
@@ -444,6 +508,7 @@ export function useGame(config: GameConfig) {
   return {
     ready,
     error,
+    clearError,
     thinking,
     progress,
     lastInfo,
