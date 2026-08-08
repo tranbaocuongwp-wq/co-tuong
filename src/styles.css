@@ -1199,6 +1199,49 @@
     display: none;
   }
 
+  /*
+   * The route-change indicator.
+   *
+   * Two pixels, at the very top of the content area, and deliberately not a
+   * spinner in the middle of the screen: a spinner replaces what is there and
+   * makes the wait the subject, while a line at the edge says "still working"
+   * without taking the page away from anyone.
+   *
+   * It animates rather than filling to a percentage, because there is no
+   * percentage to know — a dynamic import reports nothing until it is done.
+   */
+  .shell__progress {
+    height: 2px;
+    flex: none;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      var(--accent) 40%,
+      var(--accent) 60%,
+      transparent 100%
+    );
+    background-size: 40% 100%;
+    background-repeat: no-repeat;
+    animation: shell-progress 0.9s ease-in-out infinite;
+  }
+
+  @keyframes shell-progress {
+    from {
+      background-position: -40% 0;
+    }
+    to {
+      background-position: 140% 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .shell__progress {
+      animation: none;
+      background: var(--accent);
+      opacity: 0.5;
+    }
+  }
+
   /* --- thinking toast ------------------------------------------------------- */
 
   /*

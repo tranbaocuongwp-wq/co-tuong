@@ -32,7 +32,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { PanelLeftClose, PanelLeftOpen } from 'lucide-react'
-import { useLocation } from 'react-router'
+import { useLocation, useNavigation } from 'react-router'
 
 import { COMPACT, EXPANDED } from './breakpoints'
 import { PRIMARY, titleOf } from './nav'
@@ -45,6 +45,18 @@ function ShellBody({ children }: { children: React.ReactNode }) {
   const compact = useMediaQuery(COMPACT)
   const expanded = useMediaQuery(EXPANDED)
   const { setHeaderEl, setPanelEl, hasColumn } = useShell()
+
+  /*
+   * A line across the top while a route is on its way.
+   *
+   * Five of the seven screens are loaded on demand, so tapping one of them
+   * fetches a chunk before anything can be drawn — and on a slow connection that
+   * is a second or two in which the app looks like it ignored the tap. This is
+   * the router telling us it is working; showing it costs one element and turns
+   * "nothing happened" into "something is happening".
+   */
+  const navigation = useNavigation()
+  const moving = navigation.state !== 'idle'
 
   /*
    * Folded or not, and it remembers.
@@ -150,6 +162,8 @@ function ShellBody({ children }: { children: React.ReactNode }) {
           this is the one arrangement that lets `:empty` do the work without any
           JavaScript deciding anything.
         */}
+        {moving && <div className="shell__progress" role="status" aria-label="Đang chuyển trang" />}
+
         <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-3">
           <div ref={setHeaderEl} className="shell__slot contents" />
           <h1 className="shell__title truncate text-lg font-semibold">{title}</h1>

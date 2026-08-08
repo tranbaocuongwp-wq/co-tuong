@@ -23,11 +23,23 @@ import { createHashRouter } from 'react-router'
 import { AppLayout } from './App'
 import { HomePage } from './routes/Home'
 import { PlayPage } from './routes/Play'
+import { RouteError } from './routes/RouteError'
 
 export const router = createHashRouter([
   {
     path: '/',
     element: <AppLayout />,
+    /*
+     * One error boundary for every screen.
+     *
+     * Without it react-router falls back to its own developer page — the white
+     * screen reading "Unexpected Application Error!" over a minified React
+     * error code, which is what a player saw the one time a hook was declared
+     * after an early return. It is placed on the layout route rather than on
+     * each child so a screen that fails still leaves the navigation standing:
+     * whatever broke, the way out of it did not.
+     */
+    errorElement: <RouteError />,
     children: [
       { index: true, element: <HomePage /> },
       { path: 'play', element: <PlayPage /> },
