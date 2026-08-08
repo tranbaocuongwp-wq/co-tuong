@@ -1160,18 +1160,23 @@ impl Searcher {
              * there is something to convert. That clause is gone.
              *
              * What is left: depth, because a position can look quiet for twelve
-             * plies and be lost on the thirteenth. Time, because an exit that can
-             * fire in eleven milliseconds is not saving anyone from a wait.
-             * Stability, because one iteration agreeing with the last is a
-             * coincidence and four is a pattern. And a clear margin over the
-             * runner-up — a whole piece, not the two pawns first tried — because
-             * when the alternative is nearly as good it does not matter how sure
-             * the engine is: either move will do.
+             * plies and be lost on the thirteenth. Stability, because one
+             * iteration agreeing with the last is a coincidence and four is a
+             * pattern. And a clear margin over the runner-up — a whole piece, not
+             * the two pawns first tried — because when the alternative is nearly
+             * as good it does not matter how sure the engine is: either move will
+             * do.
+             *
+             * There was a fourth for a while: it also had to have spent a quarter
+             * of the budget, on the theory that an exit firing in eleven
+             * milliseconds saves nobody from a wait. It made the exit depend on
+             * the *size* of the budget, so a generous one delayed it — and a test
+             * caught the consequence: on a two-minute budget the exit was
+             * suppressed past the depth where the position had plainly settled,
+             * the search carried on, and it ran into the wall and lost a whole
+             * iteration's work. `min_depth` is the guard that was actually wanted.
              */
-            let worked = self.soft_deadline == 0
-                || now.saturating_sub(start) >= self.soft_deadline.saturating_sub(start) / 4;
             if depth >= policy.min_depth
-                && worked
                 && !unsettled
                 && stable >= policy.easy_stable_iters
                 && self
@@ -1190,6 +1195,19 @@ impl Searcher {
                     break;
                 }
             }
+        }
+
+        /*
+         * A move always comes with a line, even when nothing finished.
+         *
+         * If the wall arrives during the very first iteration there is no
+         * completed depth and `pv` stays empty — and the interface reads the
+         * line off this to draw the position chart and to let the commentator
+         * look ahead. One move is a poor line but it is an honest one, and it is
+         * infinitely better than the empty vector that used to come back.
+         */
+        if result.pv.is_empty() && result.best_move != NULL_MOVE {
+            result.pv = vec![result.best_move];
         }
 
         result.stop_reason = reason;
@@ -1415,6 +1433,190 @@ mod tests {
         }
     }
 
+    // -- the clock ---------------------------------------------------------
+    //
+    // Nothing below here could run before `ticking_clock` existed: with a frozen
+    // clock the deadline is always in the future, so `check_time` never fires.
+
+    /// The wall, and a budget small enough that nothing can dodge it.
+    ///
+    /// Two versions of this test proved nothing before this one. The opening
+    /// array on a short budget stopped on the *soft* limit every time, because
+    /// the predictor correctly refused to start an iteration it could not
+    /// finish; `soft_pct: 100` did not help, because the predictor still ran.
+    /// The only way to reach the wall on purpose is a budget too small for even
+    /// the first iteration, which is also the case that used to come back with
+    /// no principal variation at all.
+    #[test]
+    fn hard_deadline_stops_the_search() {
+        reset_clock();
+        let mut pos =
+            Position::from_fen("3akab2/9/4c4/p1p1p1p1p/9/9/P1P1P1P1P/1C2C4/9/R2AKAB2 w - - 0 1")
+                .unwrap();
+        let mut engine = Searcher::new(8, ticking_clock);
+        let r = engine.search(
+            &mut pos,
+            SearchLimits {
+                max_depth: 64,
+                movetime_ms: 1,
+                policy: TimePolicy { min_adaptive_ms: 0, ..Default::default() },
+                ..Default::default()
+            },
+            None,
+        );
+        assert!(!r.pv.is_empty(), "even a search that finished nothing owes a line");
+        assert_eq!(r.stop_reason, StopReason::HardDeadline, "this test is about the wall");
+        assert!(r.stopped_early, "and about it being reported");
+        assert!(r.best_move != 0, "a search that ran out of time still owes a move");
+        assert!(
+            pos.legal_moves().contains(&r.best_move),
+            "and the move it owes has to be legal"
+        );
+    }
+
+    #[test]
+    fn a_completed_iteration_is_never_discarded() {
+        reset_clock();
+        let mut pos = Position::from_fen(START_FEN).unwrap();
+        let mut engine = Searcher::new(8, ticking_clock);
+        let r = engine.search(
+            &mut pos,
+            SearchLimits { max_depth: 64, movetime_ms: 200, ..Default::default() },
+            None,
+        );
+        // The interface reads the line off this, so an empty one is a bug even
+        // when the clock ran out mid-iteration.
+        assert!(!r.pv.is_empty(), "the principal variation must survive a timeout");
+        assert_eq!(r.pv[0], r.best_move, "the line must start with the move");
+    }
+
+    #[test]
+    fn the_soft_budget_stops_before_the_hard_one() {
+        reset_clock();
+        let mut pos = Position::from_fen(START_FEN).unwrap();
+        let mut engine = Searcher::new(8, ticking_clock);
+        let r = engine.search(
+            &mut pos,
+            SearchLimits { max_depth: 64, movetime_ms: 4_000, ..Default::default() },
+            None,
+        );
+        assert!(
+            r.time_ms < 4_000,
+            "stopping at the wall means the last iteration was thrown away (took {}ms)",
+            r.time_ms
+        );
+        assert_ne!(
+            r.stop_reason,
+            StopReason::HardDeadline,
+            "an adaptive search should not be reaching its hard deadline here"
+        );
+    }
+
+    /// The prediction, on its own, without a search in the way.
+    #[test]
+    fn branching_factor_is_measured_not_assumed() {
+        // No sample yet: falls back to assuming the next iteration costs double.
+        assert!(should_start_iteration(100, 100, 0, 300));
+        assert!(!should_start_iteration(100, 100, 0, 250));
+
+        // A cheap iteration after an expensive one predicts a cheap next one, so
+        // a budget the old fixed rule would have refused is now worth starting.
+        assert!(should_start_iteration(1_000, 200, 190, 1_300));
+        // And an expensive one after a cheap one predicts worse than double.
+        assert!(!should_start_iteration(1_000, 400, 100, 1_900));
+
+        // No budget means no reason to stop.
+        assert!(should_start_iteration(u64::MAX / 2, 1_000, 1_000, 0));
+    }
+
+    /// A real middlegame, settled, stopping of its own accord.
+    ///
+    /// Two false starts are worth recording. The first used a lone hanging Rook
+    /// and passed for the wrong reason: that position is a forced mate, so it was
+    /// measuring the mate exit. The second set `movetime_ms: 0` to take the clock
+    /// out of the picture — which switches adaptive timing off entirely, since
+    /// the whole mechanism is gated on the budget clearing `min_adaptive_ms`. The
+    /// test then searched to depth 64 and hung.
+    ///
+    /// So: a generous *fake* budget, large enough that the early exit is the only
+    /// thing that can plausibly stop it before the ceiling.
+    #[test]
+    fn an_easy_position_exits_early() {
+        reset_clock();
+        let mut pos = Position::from_fen(
+            "r1ba1a3/4kn3/2n1b4/pNp1p1p1p/9/1C2P4/P1P3P1P/1CN1B4/4A4/2BAK2R1 w - - 0 1",
+        )
+        .unwrap();
+        let mut engine = Searcher::new(64, ticking_clock);
+        let r = engine.search(
+            &mut pos,
+            SearchLimits { max_depth: 64, movetime_ms: 45_000, ..Default::default() },
+            None,
+        );
+        assert_eq!(
+            r.stop_reason,
+            StopReason::EasyPosition,
+            "a settled position must stop itself (stopped on {} at depth {})",
+            r.stop_reason.as_str(),
+            r.depth
+        );
+        assert!(r.depth >= 12, "and never before the minimum depth");
+        assert!(r.depth < 64, "and well before the ceiling");
+    }
+
+    /// Losing is not a reason to stop looking.
+    ///
+    /// The old rule stopped on `score.abs()`, so it quit the moment it saw it
+    /// was *being* mated — and quitting there is how you find the shortest loss
+    /// rather than the longest defence.
+    ///
+    /// The position matters: five legal moves, so the forced-move short circuit
+    /// cannot fire and claim the credit. The first attempt at this test used a
+    /// position with two legal moves and proved nothing.
+    #[test]
+    fn being_mated_keeps_searching_for_the_longest_defence() {
+        let mut pos =
+            Position::from_fen("2bak1b2/4a4/9/9/9/9/9/3r1r3/4A4/3AK1B2 w - - 0 1").unwrap();
+        assert!(pos.legal_moves().len() > 2, "must not be a forced move");
+        // A budget, not zero: `movetime_ms: 0` turns adaptive timing off, and
+        // the non-adaptive path deliberately keeps the old stop-on-any-mate rule.
+        reset_clock();
+        let mut engine = Searcher::new(8, ticking_clock);
+        let r = engine.search(
+            &mut pos,
+            SearchLimits { max_depth: 14, movetime_ms: 60_000, ..Default::default() },
+            None,
+        );
+        assert!(r.score <= -MATE_BOUND, "this test needs a lost position (score {})", r.score);
+        assert_ne!(
+            r.stop_reason,
+            StopReason::Mate,
+            "it stopped on its own mate instead of looking for a longer defence"
+        );
+        assert!(r.best_move != 0, "a lost position still has to name a move");
+    }
+
+    #[test]
+    fn a_raised_cancel_flag_stops_the_search() {
+        reset_clock();
+        let mut pos = Position::from_fen(START_FEN).unwrap();
+        let mut engine = Searcher::new(8, ticking_clock);
+        let flag = StopFlag::new();
+        flag.raise();
+        engine.set_cancel(Some(flag));
+        let r = engine.search(
+            &mut pos,
+            SearchLimits { max_depth: 64, movetime_ms: 30_000, ..Default::default() },
+            None,
+        );
+        assert!(
+            r.time_ms < 30_000,
+            "a cancelled search must not run its budget out ({}ms)",
+            r.time_ms
+        );
+        assert!(r.best_move != 0, "even a cancelled search owes a move");
+    }
+
     /// The scouting pass must not throw away the move that actually wins.
     ///
     /// This is the whole risk the two-pass design takes on: a shallow look
@@ -1471,8 +1673,41 @@ mod tests {
     use crate::board::START_FEN;
 
     /// Tests do not need a real clock; depth limits bound them instead.
+    ///
+    /// Every test using this passes `movetime_ms: 0`, which switches the
+    /// deadline off entirely — so with only this clock the whole timing path was
+    /// dead code as far as the suite was concerned. `ticking_clock` below exists
+    /// to fix that.
     fn zero_clock() -> u64 {
         0
+    }
+
+    thread_local! {
+        static FAKE_NOW: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+    }
+
+    /// A clock that advances seven milliseconds every time it is read.
+    ///
+    /// `NowFn` is a plain function pointer, so its state has to be static — and a
+    /// `static AtomicU64` would be shared between tests running in parallel and
+    /// flake. `cargo test` gives each test its own thread, so a thread-local is
+    /// isolated for free.
+    ///
+    /// Seven milliseconds a tick, with `check_time` running every 2048 nodes,
+    /// makes a hundred-millisecond budget end after a few hundred thousand
+    /// nodes: fast, deterministic, and never dependent on how busy the machine
+    /// running the tests happens to be.
+    fn ticking_clock() -> u64 {
+        FAKE_NOW.with(|c| {
+            let v = c.get();
+            c.set(v + 7);
+            v
+        })
+    }
+
+    /// Reset the fake clock so each test starts from zero.
+    fn reset_clock() {
+        FAKE_NOW.with(|c| c.set(0));
     }
 
     fn search_depth(fen: &str, depth: u32) -> SearchResult {
