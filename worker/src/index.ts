@@ -123,7 +123,10 @@ export default {
       )
     }
 
-    const sfxMatch = url.pathname.match(/^\/v1\/sfx\/([a-z0-9-]{1,20})$/)
+    // Same character class as the line route below, for the same reason. Every
+    // sound id happens to be lowercase today; the next one added does not have
+    // to be, and this is not a bug worth having twice.
+    const sfxMatch = url.pathname.match(/^\/v1\/sfx\/([A-Za-z0-9-]{1,20})$/)
     if (sfxMatch && request.method === 'GET') {
       const sound = SFX[sfxMatch[1]]
       if (!sound) {
@@ -148,7 +151,26 @@ export default {
       })
     }
 
-    const match = url.pathname.match(/^\/v1\/line\/([a-z0-9-]{1,40})$/)
+    /*
+     * `A-Za-z`, and the missing `A-Z` was a real outage nobody could see.
+     *
+     * The shape and foresight lines are keyed by the name of the formation in
+     * camelCase — `shp-r-centralCannon`, `frm-b-stackedCannons`. A lowercase-only
+     * class does not match those, so the request fell past this route to the
+     * generic 404 below and the Worker answered "Not found" for fifty-two ids it
+     * was perfectly willing to speak.
+     *
+     * The failure was invisible from both ends. `/v1/lines` listed them, so the
+     * manifest and the client agreed; the client treats 404 as "not recorded
+     * yet" and falls back to text, which is exactly what it should do and looks
+     * identical to a line that simply has not been generated. It surfaced only
+     * when the warm script reported the same fifty-two failing every run.
+     *
+     * The id is still not trusted: what makes this safe is `LINE_SPEECH[id]`
+     * below, which accepts nothing that is not in the compiled-in script. The
+     * pattern is a cheap filter, not the check.
+     */
+    const match = url.pathname.match(/^\/v1\/line\/([A-Za-z0-9-]{1,40})$/)
     if (!match || request.method !== 'GET') {
       return new Response('Not found', { status: 404, headers: cors() })
     }
