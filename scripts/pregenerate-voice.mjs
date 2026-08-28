@@ -44,9 +44,20 @@ async function warm(id) {
       return
     }
     const bytes = (await res.arrayBuffer()).byteLength
-    // A cached line comes back from R2 in a fraction of the time generation
-    // takes, which is a good enough signal to report without extra plumbing.
-    const wasCached = ms < 400
+    /*
+     * The Worker says which it was; this used to guess from the clock.
+     *
+     * "Under 400ms means it came from R2" was wrong often enough to matter: on
+     * the run that uncovered the camelCase bug it claimed 169 lines generated
+     * when 51 were, because a hundred ordinary R2 reads took half a second on a
+     * home connection. This number is the only thing anyone reads to know
+     * whether a run cost money, so it should not be a guess.
+     *
+     * The `?? ms >= 400` keeps the old guess as a fallback, for the window
+     * between deploying this script and deploying the Worker that answers it.
+     */
+    const source = res.headers.get('x-cotuong-source')
+    const wasCached = source ? source === 'r2' : ms < 400
     if (wasCached) cached++
     else generated++
     console.log(

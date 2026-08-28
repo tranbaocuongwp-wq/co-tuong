@@ -53,11 +53,28 @@ const SFX = Object.fromEntries(SFX_PROMPTS.map((s) => [s.id, s]))
 /** Audio for a given id never changes, so it can be cached hard. */
 const IMMUTABLE = 'public, max-age=31536000, immutable'
 
+/**
+ * Where the bytes came from: `r2` if they were already stored, `new` if this
+ * request paid to make them.
+ *
+ * The warm script used to infer this from how long the response took — under
+ * 400ms meant cached — and its own comment called that "good enough to report
+ * without extra plumbing". It is not: on the run that found the camelCase bug
+ * it reported 169 lines generated when only 51 actually were, because a hundred
+ * perfectly ordinary R2 reads happened to take half a second. That number is
+ * the only thing anyone looks at to know whether a run cost money, so it should
+ * be a fact rather than a guess. One header is cheaper than being wrong.
+ */
+const SOURCE = 'x-cotuong-source'
+
 function cors(extra: HeadersInit = {}): HeadersInit {
   return {
     'access-control-allow-origin': '*',
     'access-control-allow-methods': 'GET, OPTIONS',
     'access-control-allow-headers': 'content-type',
+    // Without this a cross-origin caller cannot see the header at all — the
+    // browser strips every response header that is not on the safelist.
+    'access-control-expose-headers': 'x-cotuong-source',
     ...extra,
   }
 }
@@ -136,7 +153,11 @@ export default {
       const stored = await env.AUDIO.get(key)
       if (stored) {
         return new Response(stored.body, {
-          headers: cors({ 'content-type': 'audio/mpeg', 'cache-control': IMMUTABLE }),
+          headers: cors({
+            'content-type': 'audio/mpeg',
+            'cache-control': IMMUTABLE,
+            [SOURCE]: 'r2',
+          }),
         })
       }
       const audio = await synthesiseSfx(env, sound.prompt, sound.seconds)
@@ -147,7 +168,11 @@ export default {
         httpMetadata: { contentType: 'audio/mpeg', cacheControl: IMMUTABLE },
       })
       return new Response(audio, {
-        headers: cors({ 'content-type': 'audio/mpeg', 'cache-control': IMMUTABLE }),
+        headers: cors({
+          'content-type': 'audio/mpeg',
+          'cache-control': IMMUTABLE,
+          [SOURCE]: 'new',
+        }),
       })
     }
 
@@ -188,7 +213,11 @@ export default {
     const cached = await env.AUDIO.get(key)
     if (cached) {
       return new Response(cached.body, {
-        headers: cors({ 'content-type': 'audio/mpeg', 'cache-control': IMMUTABLE }),
+        headers: cors({
+          'content-type': 'audio/mpeg',
+          'cache-control': IMMUTABLE,
+          [SOURCE]: 'r2',
+        }),
       })
     }
 
@@ -209,7 +238,11 @@ export default {
     })
 
     return new Response(audio, {
-      headers: cors({ 'content-type': 'audio/mpeg', 'cache-control': IMMUTABLE }),
+      headers: cors({
+        'content-type': 'audio/mpeg',
+        'cache-control': IMMUTABLE,
+        [SOURCE]: 'new',
+      }),
     })
   },
 } satisfies ExportedHandler<Env>
