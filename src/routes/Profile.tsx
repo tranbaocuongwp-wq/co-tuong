@@ -142,7 +142,7 @@ export function ProfilePage() {
       <div className="mx-auto grid w-full max-w-md grid-cols-1 gap-3 min-[700px]:max-w-[900px] min-[700px]:grid-cols-2 min-[700px]:gap-4 min-[1024px]:max-w-[1200px] min-[1024px]:grid-cols-3">
         <p className="text-sm text-ink-dim">Chưa có ván nào để tổng kết.</p>
         <Button asChild variant="primary" size="lg" className="w-full">
-          <Link to="/">Chơi một ván</Link>
+          <Link to="/play">Chơi một ván</Link>
         </Button>
       </div>
     )

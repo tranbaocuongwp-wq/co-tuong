@@ -31,6 +31,8 @@ import { CommentaryFeed, type FeedEntry } from '../components/CommentaryFeed'
 import { GameOverDialog } from '../components/GameOverDialog'
 import { Button } from '../components/ui/button'
 import { GameMenu } from '../components/GameMenu'
+import { NewGameChooser } from '../components/NewGameChooser'
+import { Sheet } from '../components/ui/sheet'
 import { HintDialog } from '../components/HintDialog'
 import { MatchInsight } from '../components/MatchInsight'
 import { MoveList } from '../components/MoveList'
@@ -115,6 +117,17 @@ export function PlayPage() {
   const update_ = useAppUpdate()
   const [gameId, setGameId] = useState(newGameId)
   const [menuOpen, setMenuOpen] = useState(false)
+  /*
+   * The "Ván mới" sheet.
+   *
+   * Ván mới used to restart immediately with whatever settings the last game
+   * had, which answered the wrong question: the reason someone reaches for a
+   * new game mid-session is usually that the mức khó was wrong, and starting an
+   * identical game is precisely no help. Asking first costs one tap and is the
+   * only place in the app where the three choices can still be made — the
+   * launcher they used to live on is a marketing page now.
+   */
+  const [setupOpen, setSetupOpen] = useState(false)
   const [hint, setHint] = useState<HintInfo | null>(null)
   const [hintChoices, setHintChoices] = useState<HintInfo[]>([])
   const [hintOpen, setHintOpen] = useState(false)
@@ -800,6 +813,22 @@ export function PlayPage() {
         }}
       />
 
+      <Sheet
+        open={setupOpen}
+        onOpenChange={setSetupOpen}
+        title="Ván mới"
+        description="Chọn đối thủ, mức khó và bên cầm quân trước khi bắt đầu"
+      >
+        <NewGameChooser
+          action="Bắt đầu ván mới"
+          className="border-0 bg-transparent p-0"
+          onStart={() => {
+            setSetupOpen(false)
+            onNewGame()
+          }}
+        />
+      </Sheet>
+
       <GameMenu
         open={menuOpen}
         onClose={() => setMenuOpen(false)}
@@ -817,7 +846,10 @@ export function PlayPage() {
           update({ voice: next })
           if (!next) stopVoice()
         }}
-        onNewGame={onNewGame}
+        onNewGame={() => {
+          setMenuOpen(false)
+          setSetupOpen(true)
+        }}
         undosLeft={undosLeft}
         onUndo={() => {
           if (undosLeft <= 0) return

@@ -45,6 +45,25 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '0.8.0',
+    date: '2026-08-28',
+    headline: 'Có **trang giới thiệu** riêng, và bàn cờ dọn về địa chỉ **/play**.',
+    added: [
+      'Một **trang chủ thật sự** ở địa chỉ gốc: ảnh chụp màn hình, những điều đáng đổi, và một nút to để vào chơi. Trang này đọc được cả khi bạn chưa từng mở bàn cờ lần nào.',
+      'Trang [**Hướng dẫn**](/huong-dan) — cách đi từng quân, luật kết thúc ván, và cách đọc biên bản kiểu "Pháo 2 bình 5".',
+      'Trang [**Cài về máy**](/tai-ve) — cách thêm ứng dụng vào màn hình chính trên iPhone, Android và máy tính, kèm bản cài riêng cho máy tính.',
+      '**Chọn đối thủ, mức khó và bên cầm quân ngay trong ván**: bấm **Ván mới** trong bảng điều khiển thì được hỏi trước, thay vì lặng lẽ bắt đầu một ván y hệt ván vừa rồi.',
+    ],
+    improved: [
+      '**Địa chỉ đọc được và gửi được.** Bàn cờ ở `/play`, hướng dẫn ở `/huong-dan`, một bản phát hành ở `/co-gi-moi/0.8.0` — không còn dấu thăng trong đường dẫn. Mọi đường dẫn cũ vẫn tự chuyển sang địa chỉ mới.',
+      '**Mở trang chủ nhẹ hơn hẳn.** Máy chơi cờ và màn chơi chỉ được tải khi bạn thật sự cần, và được tải sẵn trong lúc bạn đang đọc — nên bấm vào là vào ngay.',
+      'Trang [**Có gì mới**](/co-gi-moi) và [**Giới thiệu**](/gioi-thieu) chuyển ra ngoài trang web, đọc thoáng hơn và gửi cho người khác được.',
+    ],
+    fixed: [
+      'Mở ứng dụng lần đầu **không còn hiện bảng tải xuống ngay khi vừa vào** — nó chỉ xuất hiện khi bạn bắt đầu chơi, tức là lúc thật sự cần tới.',
+    ],
+  },
+  {
     version: '0.7.1',
     date: '2026-08-09',
     headline: 'Xem trước nước gợi ý thôi bị cắt ngang.',
@@ -57,7 +76,7 @@ export const RELEASES: Release[] = [
     date: '2026-08-09',
     headline: 'Có trang **Có gì mới**, và chuyển trang thôi đứng hình.',
     added: [
-      'Trang [**Có gì mới**](/changelog) — danh sách mọi bản đã phát hành, bấm vào một bản để xem chi tiết. Vào được từ trang chủ, từ menu, và từ mục phiên bản trong [Cài đặt](/settings).',
+      'Trang [**Có gì mới**](/co-gi-moi) — danh sách mọi bản đã phát hành, bấm vào một bản để xem chi tiết. Vào được từ trang chủ, từ menu, và từ mục phiên bản trong [Cài đặt](/settings).',
       'Khi một màn hình gặp trục trặc, giờ có **trang báo lỗi tử tế** với nút tải lại và nút về trang chủ, thay vì một trang trắng đầy chữ kỹ thuật.',
       'Có **vạch báo đang chuyển trang** ở mép trên, để biết ứng dụng đã nhận cú chạm.',
     ],

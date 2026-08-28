@@ -48,6 +48,20 @@ function categorise(url: string): { category: string; required: boolean } {
   if (url.endsWith('.wasm')) return { category: 'engine', required: true }
   if (/\.(js|css|html)$/.test(url)) return { category: 'shell', required: true }
   if (url.endsWith('.webmanifest')) return { category: 'shell', required: true }
+  /*
+   * The website's own pictures, and they are their own category on purpose.
+   *
+   * The nine phone frames on the front page come to about 320 KB. As `media`
+   * they would have been swept up by the background download that runs once the
+   * engine is in — so every player who pressed the button and never looked at
+   * the site again would still be paying for the site's screenshots on their
+   * data. They are not in `skip` either: keeping them in the inventory is what
+   * gives this cache a content-derived name, and without one a redeployed
+   * screenshot would sit in a visitor's cache for ever under its unchanged
+   * filename. Nothing downloads them ahead of time; the service worker keeps
+   * whichever ones somebody actually looked at.
+   */
+  if (url.startsWith('shots/')) return { category: 'site', required: false }
   // Sound and pictures. The game plays without them — it falls back to
   // synthesised audio and simply omits a banner — so nothing waits on these.
   return { category: 'media', required: false }
@@ -102,7 +116,18 @@ function versionManifest(): Plugin {
        * way to describe what actually shipped, and it gives true byte counts for
        * free.
        */
-      const skip = new Set(['version.json', 'assets.json', 'sw.js', '_headers', '_redirects'])
+      // Server instructions and crawler files. None of them is an asset the app
+      // ever fetches, and precaching a `sitemap.xml` is nobody's idea of
+      // offline support.
+      const skip = new Set([
+        'version.json',
+        'assets.json',
+        'sw.js',
+        '_headers',
+        '_redirects',
+        'robots.txt',
+        'sitemap.xml',
+      ])
       const files = walk(outDir)
         .filter((f) => !skip.has(f))
         .sort()
@@ -119,6 +144,10 @@ function versionManifest(): Plugin {
       for (const a of assets.filter((x) => x.category === 'media')) {
         mediaHash.update(a.url).update(String(a.bytes))
       }
+      const siteHash = createHash('sha256')
+      for (const a of assets.filter((x) => x.category === 'site')) {
+        siteHash.update(a.url).update(String(a.bytes))
+      }
       // Non-greedy: `^.*-` would run to the *last* dash and throw away half the
       // hash, since Vite's hashes may contain one themselves.
       const coreHash = core.replace(/^[^-]*-/, '').replace(/\.\w+$/, '') || 'unknown'
@@ -134,6 +163,7 @@ function versionManifest(): Plugin {
               shell: `co-tuong-shell-${app}`,
               engine: `co-tuong-engine-${coreHash}`,
               media: `co-tuong-media-${mediaHash.digest('hex').slice(0, 8)}`,
+              site: `co-tuong-site-${siteHash.digest('hex').slice(0, 8)}`,
               // Not this build's to name, and never this build's to delete. The
               // voice pack is downloaded by the player, over their own data, and
               // it is measured in megabytes.
@@ -149,12 +179,23 @@ function versionManifest(): Plugin {
   }
 }
 
-// Tauri serves the frontend over a custom protocol and the web build is a plain
-// static bundle on Cloudflare Pages. Both need relative asset URLs, so `base`
-// stays './' and routing is hash-based (see src/router.tsx).
+/*
+ * Absolute asset URLs, and a `<base href="/">` in index.html to match.
+ *
+ * This used to be `'./'`, which was right while every screen lived behind a
+ * hash — the document URL never left `/`, so "relative to the document" and
+ * "relative to the root" were the same place. The marketing pages needed real
+ * paths (`/huong-dan`, `/play`, `/review/<id>`), and the moment the document
+ * URL has a path segment in it, a relative asset URL resolves against that
+ * segment: `/review/abc` would have looked for `/review/assets/index.js`.
+ *
+ * Absolute is correct for both targets. Cloudflare Pages serves from the origin
+ * root, and Tauri v2 serves `frontendDist` from the root of its custom protocol
+ * — which is what the stock Tauri template assumes.
+ */
 export default defineConfig({
   plugins: [react(), tailwindcss(), versionManifest()],
-  base: './',
+  base: '/',
   define: {
     __BUILD_ID__: JSON.stringify(BUILD_ID),
   },

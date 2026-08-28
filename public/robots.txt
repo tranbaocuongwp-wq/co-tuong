@@ -1,0 +1,16 @@
+# Everything is public and there is nothing here to hide.
+#
+# `/play` and the screens behind it are excluded, not out of secrecy but because
+# they are an application: a crawler that indexes them gets a snapshot of an
+# empty board with no words on it, which then competes in search results with
+# the pages that actually describe the game.
+
+User-agent: *
+Allow: /
+Disallow: /play
+Disallow: /profile
+Disallow: /history
+Disallow: /review/
+Disallow: /settings
+
+Sitemap: https://co-tuong.pages.dev/sitemap.xml

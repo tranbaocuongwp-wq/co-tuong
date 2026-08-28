@@ -1995,3 +1995,214 @@
    * data, and a table would have to invent a header nobody needs.
    */
 }
+
+/* ==========================================================================
+ * The site — the half of the product you read before you play.
+ *
+ * Everything above this line dresses the app: the board, the drawer, the
+ * settings rows. Everything below dresses the pages around it — the front
+ * page, the guide, the release notes — and they want opposite things. An app
+ * screen fills the window and never scrolls sideways; a page is a column of
+ * sections with air between them, read top to bottom on a phone held one-handed
+ * and on a 27-inch monitor.
+ *
+ * These are hand-written rather than utility strings for one reason: they are
+ * *layout rules repeated on every page*, and repeating an eleven-class string
+ * eleven times is how two of them end up different. Anything used once is still
+ * a utility, and stays in the JSX.
+ *
+ * Same palette as the app, deliberately. The site is not a separate brand with
+ * its own colours — it is the same paper, the same red, the same dark mode,
+ * because the moment someone presses the button they are inside the thing the
+ * page was describing and nothing should change under them.
+ * ========================================================================== */
+@layer components {
+  /*
+   * One column width for the whole site.
+   *
+   * 1060px is a measured number, not a round one: at the site's body size it
+   * puts a paragraph at roughly 90 characters, and the three-column card grids
+   * at a card width that still fits two lines of Vietnamese heading without
+   * wrapping mid-word.
+   */
+  .site-wrap {
+    width: 100%;
+    max-width: 1060px;
+    margin-inline: auto;
+    padding-inline: 20px;
+  }
+
+  @media (min-width: 700px) {
+    .site-wrap {
+      padding-inline: 28px;
+    }
+  }
+
+  /*
+   * A section, and the hairline above it.
+   *
+   * The rule is on `border-top` rather than `border-bottom` so the last section
+   * on a page never ends in a line hanging over the footer — and `:first-child`
+   * drops it under the header, which already has one of its own.
+   */
+  .site-sec {
+    border-top: 1px solid var(--border);
+    padding-block: 44px;
+    /* Clear of the sticky header when a `#section` link lands on one. */
+    scroll-margin-top: 68px;
+  }
+
+  .site-sec:first-child {
+    border-top: 0;
+  }
+
+  @media (min-width: 700px) {
+    .site-sec {
+      padding-block: 64px;
+    }
+  }
+
+  /*
+   * The bar across the top.
+   *
+   * Translucent with a blur, so the page slides *under* it rather than being
+   * covered by it — on a phone that is the difference between a header and a
+   * lid. The fallback colour is opaque: Firefox on some Linux builds still
+   * ships without `backdrop-filter`, and a see-through bar with text behind it
+   * is unreadable in a way an opaque one never is.
+   */
+  .site-head {
+    position: sticky;
+    top: 0;
+    z-index: 40;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  @supports (backdrop-filter: blur(12px)) {
+    .site-head {
+      background: color-mix(in srgb, var(--surface) 82%, transparent);
+      backdrop-filter: blur(12px) saturate(1.4);
+    }
+  }
+
+  /*
+   * The wash behind the hero.
+   *
+   * A single soft ellipse of the brand red at 7%, not a band and not a border.
+   * The page needs the top to feel like a beginning without the visitor being
+   * able to say why, and a hard-edged coloured block reads as a banner ad.
+   */
+  .site-hero {
+    background:
+      radial-gradient(
+        120% 100% at 15% -10%,
+        color-mix(in srgb, var(--accent) 9%, transparent),
+        transparent 62%
+      ),
+      radial-gradient(
+        90% 70% at 100% 0%,
+        color-mix(in srgb, var(--board-wood) 22%, transparent),
+        transparent 60%
+      );
+  }
+
+  /*
+   * The screenshot strip.
+   *
+   * Horizontal scroll with snap points rather than a carousel with state: a
+   * phone already knows how to flick a scroller, and a JavaScript carousel on
+   * touch is a worse version of that with a bug in it. The arrow buttons on
+   * desktop scroll this same element, so there is one source of truth for where
+   * the strip is — the strip.
+   *
+   * `scrollbar-width: none` and the WebKit pseudo-element together: the bar
+   * would sit under the phone frames and cut them off on Windows, where
+   * scrollbars take real space and never fade.
+   */
+  .shots-track {
+    display: flex;
+    gap: 16px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-padding-inline: 20px;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-block: 4px;
+  }
+
+  .shots-track::-webkit-scrollbar {
+    display: none;
+  }
+
+  .shots-track > figure {
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+    margin: 0;
+    width: 208px;
+  }
+
+  .shots-track img {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 18px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+
+  /*
+   * Running text on the guide and the story pages.
+   *
+   * The app has almost none of this — it is buttons and rows — so there was no
+   * paragraph rhythm anywhere to reuse. `65ch` and 1.75 line-height are the
+   * ordinary answers, and Vietnamese needs the looser leading more than English
+   * does: the tone marks sit above the cap height and collide at 1.5.
+   */
+  .site-prose {
+    max-width: 65ch;
+  }
+
+  .site-prose p {
+    line-height: 1.75;
+    margin-block: 0 0.9em;
+  }
+
+  .site-prose h2 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin-block: 1.8em 0.5em;
+    scroll-margin-top: 76px;
+  }
+
+  .site-prose h3 {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-block: 1.4em 0.35em;
+  }
+
+  .site-prose ul,
+  .site-prose ol {
+    margin-block: 0 1em;
+    padding-inline-start: 1.35em;
+    line-height: 1.75;
+  }
+
+  .site-prose ul {
+    list-style: disc;
+  }
+
+  .site-prose ol {
+    list-style: decimal;
+  }
+
+  .site-prose li {
+    margin-block: 0.3em;
+  }
+
+  .site-prose strong {
+    font-weight: 600;
+    color: var(--text);
+  }
+}

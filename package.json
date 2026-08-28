@@ -1,6 +1,6 @@
 {
   "name": "co-tuong",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "description": "Cờ Tướng (Xiangqi) — offline desktop & web game with a strong Rust engine",
   "type": "module",
   "license": "MIT",
@@ -19,6 +19,7 @@
     "check:ui": "node scripts/check-ui.mjs",
     "gen:sfx": "node scripts/generate-sfx.mjs",
     "gen:voice": "node scripts/pregenerate-voice.mjs",
+    "gen:shots": "node scripts/site-shots.mjs",
     "worker:deploy": "cd worker && npx wrangler deploy"
   },
   "dependencies": {

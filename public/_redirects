@@ -1,0 +1,22 @@
+# Cloudflare Pages rewrite rules.
+#
+# Routing left the hash behind: the marketing pages needed addresses people can
+# read and share (`/huong-dan`, `/co-gi-moi/0.7.1`) and the game needed to live
+# at `/play`. None of those are files on disk, so a cold load of one — a
+# bookmark, a shared link, a refresh — asks Cloudflare for a path it does not
+# have and gets the 404 page.
+#
+# `200` rather than `301`: the address stays what the visitor typed, and the
+# router reads it once React is up. A redirect would rewrite every deep link to
+# `/` and lose the destination.
+#
+# Real files always win over this rule, so `/icon.svg`, `/sfx/move.mp3`,
+# `/assets/*` and the rest are still served as themselves.
+
+# Old hash-era links, kept working. `/#/play` cannot be matched here — the
+# fragment never reaches the server — so that one is handled in `src/main.tsx`.
+/about        /gioi-thieu   301
+/changelog    /co-gi-moi    301
+/changelog/*  /co-gi-moi/:splat  301
+
+/*  /index.html  200

@@ -18,10 +18,48 @@
 /index.html
   Cache-Control: no-cache, must-revalidate
 
+/sw.js
+  Cache-Control: no-cache, must-revalidate
+
+# Every address the router answers to. Each is served the same `index.html` by
+# `_redirects`, and each therefore names this build's hashed asset files — a
+# cached copy of any of them keeps handing out the previous build's filenames.
+#
+# Listed one by one rather than as `/*`, which would also match `/sfx/*.mp3`
+# and `/shots/*.webp` and make every sound effect and screenshot revalidate on
+# each visit. The dynamic ones (`/co-gi-moi/<version>`, `/review/<id>`) are
+# covered by their trailing wildcards.
 /
   Cache-Control: no-cache, must-revalidate
 
-/sw.js
+/huong-dan
+  Cache-Control: no-cache, must-revalidate
+
+/gioi-thieu
+  Cache-Control: no-cache, must-revalidate
+
+/tai-ve
+  Cache-Control: no-cache, must-revalidate
+
+/co-gi-moi
+  Cache-Control: no-cache, must-revalidate
+
+/co-gi-moi/*
+  Cache-Control: no-cache, must-revalidate
+
+/play
+  Cache-Control: no-cache, must-revalidate
+
+/profile
+  Cache-Control: no-cache, must-revalidate
+
+/history
+  Cache-Control: no-cache, must-revalidate
+
+/settings
+  Cache-Control: no-cache, must-revalidate
+
+/review/*
   Cache-Control: no-cache, must-revalidate
 
 /assets/*

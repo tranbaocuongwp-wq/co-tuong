@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  The five pages worth listing.
+
+  The individual release pages (`/co-gi-moi/0.7.1` and its siblings) are
+  deliberately not here. They are all linked from `/co-gi-moi`, which crawlers
+  follow, and listing them by hand is a list that goes stale on the next
+  release — a sitemap that names a version the site no longer has is worse than
+  one that names none.
+
+  No `lastmod` for the same reason: a date written by hand is a date that will
+  eventually be wrong, and an absent one is simply ignored.
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://co-tuong.pages.dev/</loc>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://co-tuong.pages.dev/huong-dan</loc>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://co-tuong.pages.dev/gioi-thieu</loc>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://co-tuong.pages.dev/tai-ve</loc>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://co-tuong.pages.dev/co-gi-moi</loc>
+    <priority>0.6</priority>
+  </url>
+</urlset>

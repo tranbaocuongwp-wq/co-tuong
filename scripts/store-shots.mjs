@@ -224,6 +224,13 @@ const HISTORY_ROWS = `[
 ]`
 
 // --- scenes ---------------------------------------------------------------
+//
+// `hash: '#/play'` rather than `path: '/play'`, even though routing left the
+// hash behind. `src/main.tsx` rewrites a `#/…` address to the real path before
+// the router ever reads it — that is how links saved in the hash era keep
+// working — so these are still correct, and they stay in this spelling because
+// the hash never reaches the dev server and therefore never needs its SPA
+// fallback.
 
 /**
  * Each scene says where to go, what to set up first, and what to wait for
@@ -231,14 +238,27 @@ const HISTORY_ROWS = `[
  * keeps these reproducible: a shot taken 200ms early is a shot of a spinner.
  */
 const SCENES = [
+  /*
+   * The old scene here opened `#/` and photographed the launcher.
+   *
+   * `/` is the marketing front page now, and a page of prose about the app is
+   * not a screenshot of the app — a store reviewer would be right to reject it.
+   * The three choices the launcher used to offer live in the Ván mới sheet
+   * instead, so that is what this shot is of.
+   */
   {
-    file: '01-trang-chu',
+    file: '01-van-moi',
     dark: false,
-    hash: '#/',
+    hash: '#/play',
     setup: `await window.__seed.inProgress('${START_FEN}', '${MIDGAME}', 'master');
             await window.__seed.games(${HISTORY_ROWS});
             window.__seed.settings({ difficulty: 'master', mode: 'pve', playerSide: 'r', voice: true });`,
-    ready: `document.body.innerText.includes('Chơi tiếp')`,
+    ready: `window.__developed()`,
+    after: `window.__tap('Mở bảng điều khiển');
+            await window.__wait(() => (document.querySelector('[role="dialog"]')?.innerText || '').includes('Ván đấu'));
+            window.__tap('Ván mới');
+            await window.__wait(() => (document.querySelector('[role="dialog"]')?.innerText || '').includes('Cầm quân'));`,
+    settle: 600,
   },
   {
     file: '02-ban-co',

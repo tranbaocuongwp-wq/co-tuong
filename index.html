@@ -2,6 +2,19 @@
 <html lang="vi">
   <head>
     <meta charset="UTF-8" />
+
+    <!--
+      Every relative URL in the app resolves against this, not against whatever
+      page the visitor happens to be standing on.
+
+      The app has real paths now — `/huong-dan`, `/play`, `/review/<id>` — and
+      the runtime builds a handful of URLs with `new URL(x, document.baseURI)`:
+      the sound effects, `version.json`, `assets.json`, the service worker. On
+      `/review/<id>` those would have resolved to `/review/sfx/move.mp3`. One
+      line here fixes all of them at once, and it costs the file:// case, which
+      was never a shipping target.
+    -->
+    <base href="/" />
     <!--
       Pinch-zoom off, on purpose.
 
@@ -22,7 +35,7 @@
     />
     <meta name="author" content="Trần Bảo Cường" />
 
-    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="manifest" href="/manifest.webmanifest" />
 
     <!--
       Icons, declared for every place that looks for one.
@@ -33,9 +46,9 @@
       and uses that as the home-screen icon. The SVG comes first so anything
       that understands it gets the sharp one at any size.
     -->
-    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
-    <link rel="icon" href="./favicon-32.png" sizes="32x32" type="image/png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="./icon-180.png" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icon-180.png" />
 
     <!--
       iOS does not read the manifest for these. Without them, "Add to Home
@@ -47,18 +60,27 @@
     <meta name="apple-mobile-web-app-title" content="Cờ Tướng" />
     <meta name="mobile-web-app-capable" content="yes" />
 
-    <!-- What a shared link looks like when someone posts it. -->
+    <!--
+      What a shared link looks like when someone posts it.
+
+      Absolute URLs, because a scraper resolves these against nothing: a
+      relative `og:image` is simply dropped by most of them, and the link posts
+      as a bare grey rectangle.
+    -->
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="Đệ Nhất Cờ Tướng" />
+    <meta property="og:site_name" content="Đệ Nhất Cờ Tướng" />
+    <meta property="og:title" content="Đệ Nhất Cờ Tướng — cờ tướng ngoại tuyến" />
     <meta
       property="og:description"
       content="Cờ Tướng offline với engine mạnh — chơi trên máy tính và điện thoại, không cần mạng."
     />
-    <meta property="og:image" content="./icon-512.png" />
+    <meta property="og:url" content="https://co-tuong.pages.dev/" />
+    <meta property="og:image" content="https://co-tuong.pages.dev/icon-512.png" />
     <meta property="og:locale" content="vi_VN" />
     <meta name="twitter:card" content="summary" />
+    <link rel="canonical" href="https://co-tuong.pages.dev/" />
 
-    <title>Đệ Nhất Cờ Tướng</title>
+    <title>Đệ Nhất Cờ Tướng — cờ tướng ngoại tuyến, máy đánh thật</title>
   </head>
   <body>
     <div id="root"></div>

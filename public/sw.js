@@ -34,7 +34,7 @@
  */
 
 /** Prefixes this build owns. Anything else in Cache Storage is somebody else's. */
-const OWNED = ['co-tuong-shell-', 'co-tuong-engine-', 'co-tuong-media-']
+const OWNED = ['co-tuong-shell-', 'co-tuong-engine-', 'co-tuong-media-', 'co-tuong-site-']
 
 /**
  * The single cache every previous build used, by its exact name.
@@ -146,6 +146,11 @@ function cacheFor(pathname, manifestCaches) {
   if (/\.(js|css|html)$/.test(pathname) || pathname.endsWith('.webmanifest')) {
     return manifestCaches.shell
   }
+  // The website's screenshots, which nothing precaches — they are kept only if
+  // somebody actually looked at the page they are on. Same rule as everything
+  // else here, but in a cache of their own so a deploy that changes the front
+  // page's pictures does not evict the sound effects.
+  if (pathname.startsWith('/shots/')) return manifestCaches.site ?? manifestCaches.media
   return manifestCaches.media
 }
 

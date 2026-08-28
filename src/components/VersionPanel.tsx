@@ -124,7 +124,7 @@ export function VersionPanel({ release }: VersionPanelProps) {
         they are already looking.
       */}
       <Link
-        to="/changelog"
+        to="/co-gi-moi"
         className="mt-2 inline-block text-sm text-ink-dim no-underline hover:text-ink"
       >
         Xem có gì mới ở bản này

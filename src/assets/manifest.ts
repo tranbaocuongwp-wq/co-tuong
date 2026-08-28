@@ -15,8 +15,14 @@
  * drifted.
  */
 
-/** Which cache a file belongs in. */
-export type AssetCategory = 'shell' | 'engine' | 'media' | 'voice'
+/**
+ * Which cache a file belongs in.
+ *
+ * `site` is the marketing pages' pictures. It exists so the background download
+ * that follows the engine can ask for `media` and not get them: a player who
+ * came for a game should not spend their data on screenshots of one.
+ */
+export type AssetCategory = 'shell' | 'engine' | 'media' | 'site' | 'voice'
 
 export interface AssetEntry {
   url: string
