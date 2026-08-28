@@ -25,9 +25,9 @@ import { useEffect, useState } from 'react'
 import { Menu, Play, X } from 'lucide-react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router'
 
-import { Author } from '../components/Author'
+import { Author } from './Author'
 import { cn } from '../lib/utils'
-import { REPO, SITE_NAV, SITE_FOOTER } from './copy'
+import { REPO, SITE_NAV, SITE_FOOTER, UMINI } from './copy'
 
 function TopLink({ to, label }: { to: string; label: string }) {
   return (
@@ -178,7 +178,7 @@ export function SiteLayout() {
       </main>
 
       <footer className="border-t border-border bg-surface">
-        <div className="site-wrap grid grid-cols-2 gap-x-6 gap-y-8 py-12 min-[700px]:grid-cols-[1.6fr_1fr_1fr_1fr]">
+        <div className="site-wrap grid grid-cols-2 gap-x-6 gap-y-8 py-12 min-[700px]:grid-cols-[1.5fr_1fr_1fr_1.1fr]">
           <div className="col-span-2 min-[700px]:col-span-1">
             <div className="flex items-center gap-2.5">
               <span
@@ -192,6 +192,27 @@ export function SiteLayout() {
             <p className="mt-3 max-w-[38ch] text-sm leading-relaxed text-ink-dim">
               Cờ tướng chơi được cả khi không có mạng. Không tài khoản, không quảng cáo,
               không theo dõi.
+            </p>
+            {/*
+              Who publishes it, in the block that carries the name.
+
+              A footer's brand column is where a reader looks to find out whose
+              site they are on, and until this line was here the answer was
+              nowhere on the page. It is a sentence rather than another list
+              item because "một ứng dụng của Umini" is a fact about the app, not
+              a destination competing with the four in the column beside it.
+            */}
+            <p className="mt-2 text-sm text-ink-dim">
+              Một ứng dụng của{' '}
+              <a
+                href={UMINI.home}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium"
+              >
+                Umini
+              </a>{' '}
+              — cửa hàng ứng dụng Việt.
             </p>
             <Link
               to="/play"
@@ -240,6 +261,14 @@ export function SiteLayout() {
             <span className="ml-auto flex items-center gap-1">
               Làm bởi <Author />
             </span>
+            {/*
+              Two links and no more.
+
+              Umini is named twice already in this footer — once in the brand
+              paragraph, once as a whole column — and a third mention down here
+              would be the bar shouting it. The licence, on the other hand, has
+              nowhere else at the bottom of a page to live.
+            */}
             <a
               href={`${REPO}/blob/main/LICENSE`}
               target="_blank"

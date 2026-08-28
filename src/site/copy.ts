@@ -26,6 +26,59 @@ export const REPO = 'https://github.com/tranbaocuongwp-wq/co-tuong'
 export const RELEASES_URL = `${REPO}/releases/latest`
 
 // ---------------------------------------------------------------------------
+// Who publishes this
+// ---------------------------------------------------------------------------
+
+/**
+ * Umini, and the four addresses on it that this site links back to.
+ *
+ * The app does not stand on its own: it is one of four small Vietnamese apps
+ * published together at umini.app, and until now nothing on this site said so.
+ * Someone who liked this one had no way of finding the other three, and — the
+ * part that matters more — no way of checking who is behind an app whose whole
+ * argument is "trust this with your data".
+ *
+ * `story` and `author` are the two pages a visitor actually wants: why these
+ * exist, and who made them. They are on Umini rather than duplicated here,
+ * because they are true of all four apps and a copy in each would be four
+ * copies to keep in step.
+ */
+export const UMINI = {
+  home: 'https://umini.app/',
+  /** This app's page in the store it is published from. */
+  listing: 'https://umini.app/app/co-tuong',
+  /** Chuyện đằng sau — why these apps exist at all. */
+  story: 'https://umini.app/gioi-thieu',
+  /** Trần Bảo Cường's own page. */
+  author: 'https://umini.app/tac-gia',
+}
+
+/**
+ * The other three, described in their own words from the store.
+ *
+ * Not invented here and not embellished: each line is the one Umini itself
+ * uses, so a reader who follows the link finds the app they were promised.
+ * Coffee Idle is listed last because it is the one still being worked on.
+ */
+export const SIBLINGS: { name: string; blurb: string; to: string }[] = [
+  {
+    name: 'Umini Work',
+    blurb: 'Giao việc cho nhân viên, tới hạn máy nhắc giùm.',
+    to: 'https://umini.app/app/umini-work',
+  },
+  {
+    name: 'Cân Cà Phê',
+    blurb: 'Sổ cân cho vựa, mất sóng vẫn ghi được.',
+    to: 'https://umini.app/app/can-ca-phe',
+  },
+  {
+    name: 'Umini Coffee Idle',
+    blurb: 'Game mở quán cà phê, để đó nó tự chạy.',
+    to: 'https://umini.app/app/coffee-idle',
+  },
+]
+
+// ---------------------------------------------------------------------------
 // Navigation
 // ---------------------------------------------------------------------------
 
@@ -49,6 +102,14 @@ export const SITE_NAV: SiteLink[] = [
   { to: '/gioi-thieu', label: 'Giới thiệu' },
 ]
 
+/**
+ * Three columns, and the third is the publisher.
+ *
+ * There were four, and the fourth was "Ván của bạn" — Lịch sử and Hồ sơ, two
+ * links into the app that belong beside the other ways in rather than in a
+ * category of their own. Folding them into "Bắt đầu" made room for the column
+ * this site was missing entirely: where it came from.
+ */
 export const SITE_FOOTER: { title: string; links: SiteLink[] }[] = [
   {
     title: 'Bắt đầu',
@@ -56,7 +117,8 @@ export const SITE_FOOTER: { title: string; links: SiteLink[] }[] = [
       { to: '/play', label: 'Chơi ngay' },
       { to: '/tai-ve', label: 'Cài về máy' },
       { to: '/huong-dan', label: 'Cách chơi' },
-      { to: '/settings', label: 'Cài đặt' },
+      { to: '/history', label: 'Lịch sử ván đấu' },
+      { to: '/profile', label: 'Hồ sơ' },
     ],
   },
   {
@@ -66,14 +128,16 @@ export const SITE_FOOTER: { title: string; links: SiteLink[] }[] = [
       { to: '/huong-dan#luat', label: 'Luật cờ tướng' },
       { to: '/co-gi-moi', label: 'Lịch sử phiên bản' },
       { to: REPO, label: 'Mã nguồn', external: true },
+      { to: `${REPO}/issues`, label: 'Báo lỗi', external: true },
     ],
   },
   {
-    title: 'Ván của bạn',
+    title: 'Umini',
     links: [
-      { to: '/history', label: 'Lịch sử ván đấu' },
-      { to: '/profile', label: 'Hồ sơ' },
-      { to: `${REPO}/issues`, label: 'Báo lỗi', external: true },
+      { to: UMINI.home, label: 'Cửa hàng ứng dụng Việt', external: true },
+      { to: UMINI.listing, label: 'Trang của ứng dụng này', external: true },
+      { to: UMINI.story, label: 'Chuyện đằng sau', external: true },
+      { to: UMINI.author, label: 'Trần Bảo Cường', external: true },
     ],
   },
 ]

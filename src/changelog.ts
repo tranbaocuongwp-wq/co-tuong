@@ -53,6 +53,7 @@ export const RELEASES: Release[] = [
       'Trang [**Hướng dẫn**](/huong-dan) — cách đi từng quân, luật kết thúc ván, và cách đọc biên bản kiểu "Pháo 2 bình 5".',
       'Trang [**Cài về máy**](/tai-ve) — cách thêm ứng dụng vào màn hình chính trên iPhone, Android và máy tính, kèm bản cài riêng cho máy tính.',
       '**Chọn đối thủ, mức khó và bên cầm quân ngay trong ván**: bấm **Ván mới** trong bảng điều khiển thì được hỏi trước, thay vì lặng lẽ bắt đầu một ván y hệt ván vừa rồi.',
+      'Trang web giờ **nói rõ ai làm ra nó**: ứng dụng này phát hành trên **Umini**, và từ chân trang đi thẳng được sang chuyện đằng sau, trang tác giả, và ba ứng dụng cùng nhà.',
     ],
     improved: [
       '**Địa chỉ đọc được và gửi được.** Bàn cờ ở `/play`, hướng dẫn ở `/huong-dan`, một bản phát hành ở `/co-gi-moi/0.8.0` — không còn dấu thăng trong đường dẫn. Mọi đường dẫn cũ vẫn tự chuyển sang địa chỉ mới.',

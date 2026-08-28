@@ -33,15 +33,15 @@
  */
 
 import { useEffect, useState } from 'react'
-import { Check, Download, Play } from 'lucide-react'
+import { ArrowUpRight, Check, Download, Play } from 'lucide-react'
 import { Link, useNavigate } from 'react-router'
 
-import { Author } from '../components/Author'
+import { Author } from './Author'
 import { Banner } from '../components/Banner'
 import { Button } from '../components/ui/button'
 import { RichText } from '../components/RichText'
 import { RELEASES } from '../changelog'
-import { DEEP, FACTS, FEATURES, PILLARS, RELEASES_URL, SHOTS, STATS } from './copy'
+import { DEEP, FACTS, FEATURES, PILLARS, RELEASES_URL, SHOTS, SIBLINGS, STATS, UMINI } from './copy'
 import { NewGameChooser } from '../components/NewGameChooser'
 import { Section, SectionHead, Shots } from './ui'
 import { useMeta } from './useMeta'
@@ -163,12 +163,27 @@ export function LandingPage() {
                 whole "· Miễn phí trọn đời · Mã nguồn mở" dropped to the next
                 line and started it with a bullet hanging in the margin.
               */}
+              {/*
+                Publisher first, then the person, the way a store lists an app.
+
+                "Mã nguồn mở" came out of this line when Umini went into it: four
+                items is a list, and the fact is already in the table at the foot
+                of the page and argued properly on Giới thiệu. What a stranger
+                needs in the first two seconds is who is behind this.
+              */}
               <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-ink-dim">
+                <a
+                  href={UMINI.home}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-lg px-0 font-medium no-underline hover:underline"
+                >
+                  Umini
+                </a>
+                <span aria-hidden="true">·</span>
                 <Author className="px-0" />
                 <span aria-hidden="true">·</span>
                 <span>Miễn phí trọn đời</span>
-                <span aria-hidden="true">·</span>
-                <span>Mã nguồn mở</span>
               </p>
 
               <div className="mt-6 flex flex-wrap gap-2.5">
@@ -377,8 +392,76 @@ export function LandingPage() {
         </div>
       </Section>
 
+      {/* ------------------------------------------------------------- publisher */}
+      <Section id="umini">
+        <SectionHead
+          title="Một ứng dụng của Umini"
+          lead="Umini không phải công ty — chỉ là chỗ để chung mấy cái app nhỏ làm bằng tiếng Việt, cái nào cũng dùng thật rồi mới mở ra cho người khác dùng chung."
+          link={{ to: '/gioi-thieu', label: 'Vì sao có ứng dụng này' }}
+        />
+
+        <div className="flex flex-wrap gap-2.5">
+          <Button asChild>
+            <a href={UMINI.story} target="_blank" rel="noopener noreferrer">
+              Chuyện đằng sau <ArrowUpRight size={16} />
+            </a>
+          </Button>
+          <Button asChild>
+            <a href={UMINI.author} target="_blank" rel="noopener noreferrer">
+              Trần Bảo Cường <ArrowUpRight size={16} />
+            </a>
+          </Button>
+          <Button asChild>
+            <a href={UMINI.listing} target="_blank" rel="noopener noreferrer">
+              Trang của ứng dụng này <ArrowUpRight size={16} />
+            </a>
+          </Button>
+        </div>
+
+        {/*
+          The other three, and they are recommendations rather than filler.
+
+          Someone who has read this far has decided they like how this one is
+          built — no account, no advertising, works with the signal off. The
+          other three are built the same way by the same person, and this is
+          the only place anyone would find that out.
+        */}
+        <h3 className="mt-9 mb-3 text-xs font-semibold tracking-wide text-ink-dim uppercase">
+          Cùng nhà
+        </h3>
+        <div className="grid gap-3 min-[620px]:grid-cols-3">
+          {SIBLINGS.map((app) => (
+            <a
+              key={app.name}
+              href={app.to}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group flex flex-col rounded-2xl border border-border bg-surface p-4 no-underline transition-colors hover:bg-surface-2"
+            >
+              <span className="flex items-start gap-1.5 text-[0.98rem] leading-snug font-semibold text-ink">
+                {app.name}
+                <ArrowUpRight
+                  size={15}
+                  className="mt-0.5 shrink-0 text-ink-dim transition-colors group-hover:text-ink"
+                  aria-hidden="true"
+                />
+              </span>
+              <span className="mt-1.5 text-[0.9rem] leading-relaxed text-ink-dim">
+                {app.blurb}
+              </span>
+            </a>
+          ))}
+        </div>
+
+        <p className="mt-5 text-sm text-ink-dim">
+          <a href={UMINI.home} target="_blank" rel="noopener noreferrer">
+            Xem cả cửa hàng trên umini.app
+          </a>
+        </p>
+      </Section>
+
       {/* ---------------------------------------------------------------- facts */}
-      <Section id="thong-tin">
+      <Section tint id="thong-tin">
         <SectionHead title="Thông tin" />
         <dl className="grid gap-0 border-t border-border">
           {latest && (
