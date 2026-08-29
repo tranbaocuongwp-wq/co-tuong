@@ -944,6 +944,16 @@
    * Text is the fallback as much as the accompaniment — with no network there is
    * no voice, and this line is the whole of the commentary.
    */
+  /*
+   * The caption under the board, on a screen with no room for the feed.
+   *
+   * `min-height` used to be `2.6em`, reserving two lines whether or not there
+   * was anything to put in them. On a phone that is a permanently visible empty
+   * white box under the board — reported as "không phát bình luận gì hết",
+   * which is exactly what an empty box says. The element is no longer rendered
+   * at all when there is nothing to say (see `Play.tsx`), so the reservation
+   * has nothing left to reserve for.
+   */
   .commentary {
     grid-area: caption;
     display: flex;
@@ -951,11 +961,10 @@
     gap: 8px;
     width: min(100%, 560px);
     margin: 10px auto 0;
-    min-height: 2.6em;
     padding: 8px 12px;
     border-radius: 12px;
     background: color-mix(in srgb, var(--surface) 70%, transparent);
-    color: var(--muted);
+    color: var(--text-dim);
     font-size: 0.85rem;
     line-height: 1.4;
   }
@@ -997,7 +1006,7 @@
   }
 
   .stat__label {
-    color: var(--muted);
+    color: var(--text-dim);
     font-size: 0.78rem;
   }
 
@@ -1064,7 +1073,7 @@
   }
 
   .insight__label {
-    color: var(--muted);
+    color: var(--text-dim);
     font-size: 0.78rem;
   }
 

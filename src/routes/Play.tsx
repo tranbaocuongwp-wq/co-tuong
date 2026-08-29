@@ -749,15 +749,31 @@ export function PlayPage() {
 
       {/*
         The spoken line, and only where the feed is not.
-        
+
         With the shell column open both were on screen at once: the same remark
         as a caption under the board and again as the newest row of the feed
         beside it. Two copies of one sentence is not twice as much commentary,
         it is a bug the eye notices before the mind does.
+
+        ## Why it falls back to the newest remark
+
+        It showed `spokenLine` alone, which is the line being said *right now* —
+        so it emptied itself the moment the commentator stopped talking, and a
+        phone spent almost all of every game looking at a blank box where the
+        commentary was meant to be. Reported as "không phát bình luận gì hết",
+        and the report was fair: on a phone this caption is the only commentary
+        surface there is, and it was blank between remarks with a two-line hole
+        reserved to prove it.
+
+        Now the last thing said stays up until there is something newer. The
+        feed is filled whether or not any audio played, so this reads correctly
+        on a device that is silent for any reason — no network, no recording
+        yet, a mute switch — which is the case that was hardest to tell apart
+        from "the commentator is broken".
       */}
-      {settings.voice && !isOver && !inColumn && (
+      {settings.voice && !isOver && !inColumn && (spokenLine?.text ?? feed[0]?.text) && (
         <div className="commentary" role="status">
-          <span className="commentary__text">{spokenLine?.text ?? ''}</span>
+          <span className="commentary__text">{spokenLine?.text ?? feed[0]?.text}</span>
         </div>
       )}
 

@@ -1,6 +1,6 @@
 {
   "name": "co-tuong",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "description": "Cờ Tướng (Xiangqi) — offline desktop & web game with a strong Rust engine",
   "type": "module",
   "license": "MIT",

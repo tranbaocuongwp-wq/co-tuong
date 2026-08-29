@@ -45,6 +45,15 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '0.8.2',
+    date: '2026-08-29',
+    headline: 'Trên điện thoại, **lời bình ở lại trên màn hình** thay vì loé lên rồi biến mất.',
+    fixed: [
+      '**Khung lời bình dưới bàn cờ trên điện thoại gần như lúc nào cũng trống.** Nó chỉ hiện chữ đúng lúc bình luận viên đang nói, nói xong là trắng trơn — mà vẫn chừa sẵn một ô hai dòng để chứng minh là có khung ở đó. Giờ câu vừa nói ở lại cho tới khi có câu mới.',
+      'Chữ trong khung lời bình, **nhãn ở bảng Cục diện** và nhãn ở bảng thành tích bị **đậm hơn mức đáng lẽ** — chúng gọi một màu không tồn tại trong bảng màu nên rơi về màu chữ thường.',
+    ],
+  },
+  {
     version: '0.8.1',
     date: '2026-08-29',
     headline: 'Bình luận viên **thôi im lặng** ở những câu gọi tên thế trận.',
