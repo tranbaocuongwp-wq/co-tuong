@@ -45,6 +45,17 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '0.8.1',
+    date: '2026-08-29',
+    headline: 'Bình luận viên **thôi im lặng** ở những câu gọi tên thế trận.',
+    added: [
+      '[Cài đặt](/settings) có mục **Kiểm tra âm thanh**: bấm một nút, máy gõ thử một tiếng rồi nói luôn loa đang mở hay chưa, và nếu chưa thì vướng ở đâu. Không nghe thấy gì thì vào đây trước, đừng tải cả gói tiếng nói về.',
+    ],
+    fixed: [
+      '**Những câu gọi tên thế trận không có tiếng** — "bình phong mã", "pháo đầu", "song pháo" và mấy chục câu tương tự. Chúng vẫn hiện thành chữ nên trông như bình thường, nhưng thật ra chưa bao giờ đọc được thành tiếng. Giờ đủ **644 câu** đều có tiếng.',
+    ],
+  },
+  {
     version: '0.8.0',
     date: '2026-08-28',
     headline: 'Có **trang giới thiệu** riêng, và bàn cờ dọn về địa chỉ **/play**.',

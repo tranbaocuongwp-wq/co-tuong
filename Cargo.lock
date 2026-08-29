@@ -442,7 +442,7 @@ dependencies = [
 
 [[package]]
 name = "co-tuong"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "co-tuong-engine",
  "log",
@@ -456,11 +456,11 @@ dependencies = [
 
 [[package]]
 name = "co-tuong-engine"
-version = "0.8.0"
+version = "0.8.1"
 
 [[package]]
 name = "co-tuong-engine-wasm"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "co-tuong-engine",
  "console_error_panic_hook",

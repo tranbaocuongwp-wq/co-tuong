@@ -17,6 +17,7 @@ import { Download, Eraser, HardDrive, Trash2, Upload } from 'lucide-react'
 
 import { DevicePanel } from '../components/DevicePanel'
 import { VersionPanel } from '../components/VersionPanel'
+import { SoundCheck } from '../components/SoundCheck'
 import { VoicePack } from '../components/VoicePack'
 import { Button } from '../components/ui/button'
 import { Card, CardTitle } from '../components/ui/card'
@@ -151,6 +152,15 @@ export function SettingsPage() {
           />
         ))}
       </Card>
+
+      {/*
+        Above the voice pack, not below it.
+
+        Someone who came to Settings because the game is silent reaches for the
+        first thing that mentions sound, and downloading 62 MB is the wrong
+        first move when the answer might be the switch on the side of the phone.
+      */}
+      <SoundCheck />
 
       <VoicePack />
 

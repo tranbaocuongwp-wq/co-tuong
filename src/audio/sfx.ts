@@ -134,6 +134,72 @@ export function setSoundEnabled(on: boolean): void {
   enabled = on
 }
 
+export interface SoundReport {
+  /** Whether this browser has Web Audio at all. */
+  supported: boolean
+  /** `running` is the only state that makes a sound. */
+  state: AudioContextState | 'chưa mở'
+  /** How the playback session was claimed — see `claimPlaybackSession`. */
+  session: 'none' | 'audioSession' | 'silentLoop' | 'failed'
+  /** Samples decoded and ready. */
+  samples: number
+  /** The sound-effects preference, as this module has it. */
+  enabled: boolean
+}
+
+/**
+ * What the audio layer would say if you asked it why it is quiet.
+ *
+ * Every field here answers a different question someone with a silent phone
+ * has, and none of them is guessable from the outside: whether the context ever
+ * opened, whether it is running or suspended, whether the session claim worked,
+ * and whether any samples actually decoded.
+ */
+export function soundReport(): SoundReport {
+  return {
+    supported:
+      typeof window !== 'undefined' &&
+      !!(window.AudioContext ?? (window as unknown as { webkitAudioContext?: unknown }).webkitAudioContext),
+    state: ctx ? ctx.state : 'chưa mở',
+    session,
+    samples: buffers.size,
+    enabled,
+  }
+}
+
+/**
+ * Make a noise on purpose, from inside the tap that asked for it.
+ *
+ * The whole point is that it runs in a real gesture handler: that is the only
+ * moment iOS will let a suspended context resume or a media element start, so a
+ * test that works tells the player their device is fine, and a test that stays
+ * silent is a real answer rather than a shrug.
+ */
+export function playTestSound(): boolean {
+  const c = context()
+  if (!c) return false
+  claimPlaybackSession()
+  if (c.state === 'suspended') void c.resume()
+  /*
+   * Warm the samples while we are here.
+   *
+   * This is a real gesture — the only moment a browser will let decoding start
+   * on a fresh context — and the test is reached from Settings, where nothing
+   * else primes them. Without it the report read "1/13" on a perfectly healthy
+   * phone, which looks like a fault and is only the settings screen never
+   * having needed a sound before.
+   */
+  primeSounds()
+  /*
+   * `playMove` rather than `playSample` directly, so a device whose samples
+   * never decoded still makes the synthesised knock. A test button that stays
+   * silent because the *test* is missing a file would be worse than no button.
+   */
+  playMove()
+  return true
+}
+
+
 /**
  * The one audio context in the app.
  *
@@ -190,6 +256,18 @@ let listening = false
 let silentLoop: HTMLAudioElement | null = null
 
 /**
+ * How the app got hold of a playback audio session, if it did.
+ *
+ * Recorded rather than merely attempted, because the failure it describes is
+ * invisible from inside the app: every call still succeeds, every buffer is
+ * still scheduled, `ctx.state` still reads `running` — and the phone plays
+ * nothing, because Web Audio is sitting in the ambient session that the switch
+ * on the side of an iPhone silences. `soundReport()` is how that gets onto the
+ * screen instead of being guessed at over a message.
+ */
+let session: 'none' | 'audioSession' | 'silentLoop' | 'failed' = 'none'
+
+/**
  * A one-sample silent WAV, as a blob URL.
  *
  * Built rather than embedded: forty-six bytes of header is clearer written out
@@ -237,6 +315,7 @@ function claimPlaybackSession(): void {
   if (nav.audioSession) {
     try {
       nav.audioSession.type = 'playback'
+      session = 'audioSession'
       return
     } catch {
       // Read-only on this build; fall through to the media element.
@@ -251,12 +330,16 @@ function claimPlaybackSession(): void {
     // Never take over the lock screen or interrupt the player's music.
     el.setAttribute('playsinline', '')
     silentLoop = el
+    session = 'silentLoop'
     void el.play().catch(() => {
       silentLoop = null
+      // The one failure the player can actually act on: without a media
+      // element holding the session open, an iPhone's mute switch silences
+      // Web Audio outright and nothing on screen says so.
+      session = 'failed'
     })
   } catch {
-    // No media element available; the mute switch wins and the game is silent
-    // but otherwise unaffected.
+    session = 'failed'
   }
 }
 
